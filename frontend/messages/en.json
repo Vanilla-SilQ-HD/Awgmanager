@@ -59,5 +59,61 @@
 	"save_led_error": "Saving failed, will retry",
 	"save_led_failed": "Could not save the configuration — changes will be lost on reboot",
 	"save_led_last_error": "Error: {error}",
-	"save_led_last_save": "Last saved: {time}"
+	"save_led_last_save": "Last saved: {time}",
+	"format_just_now": "just now",
+	"format_seconds_ago": "{count} s ago",
+	"format_minutes_ago": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} minute ago",
+				"countPlural=*": "{count} minutes ago"
+			}
+		}
+	],
+	"format_hours_ago": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} hour ago",
+				"countPlural=*": "{count} hours ago"
+			}
+		}
+	],
+	"format_days_ago": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} day ago",
+				"countPlural=*": "{count} days ago"
+			}
+		}
+	],
+	"format_duration_seconds": "{seconds} s",
+	"format_duration_minutes": "{minutes} min",
+	"format_duration_hours": "{hours} h {minutes} min",
+	"format_duration_days": "{days} d {hours} h",
+	"format_per_second": "{value}/s",
+	"format_bitrate_bit": "bit/s",
+	"format_bitrate_kbit": "kbit/s",
+	"format_bitrate_mbit": "Mbit/s",
+	"format_bitrate_gbit": "Gbit/s"
 }

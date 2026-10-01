@@ -59,5 +59,67 @@
 	"save_led_error": "Сохранение не удалось, будут повторы",
 	"save_led_failed": "Сохранить конфигурацию не удалось — правки пропадут при перезагрузке",
 	"save_led_last_error": "Ошибка: {error}",
-	"save_led_last_save": "Последнее сохранение: {time}"
+	"save_led_last_save": "Последнее сохранение: {time}",
+	"format_just_now": "только что",
+	"format_seconds_ago": "{count} сек. назад",
+	"format_minutes_ago": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} минуту назад",
+				"countPlural=few": "{count} минуты назад",
+				"countPlural=many": "{count} минут назад",
+				"countPlural=*": "{count} минуты назад"
+			}
+		}
+	],
+	"format_hours_ago": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} час назад",
+				"countPlural=few": "{count} часа назад",
+				"countPlural=many": "{count} часов назад",
+				"countPlural=*": "{count} часа назад"
+			}
+		}
+	],
+	"format_days_ago": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} день назад",
+				"countPlural=few": "{count} дня назад",
+				"countPlural=many": "{count} дней назад",
+				"countPlural=*": "{count} дня назад"
+			}
+		}
+	],
+	"format_duration_seconds": "{seconds} сек",
+	"format_duration_minutes": "{minutes} мин",
+	"format_duration_hours": "{hours} ч {minutes} мин",
+	"format_duration_days": "{days} д {hours} ч",
+	"format_per_second": "{value}/с",
+	"format_bitrate_bit": "бит/с",
+	"format_bitrate_kbit": "Кбит/с",
+	"format_bitrate_mbit": "Мбит/с",
+	"format_bitrate_gbit": "Гбит/с"
 }
