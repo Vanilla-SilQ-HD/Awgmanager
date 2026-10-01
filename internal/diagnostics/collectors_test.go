@@ -1,6 +1,13 @@
 package diagnostics
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	"github.com/hoaxisr/awg-manager/internal/storage"
+	"github.com/hoaxisr/awg-manager/internal/tunnel/service"
+	"github.com/hoaxisr/awg-manager/internal/tunnel/wan"
+)
 
 const v4RouteTable = "default dev ppp0 scope link\n203.0.113.7 via 192.168.1.1 dev eth3\n"
 
@@ -25,5 +32,35 @@ func TestFindEndpointRoute_IPv4EndpointDoesNotReadIPv6Table(t *testing.T) {
 	})
 	if got != "203.0.113.7 via 192.168.1.1 dev eth3" {
 		t.Fatalf("IPv4 endpoint route = %q", got)
+	}
+}
+
+type listOnlyTunnelService struct{ list []service.TunnelWithStatus }
+
+func (f listOnlyTunnelService) List(context.Context) ([]service.TunnelWithStatus, error) {
+	return f.list, nil
+}
+func (listOnlyTunnelService) Start(context.Context, string) error { return nil }
+func (listOnlyTunnelService) Stop(context.Context, string) error  { return nil }
+func (listOnlyTunnelService) WANModel() *wan.Model                { return nil }
+func (listOnlyTunnelService) GetResolvedISP(string) string        { return "" }
+
+// F588: зеркальная запись wdtt-raw в разделе туннелей не появляется — иначе
+// её проверки читали бы opkgtun0, интерфейс чужого туннеля.
+func TestCollectTunnels_SkipsWdttRawMirror(t *testing.T) {
+	r := &Runner{deps: Deps{
+		TunnelService: listOnlyTunnelService{list: []service.TunnelWithStatus{
+			{ID: "awg0", Backend: "kernel"},
+			{ID: "wdttraw-de", Backend: "wdtt-raw"},
+		}},
+		TunnelStore: storage.NewAWGTunnelStore(t.TempDir()),
+	}}
+	infos := r.collectTunnels(context.Background())
+	if len(infos) != 1 || infos[0].ID != "awg0" {
+		ids := make([]string, 0, len(infos))
+		for _, ti := range infos {
+			ids = append(ids, ti.ID)
+		}
+		t.Fatalf("tunnels in report = %v, want only awg0", ids)
 	}
 }

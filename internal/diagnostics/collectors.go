@@ -125,6 +125,13 @@ func (r *Runner) collectTunnels(ctx context.Context) []TunnelInfo {
 
 	var infos []TunnelInfo
 	for _, t := range tunnels {
+		// Зеркальная запись прокси-выхода WDTT — не наш туннель: её жизненным
+		// циклом ведает прокси-рантайм (оркестратор её не грузит, state.go), и
+		// ни одна kernel-проверка к ней не применима. Имя из id не выводится:
+		// NewNames("wdttraw-…") дал бы opkgtun0 — интерфейс чужого туннеля (F588).
+		if t.Backend == "wdtt-raw" {
+			continue
+		}
 		stored, _ := r.deps.TunnelStore.Get(t.ID)
 
 		backend := "kernel"
