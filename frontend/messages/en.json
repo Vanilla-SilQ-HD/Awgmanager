@@ -1,4 +1,6 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
-	"common_cancel": "Cancel"
+	"common_cancel": "Cancel",
+	"settings_language_label": "Interface language",
+	"settings_language_description": "Applies immediately and is saved locally in this browser. The English translation is still partial."
 }

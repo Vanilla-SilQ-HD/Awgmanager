@@ -1,4 +1,6 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
-	"common_cancel": "Отмена"
+	"common_cancel": "Отмена",
+	"settings_language_label": "Язык интерфейса",
+	"settings_language_description": "Применяется сразу и сохраняется локально в этом браузере. Английский перевод пока частичный."
 }
