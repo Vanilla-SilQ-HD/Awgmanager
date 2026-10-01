@@ -102,8 +102,10 @@ func registerSystemTools(s *mcp.Server, d Deps) {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
-		Name:        "get_monitoring_matrix",
-		Description: "Latest latency matrix: every monitored target × every tunnel, with ok/latency per cell.",
+		Name: "get_monitoring_matrix",
+		Description: "Latest latency matrix: monitored targets × tunnels, with ok/latency per cell. " +
+			"A row with probed=false has no cell — the matrix does not measure it, which says nothing about its health. " +
+			"Every sing-box row (source=singbox) is like that: measure those with singbox_delay_check, passing singboxTag.",
 		Annotations: readOnly("Monitoring matrix"),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, MonitoringMatrix, error) {
 		out, err := d.MonitoringMatrix(ctx)
