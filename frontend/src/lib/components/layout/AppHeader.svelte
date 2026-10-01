@@ -93,7 +93,6 @@
 				text: '#f8fafc',
 			},
 			label: 'AWGM - Legacy',
-			summary: '',
 			supportsModeToggle: true,
 		},
 		currentVersion = '',

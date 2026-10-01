@@ -60,7 +60,6 @@ describe('AppHeader i18n', () => {
 			legacyMode: 'dark' as const,
 			custom: { accent: '#8b5cf6', background: '#111827', text: '#f8fafc' },
 			label: 'AWGM - Legacy',
-			summary: '',
 			supportsModeToggle: true,
 		};
 		const { rerender } = render(AppHeader, { props: { ...baseProps, theme } });
