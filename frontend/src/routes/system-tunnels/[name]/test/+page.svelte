@@ -13,5 +13,5 @@
 	displayName={tunnelName}
 	backHref="/"
 	backLabel={m.tunnels_back_to_list()}
-	subjectLabel="туннель"
+	subject="tunnel"
 />

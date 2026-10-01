@@ -17,7 +17,7 @@
 	import TunnelEditHeader from '$lib/components/tunnels/TunnelEditHeader.svelte';
 	import AwgConfigAnalyzer from '$lib/components/diagnostics/AwgConfigAnalyzer.svelte';
 	import { SettingsSectionLabel } from '$lib/components/settings';
-	import { AWG_PARAM_HINTS } from '$lib/utils/awgParamHints';
+	import { awgParamHints } from '$lib/utils/awgParamHints';
 	import { awgProxyOutdated, supportsAwg3, supportsAwg31OnNativeWG } from '$lib/utils/backendAvailability';
 	import { keepaliveHint } from '$lib/utils/keepalive';
 	import { Network, Route, Router, Server, Shuffle, Tag } from 'lucide-svelte';
@@ -31,7 +31,7 @@
 		SPA: true,
 	});
 
-	const hints = AWG_PARAM_HINTS;
+	const hints = $derived(awgParamHints());
 
 	type ActionStatus = 'loading' | 'success' | 'error';
 

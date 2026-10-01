@@ -180,7 +180,7 @@
 		kind={ctx.awgDiagnosticsTarget.kind}
 		targetId={ctx.awgDiagnosticsTarget.id}
 		displayName={ctx.awgDiagnosticsTarget.name}
-		subjectLabel="туннель"
+		subject="tunnel"
 		onclose={ctx.closeAwgDiagnostics}
 	/>
 {/if}

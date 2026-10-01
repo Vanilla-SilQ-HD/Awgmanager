@@ -635,7 +635,7 @@
 	kind="awg"
 	targetId={tunnel.id}
 	displayName={tunnel.name}
-	subjectLabel="туннель"
+	subject="tunnel"
 	onclose={() => (diagnosticsOpen = false)}
 />
 
