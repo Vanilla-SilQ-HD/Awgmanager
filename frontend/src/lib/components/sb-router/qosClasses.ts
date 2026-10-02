@@ -81,7 +81,8 @@ export function addQosClass(
     ...list,
     {
       dscp,
-      name: m.sb_router_qos_default_class_name({ n: list.length + 1 }),
+      // Имя сохраняется в конфиге — одно для всех языков (данные, не текст UI).
+      name: `Класс ${list.length + 1}`,
       outbound: defaultOutbound,
       enabled: true,
     },

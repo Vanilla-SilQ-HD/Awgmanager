@@ -1,4 +1,3 @@
-import { m } from '$lib/i18n';
 import type { DeviceProxyInstance, DeviceProxyConfig } from '$lib/types';
 
 /** Извлечь редактируемый DeviceProxyConfig из инстанса. */
@@ -40,7 +39,9 @@ export function newDeviceProxyInstance(existing: DeviceProxyInstance[]): DeviceP
   const n = Math.random().toString(36).slice(2, 8);
   return {
     id: `px-${n}`,
-    name: m.device_proxy_default_name({ n: existing.length + 1 }),
+    // Имя уходит на роутер и дальше это данные, а не текст интерфейса — одно
+    // для всех языков, иначе в списке смешаются «Прокси 1» и «Proxy 2».
+    name: `Прокси ${existing.length + 1}`,
     enabled: false,
     listenAll: true,
     listenInterface: '',
