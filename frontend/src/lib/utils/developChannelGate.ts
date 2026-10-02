@@ -56,8 +56,8 @@ function question(id: string, text: Msg, options: Msg[], correctIndex: number): 
 }
 
 /**
- * Question bank for the develop-channel gate quiz. Texts are message functions so
- * the quiz follows the UI language; answers are checked by index, never by text.
+ * Банк вопросов квиза допуска к develop-каналу. Тексты — функции сообщений, чтобы
+ * квиз следовал языку интерфейса; ответы проверяются по индексу, никогда по тексту.
  */
 const QUIZ_BANK: QuizBankEntry[] = [
 	question(
@@ -236,7 +236,7 @@ const QUIZ_BANK: QuizBankEntry[] = [
 	),
 ];
 
-/** Full question bank, resolved in the current UI language. */
+/** Полный банк вопросов на текущем языке интерфейса. */
 export function getDevelopChannelQuizQuestions(): DevelopQuizQuestion[] {
 	return QUIZ_BANK.map((entry) => ({
 		id: entry.id,

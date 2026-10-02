@@ -17,7 +17,7 @@ import type { ThemeState } from '$lib/stores/theme';
 import { m } from '$lib/i18n';
 
 export interface AboutInfoRow {
-	/** Stable key — never compare/branch on the translated `label`. */
+	/** Стабильный ключ строки — логика сравнивает его, а не переведённый `label`. */
 	id: string;
 	label: string;
 	value: string;
@@ -32,7 +32,7 @@ export interface BrowserSnapshot {
 	timezone: string;
 	screen: string;
 	viewport: string;
-	/** Rough page-zoom estimate: outerWidth / innerWidth. */
+	/** Грубая оценка масштаба страницы: outerWidth / innerWidth. */
 	zoom: string;
 	devicePixelRatio: string;
 	colorDepth: string;

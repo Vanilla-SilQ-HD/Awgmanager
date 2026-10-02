@@ -147,7 +147,7 @@
 	async function loadRemoteContext() {
 		const level = get(usageLevel);
 
-		// Client on the router network — priority, without waiting for HydraRoute and heavy counters.
+		// Клиент в сети — приоритет, без ожидания HydraRoute и тяжёлых счётчиков.
 		const [dns, policies, devices] = await Promise.all([
 			fetchClientContext(),
 			fetchAccessPolicies(),
@@ -158,7 +158,7 @@
 
 		routerClient = buildRouterClientContext(dns, devices, buildPolicyNameLookup(policies));
 
-		// AWGM: counters and integrations are pulled in as they become ready.
+		// AWGM: счётчики и интеграции подтягиваем по мере готовности.
 		void api
 			.getTunnelsAll()
 			.then((snap) => {

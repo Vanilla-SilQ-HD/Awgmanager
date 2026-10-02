@@ -6,8 +6,8 @@
 		text: string;
 	}
 
-	// Messages carry a tiny inline markup (<strong>, <code>, <a>, <span class="muted">);
-	// it is rendered as elements, never as raw HTML.
+	// Сообщения несут простую разметку (<strong>, <code>, <a>, <span class="muted">);
+	// она выводится элементами, а не сырым HTML.
 	const MARKUP = /<(strong|code|a|span class="muted")>(.*?)<\/(?:strong|code|a|span)>/gs;
 
 	function segments(text: string): Seg[] {

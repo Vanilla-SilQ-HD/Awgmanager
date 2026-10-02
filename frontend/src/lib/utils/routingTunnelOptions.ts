@@ -171,14 +171,14 @@ export function routingTunnelLabel(t: RoutingTunnel): string {
 	return label;
 }
 
-/** Resolves the stable group id for one routing catalog entry. */
+/** Стабильный id группы для записи каталога маршрутизации. */
 export function routingTunnelGroupId(t: RoutingTunnel): RoutingGroupId {
 	if (t.type === 'managed') return 'awg';
 	if (t.type === 'wan') return wanGroup(t);
 	return systemGroup(t);
 }
 
-/** Dropdown group label for one routing catalog entry, in the current language. */
+/** Подпись группы в выпадающем списке для записи каталога — на текущем языке. */
 export function routingTunnelGroup(t: RoutingTunnel): string {
 	return routingGroupLabel(routingTunnelGroupId(t));
 }
