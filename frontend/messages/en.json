@@ -4454,5 +4454,525 @@
 				"countPlural=*": "{count} entries from the catalog"
 			}
 		}
-	]
+	],
+	"sb_router_fatal_hint_address_filter": "An IP rule set was added to a DNS rule. Sing-box 1.14 forbids this. Remove IP rule sets from the DNS rules — IPs do not need to be resolved.",
+	"sb_router_fatal_hint_cache_file_busy": "The sing-box cache file is locked — usually another (hung) sing-box process is still running. Stop the engine, make sure no sing-box processes are left, and start it again. To do this, run killall sing-box over SSH",
+	"sb_router_fatal_hint_rule_set_missing": "The local rule set file (.srs) was not found. The set was deleted or the path is wrong — recreate or delete this rule-set.",
+	"sb_router_fatal_hint_outbound_not_found": "A rule refers to an outbound that does not exist (the tunnel/selector was deleted or renamed). Fix the rule or restore the outbound.",
+	"sb_router_fatal_hint_fakeip_cache": "FakeIP is enabled but the cache is off. Enable experimental.cache_file in the engine settings.",
+	"sb_router_fatal_hint_port_in_use": "The interception port is already used by another process. Free the port or change it in the engine settings.",
+	"sb_router_fatal_fallback": "The engine failed to start. Below is the technical reason; copy it if you ask for help.",
+	"sb_router_fatal_title": "The sing-box engine failed to start",
+	"sb_router_common_copy": "Copy",
+	"sb_router_common_copied": "Copied",
+	"sb_router_common_close": "Close",
+	"sb_router_tun_stack_singtun": "sing-tun (recommended)",
+	"sb_router_tun_stack_system": "system (deprecated)",
+	"sb_router_tun_stack_deprecated_hint": "deprecated stack, sing-box will remove it in 1.17",
+	"sb_router_deps_module_ready": "module ready",
+	"sb_router_deps_netfilter_missing": "not loaded — install ndm-mod-netfilter",
+	"sb_router_deps_tproxy_loaded": "xt_TPROXY loaded",
+	"sb_router_deps_tproxy_missing": "not loaded — kmod is not available",
+	"sb_router_issue_cta_expert": "(in Expert)",
+	"sb_router_dns_rule_respond": "respond — return an answer",
+	"sb_router_dns_matcher_anonymous": "anonymous",
+	"sb_router_dns_server_in_use": "DNS server is in use ({refs})",
+	"sb_router_dns_fakeip_synth": "fakeip · synthesized",
+	"sb_router_dns_invalid_final_detour": "Invalid detour on the final DNS — it will be removed on save. It must be “Direct”.",
+	"sb_router_qos_preset_ef": "46 (EF — voice/games)",
+	"sb_router_qos_preset_cs4": "32 (CS4 — video)",
+	"sb_router_qos_preset_cs1": "8 (CS1 — background downloads)",
+	"sb_router_qos_default_class_name": "Class {n}",
+	"sb_router_qos_outbound_unavailable": "(unavailable) {tag}",
+	"sb_router_dns_preset_yandex": "Yandex",
+	"sb_router_bypass_ntp": "NTP (time synchronization)",
+	"sb_router_bypass_keendns_desc": "the router resolves its own names itself, and their addresses bypass sing-box",
+	"sb_router_common_save_failed": "Failed to save: {message}",
+	"sb_router_source_title": "Traffic source",
+	"sb_router_inbound_settings_title": "Inbound settings",
+	"sb_router_common_save": "Save",
+	"sb_router_panel_expand": "Expand “{title}”",
+	"sb_router_panel_collapse": "Collapse “{title}”",
+	"sb_router_live_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} connection",
+				"countPlural=*": "{count} connections"
+			}
+		}
+	],
+	"sb_router_live_aria_active": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Live connections open: {count} connection. Click to close",
+				"countPlural=*": "Live connections open: {count} connections. Click to close"
+			}
+		}
+	],
+	"sb_router_live_aria_open": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Live connections: {count} connection",
+				"countPlural=*": "Live connections: {count} connections"
+			}
+		}
+	],
+	"sb_router_live_title_close": "Close live connections",
+	"sb_router_live_title_open_mock": "Open mock live connections",
+	"sb_router_live_title_open": "Open live connections",
+	"sb_router_live_title_none": "Live connections: no active connections",
+	"sb_router_live_title_connecting": "Live connections: connecting…",
+	"sb_router_live_title_reconnecting": "Live connections: reconnecting…",
+	"sb_router_live_unavailable": "Live connections are unavailable",
+	"sb_router_stat_more": "details",
+	"sb_router_stat_help_aria": "Help: {label}",
+	"sb_router_shell_title": "Routing · sing-box",
+	"sb_router_shell_params": "sing-box settings",
+	"sb_router_shell_inspector_label": "Route inspector",
+	"sb_router_shell_inspector": "Inspector",
+	"sb_router_shell_json_label": "JSON config",
+	"sb_router_shell_json": "Config",
+	"sb_router_shell_editor_label": "Config editor",
+	"sb_router_shell_editor_title": "Config editor (config.d)",
+	"sb_router_shell_editor": "Editor",
+	"sb_router_shell_logs_close": "Close sing-box logs",
+	"sb_router_shell_logs_label": "sing-box logs",
+	"sb_router_shell_logs": "Logs",
+	"sb_router_shell_mode_simple": "Simple",
+	"sb_router_shell_mode_expert": "Expert",
+	"sb_router_shell_mode_label": "Interface mode",
+	"sb_router_common_back": "Back",
+	"sb_router_qos_help_copied": "Copied to clipboard",
+	"sb_router_qos_help_copy_failed": "Failed to copy",
+	"sb_router_qos_help_policy_example": "AWGM-Example",
+	"sb_router_qos_help_title": "How to mark traffic on a PC",
+	"sb_router_qos_help_example_hint": "The commands below are an example with DSCP 46. Add a class to get a ready-made command for it.",
+	"sb_router_qos_help_class": "Class",
+	"sb_router_qos_help_class_option": "DSCP {dscp} — {name}",
+	"sb_router_qos_help_unnamed": "unnamed",
+	"sb_router_qos_help_windows_cap": "Windows — QoS policy (PowerShell as administrator)",
+	"sb_router_qos_help_copy_ps_aria": "Copy the PowerShell command",
+	"sb_router_qos_help_copy_title": "Copy",
+	"sb_router_qos_help_replace_pre": "Replace",
+	"sb_router_qos_help_replace_post": "with the executable name of the program whose traffic you want to mark.",
+	"sb_router_qos_help_gpedit_pre": "In Pro, Enterprise and Education editions you can configure DSCP marks via the Local Group Policy Editor (",
+	"sb_router_qos_help_gpedit_post": ") → Computer Configuration → Windows Settings → Policy-based QoS.",
+	"sb_router_qos_help_nla_cap": "Non-domain / multi-NIC machines",
+	"sb_router_qos_help_copy_reg_aria": "Copy the reg add command",
+	"sb_router_qos_help_nla_hint": "Without this key, Windows outside a domain (or with several network adapters) may ignore the QoS policy. Restart the PC after adding it.",
+	"sb_router_qos_help_notes_cap": "Notes",
+	"sb_router_qos_help_macos": "macOS: marking DSCP per application is not supported by the system.",
+	"sb_router_qos_help_wmm": "Wi-Fi (WMM) may overwrite the DSCP mark — check over a cable.",
+	"sb_router_source_policy_only_expert": "Only devices in the policy",
+	"sb_router_source_policy_only_beginner": "Devices in the policy",
+	"sb_router_source_policy_sub_expert": "traffic from the assigned policy",
+	"sb_router_source_policy_sub_beginner": "only devices bound to an NDMS policy",
+	"sb_router_source_field_policy_expert": "NDMS policy",
+	"sb_router_source_field_policy_beginner": "Policy",
+	"sb_router_source_all_hint_expert": "In policy mode only traffic from devices bound to the policy in the NDMS LAN settings is processed.",
+	"sb_router_source_all_hint_beginner": "sing-box intercepts all LAN traffic of the router, with no NDMS policy filter.",
+	"sb_router_source_what_traffic": "Which traffic to process",
+	"sb_router_source_all_router": "Whole router",
+	"sb_router_source_all_router_sub": "all LAN traffic",
+	"sb_router_source_policy_in_pre": "The policy has",
+	"sb_router_devices_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} device",
+				"countPlural=*": "{count} devices"
+			}
+		}
+	],
+	"sb_router_source_bind_hint": "Configure MAC address binding on the policies page.",
+	"sb_router_source_manage_devices": "Manage devices →",
+	"sb_router_source_pick_policy": "Select or create a policy — without it sing-box will not process device traffic.",
+	"sb_router_source_policy_missing": "Policy “{name}” was not found in NDMS — recreate it or choose another one.",
+	"sb_router_inbounds_none": "No inbounds.",
+	"sb_router_inbounds_read_failed": "Failed to read: {warnings}",
+	"sb_router_outbounds_kind_group": "group",
+	"sb_router_outbounds_edit_in_groups": "Edit it in Tunnels → Sing-box subscriptions → Composite groups",
+	"sb_router_outbounds_edit_in_subs": "Edit it in Tunnels → Sing-box subscriptions",
+	"sb_router_outbounds_current_choice": "Current choice: {type}",
+	"sb_router_outbounds_active": "active: {label}",
+	"sb_router_outbounds_edit_aria": "Edit outbound {tag}",
+	"sb_router_outbounds_edit_title": "Edit outbound “{title}”",
+	"sb_router_outbounds_delete_aria": "Delete outbound {tag}",
+	"sb_router_outbounds_delete_title": "Delete outbound “{title}”",
+	"sb_router_outbounds_none": "No outbounds",
+	"sb_router_dns_picker_title": "Output DNS",
+	"sb_router_dns_picker_proto_label": "DNS protocol",
+	"sb_router_dns_picker_custom_udp_only": "A custom address is only available over plain DNS",
+	"sb_router_dns_picker_tls_loss": "TLS settings will be removed: plain DNS does not support them",
+	"sb_router_dns_picker_pin_loss": "The certificate pin will be reset: it is bound to the previous address",
+	"sb_router_dns_picker_custom": "Custom address",
+	"sb_router_device_proxy_off": "off",
+	"sb_router_device_proxy_missing_exit": "Exit “{label}” is missing from the current config (the engine is off)",
+	"sb_router_device_proxy_now": "now: {tag}",
+	"sb_router_device_proxy_edit_aria": "Edit inbound {name}",
+	"sb_router_device_proxy_edit_title": "Edit inbound “{name}”",
+	"sb_router_device_proxy_delete_aria": "Delete inbound {name}",
+	"sb_router_device_proxy_delete_title": "Delete inbound “{name}”",
+	"sb_router_device_proxy_load_failed": "Failed to load",
+	"sb_router_device_proxy_loading": "Loading...",
+	"sb_router_device_proxy_empty": "No inbounds. An “inbound” is a local proxy for devices on the network.",
+	"sb_router_common_configure": "Configure",
+	"sb_router_qos_dscp_taken": "DSCP {dscp} is already used by another class",
+	"sb_router_qos_title": "QoS routing (DSCP)",
+	"sb_router_qos_intro": "Traffic with a DSCP mark is sent to the selected tunnel. The mark on application traffic is set by the client device (for example, a QoS policy in Windows).",
+	"sb_router_qos_locked_fakeip": "Not available in FakeIP mode.",
+	"sb_router_qos_xt_dscp_missing": "The xt_dscp kernel module is unavailable — DSCP rules will not be applied",
+	"sb_router_qos_col_name": "Name",
+	"sb_router_qos_col_on": "On",
+	"sb_router_qos_dscp_aria": "DSCP of class {n}",
+	"sb_router_qos_name_aria": "Name of class {n}",
+	"sb_router_qos_toggle_aria": "Enable DSCP class {dscp}",
+	"sb_router_qos_remove_aria": "Delete class {name}",
+	"sb_router_qos_remove_title": "Delete class",
+	"sb_router_qos_outbound_placeholder": "— outbound —",
+	"sb_router_qos_outbound_missing": "outbound not found — choose another one",
+	"sb_router_qos_empty": "No classes configured. Add a class to send marked traffic to a separate tunnel.",
+	"sb_router_qos_add": "Add class",
+	"sb_router_qos_max_reached": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Maximum reached — {count} class.",
+				"countPlural=*": "Maximum reached — {count} classes."
+			}
+		}
+	],
+	"sb_router_qos_dscp_hint": "DSCP: 0–63. Typical marks: 46 (EF — voice/games), 32 (CS4 — video), 8 (CS1 — background downloads).",
+	"sb_router_qos_help_link": "How to mark traffic on a PC →",
+	"sb_router_policy_tun_default_tun_name": "sing-box tunnel",
+	"sb_router_policy_tun_desc_too_long": "The interface name must be at most {max} characters",
+	"sb_router_policy_tun_desc_reserved": "Names starting with “awgm ” are reserved for awg-manager service interfaces",
+	"sb_router_policy_tun_stack_hint_legacy": "Deprecated stack, sing-box will remove it in 1.17. A change is applied by restarting the engine.",
+	"sb_router_policy_tun_stack_hint_default": "The sing-tun stack is the fastest; it is shared with FakeIP mode. A change is applied by restarting the engine.",
+	"sb_router_policy_tun_title": "“Policies + tun” mode",
+	"sb_router_policy_tun_interface": "Interface",
+	"sb_router_policy_tun_visible_as_pre": "Shown in access policies as",
+	"sb_router_policy_tun_not_created": "The interface has not been created yet — it will appear once the mode is enabled.",
+	"sb_router_policy_tun_desc_label": "Interface name",
+	"sb_router_policy_tun_desc_hint": "This is how the interface is named in the router web interface. Empty — “{name}”. Renaming does not recreate the interface: permissions in policies are kept. awg-manager does not delete an interface with a custom name automatically — if it stays on the router (for example, after the package is removed), delete it in the router web interface.",
+	"sb_router_policy_tun_stack_label": "TCP/IP stack",
+	"sb_router_policy_tun_access_policy": "Access policy",
+	"sb_router_policy_tun_policy_in_pre": "The interface is allowed as an exit of this policy automatically. It has",
+	"sb_router_policy_tun_policy_in_post": "— their traffic is what goes into the tunnel. When you change the policy, the previous one stays allowed: remove the permission manually.",
+	"sb_router_policy_tun_policy_missing": "Policy “{name}” was not found in NDMS — recreate it or choose another one.",
+	"sb_router_policy_tun_manage_devices": "Manage devices →",
+	"sb_router_policy_tun_no_policy": "No policy selected — device traffic will not go into the tunnel: the interface has nowhere to become an exit.",
+	"sb_router_policy_tun_access_policies": "Access policies →",
+	"sb_router_policy_tun_preserve_clients": "Preserve client addresses",
+	"sb_router_policy_tun_preserve_off_hint": "Right now sing-box sees all devices under a single tun gateway address (172.18.0.1): rules by device address and per-client connection breakdown do not work.",
+	"sb_router_policy_tun_segments_nat_pre": "Segments on static NAT:",
+	"sb_router_policy_tun_applied_partial": "Not applied to all segments — reconciliation brings them up on the next tick. If this message persists, check the log: the apply may have failed.",
+	"sb_router_policy_tun_loading_segments": "Loading router segments…",
+	"sb_router_policy_tun_segments_failed": "Failed to get segments: {message}",
+	"sb_router_policy_tun_segments_none": "No segments whose NAT mode can be changed were found.",
+	"sb_router_policy_tun_picker_hint": "Select the networks whose devices sing-box should see by their real addresses. They will keep reaching the internet through the router address.",
+	"sb_router_policy_tun_networks": "Networks",
+	"sb_router_policy_tun_already_manual": "already configured manually",
+	"sb_router_policy_tun_exit_sees": "What the exit will see",
+	"sb_router_policy_tun_tunnel_singbox": "sing-box tunnel",
+	"sb_router_policy_tun_note_client_addrs": "device addresses — rules and per-client statistics work",
+	"sb_router_policy_tun_note_router_addr": "router address — as before",
+	"sb_router_policy_tun_internet_exits": "Internet exits",
+	"sb_router_policy_tun_warn_pre": "The way the selected networks reach the internet changes:",
+	"sb_router_policy_tun_warn_bold": "check port forwarding and UPnP",
+	"sb_router_policy_tun_warn_post": ", they are configured separately.",
+	"sb_router_policy_tun_warn_egresses": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "The substitution is kept on {count} exit listed on the right.",
+				"countPlural=*": "The substitution is kept on {count} exits listed on the right."
+			}
+		}
+	],
+	"sb_router_policy_tun_enable": "Enable",
+	"sb_router_dns_rule_preset_title": "DNS preset rule — change it via the preset card",
+	"sb_router_dns_rule_drag_aria": "Drag DNS rule #{n}",
+	"sb_router_dns_rule_drag_title": "Drag to reorder (or use the up/down arrows)",
+	"sb_router_dns_rule_summary_shadowed": "{summary} → {target} · shadowed by a catch-all rule above",
+	"sb_router_dns_catch_all_evaluate": "catch-all · evaluates all queries",
+	"sb_router_dns_catch_all_rest": "catch-all · everything else",
+	"sb_router_dns_rule_shadowed_badge": "shadowed by catch-all above",
+	"sb_router_dns_rule_preset_badge": "preset",
+	"sb_router_dns_rule_edit_aria": "Edit DNS rule #{n}",
+	"sb_router_dns_rule_edit_title": "Edit DNS rule #{n}",
+	"sb_router_dns_rule_delete_aria": "Delete DNS rule #{n}",
+	"sb_router_dns_rule_delete_title": "Delete DNS rule #{n}",
+	"sb_router_dns_server_edit_aria": "Edit DNS server {tag}",
+	"sb_router_dns_server_edit_title": "Edit DNS server “{tag}”",
+	"sb_router_dns_server_delete_aria": "Delete DNS server {tag}",
+	"sb_router_dns_server_delete_title": "Delete DNS server “{tag}”",
+	"sb_router_dns_no_servers": "No DNS servers.",
+	"sb_router_dns_rules_cap": "DNS rules · {count}",
+	"sb_router_dns_add_rule": "+ Rule",
+	"sb_router_dns_shadow_note": "Rules after a catch-all (without conditions) are not checked — move them up or delete them.",
+	"sb_router_dns_no_rules": "No rules",
+	"sb_router_status_cache_hint": "In RAM, FakeIP map and Clash writes do not wear out the flash, but the cache does not survive a reboot. The choice overwrites the cache_file path in 00-base.json, including one set manually.",
+	"sb_router_status_cache_hint_now": "In RAM, FakeIP map and Clash writes do not wear out the flash, but the cache does not survive a reboot. The choice overwrites the cache_file path in 00-base.json, including one set manually. Currently: {path}",
+	"sb_router_status_engine_off": "Engine is off",
+	"sb_router_status_engine_running": "Engine is running",
+	"sb_router_status_engine_not_running": "Engine is not running",
+	"sb_router_status_sub_inactive": "Inactive",
+	"sb_router_status_sub_no_intercept": "Interception is not active — rules are not applied",
+	"sb_router_status_sub_traffic_via": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Traffic goes through {count} rule",
+				"countPlural=*": "Traffic goes through {count} rules"
+			}
+		}
+	],
+	"sb_router_status_source_all": "All LAN traffic of the router.",
+	"sb_router_status_source_policy": "Only devices of policy “{name}”.",
+	"sb_router_status_source_none": "No policy selected — device traffic is not processed.",
+	"sb_router_status_restarted": "Engine restarted",
+	"sb_router_status_restart_failed": "Failed to restart: {message}",
+	"sb_router_status_udp_timeout_default": "Default (5 min)",
+	"sb_router_status_udp_timeout_5m": "5 minutes",
+	"sb_router_status_udp_timeout_10m": "10 minutes",
+	"sb_router_status_udp_timeout_15m": "15 minutes",
+	"sb_router_status_udp_timeout_30m": "30 minutes",
+	"sb_router_status_udp_timeout_1h": "1 hour",
+	"sb_router_status_udp_timeout_3h": "3 hours",
+	"sb_router_status_udp_nat_auto": "Auto (by memory)",
+	"sb_router_status_title": "sing-box engine",
+	"sb_router_status_sec_state": "State",
+	"sb_router_status_version": "sing-box version",
+	"sb_router_status_sec_capture": "Capture mode",
+	"sb_router_status_mode_tproxy": "TPROXY rules",
+	"sb_router_status_mode_tproxy_sub": "iptables interception on the router",
+	"sb_router_status_mode_policy_tun": "Policies + tun",
+	"sb_router_status_mode_policy_tun_sub": "traffic capture via a Keenetic access policy, without TPROXY rules",
+	"sb_router_status_fakeip_hint": "FakeIP mode is enabled on its own tab, “Sing-box → FakeIP”.",
+	"sb_router_status_crash_label": "Crashes in 10 min",
+	"sb_router_status_crash_reason": "Reason: {reason}",
+	"sb_router_status_crash_suppressed": "Auto-restart is paused until {time}. The “Restart” button below starts the engine immediately.",
+	"sb_router_status_crash_suppressed_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Auto-restart is paused until {time} ({count} crash in 10 min). The “Restart” button below starts the engine immediately.",
+				"countPlural=*": "Auto-restart is paused until {time} ({count} crashes in 10 min). The “Restart” button below starts the engine immediately."
+			}
+		}
+	],
+	"sb_router_status_sec_resources": "Resources",
+	"sb_router_status_memory_title": "sing-box Go runtime memory according to the Clash API; the actual process RSS is higher",
+	"sb_router_status_memory": "sing-box memory",
+	"sb_router_status_speed": "Speed",
+	"sb_router_status_session": "This session",
+	"sb_router_status_sec_deps": "Dependencies",
+	"sb_router_status_sec_issues": "Issues",
+	"sb_router_status_sec_source": "Traffic source",
+	"sb_router_status_configure_source": "Configure source →",
+	"sb_router_status_sec_cache": "sing-box cache",
+	"sb_router_status_cache_location": "cache.db storage",
+	"sb_router_status_cache_unset": "Not set — as in 00-base.json",
+	"sb_router_status_cache_flash": "Router flash (/opt)",
+	"sb_router_status_cache_tmp": "RAM (/tmp)",
+	"sb_router_status_sec_wan": "WAN interface",
+	"sb_router_status_wan_auto": "Auto-detect",
+	"sb_router_status_wan_interface": "Interface",
+	"sb_router_status_wan_choose": "— select —",
+	"sb_router_status_wan_hint": "Which external interface sing-box uses to send direct traffic.",
+	"sb_router_status_sec_sniff": "Traffic analysis",
+	"sb_router_status_sniff_enable": "Enable sniff",
+	"sb_router_status_sniff_hint": "HTTP/TLS/QUIC content analysis. Improves domain-based rule matching with IP-only matchers.",
+	"sb_router_status_udp_timeout": "UDP session timeout",
+	"sb_router_status_udp_timeout_hint": "How long sing-box keeps UDP sessions active. Increase it if games or other UDP applications drop every few minutes.",
+	"sb_router_status_udp_nat_max": "UDP session limit",
+	"sb_router_status_udp_nat_max_hint": "How many UDP sessions the engine keeps at once; when full, the oldest is evicted. Reduce it on a router with little memory if sing-box grows under UDP load.",
+	"sb_router_status_sec_bypass": "Exclusions",
+	"sb_router_status_extra_ports": "Extra ports",
+	"sb_router_status_ports_hint_pre": "These ports bypass sing-box (straight to the WAN). Useful for L2TP/NTP/SMB without breaking LAN services. Single ports are supported (",
+	"sb_router_status_ports_hint_mid": ") and ranges (",
+	"sb_router_status_ports_hint_post": ").",
+	"sb_router_status_policy_tun_bypass_pre": "In “Policies + tun” mode the exclusions only affect QoS classes and DNS interception. Port",
+	"sb_router_status_policy_tun_bypass_post": "in either list — UDP or TCP — turns off DNS interception entirely, for both protocols at once.",
+	"sb_router_status_extra_subnets": "Extra subnets",
+	"sb_router_status_subnets_hint": "IPs or subnets whose traffic goes entirely around sing-box (straight to the WAN). Needed for corporate VPNs (Cisco AnyConnect, etc.) so their traffic is not intercepted.",
+	"sb_router_status_turn_off": "Turn off",
+	"sb_router_status_turn_on": "Turn on",
+	"sb_router_status_restart": "Restart",
+	"sb_router_status_saving": "Saving…",
+	"sb_router_status_save_error": "Error",
+	"sb_router_status_saved": "✓ Saved",
+	"sb_router_common_error": "Error: {message}",
+	"sb_router_expert_route_final_direct": "direct (bypassing the VPN)",
+	"sb_router_expert_inbound_delete_title": "Delete inbound",
+	"sb_router_expert_inbound_delete_message": "Delete inbound “{name}”?",
+	"sb_router_expert_inbound_deleted": "Inbound deleted",
+	"sb_router_expert_inbound_deleted_pending": "The inbound was removed from the config, but sing-box has not been updated yet — the change will be applied when the service is available again.",
+	"sb_router_expert_delete_failed": "Failed to delete: {message}",
+	"sb_router_expert_engine_inactive": "INACTIVE",
+	"sb_router_expert_engine_fail": "FAILURE",
+	"sb_router_expert_stat_engine": "Engine",
+	"sb_router_expert_stat_engine_inactive_title": "Mode inactive",
+	"sb_router_expert_stat_engine_inactive_text": "FakeIP mode is active — TProxy interception is not in use.",
+	"sb_router_expert_stat_details": "details",
+	"sb_router_expert_stat_memory": "Memory",
+	"sb_router_expert_stat_memory_title": "sing-box memory",
+	"sb_router_expert_stat_memory_text": "sing-box Go runtime memory according to the Clash API (the actual process RSS is higher). Updated every ~2 seconds while the engine is running.",
+	"sb_router_expert_stat_traffic": "Traffic ↓",
+	"sb_router_expert_stat_traffic_title": "Traffic through the engine",
+	"sb_router_expert_stat_traffic_text": "Aggregate download speed through sing-box (cumulative Clash counters, including closed connections).",
+	"sb_router_expert_stat_traffic_upload": "Upload: {value}",
+	"sb_router_expert_stat_traffic_session": "This session: {value}",
+	"sb_router_expert_stat_rules": "Rules",
+	"sb_router_expert_stat_rules_title": "Routing rules",
+	"sb_router_expert_stat_rules_text": "The number of route rules. They are checked top to bottom: the first match selects the outbound.",
+	"sb_router_expert_stat_rules_item_order": "Order matters.",
+	"sb_router_expert_stat_rules_item_default": "If nothing matches, the default outbound from the rules panel is used.",
+	"sb_router_expert_stat_rulesets_title": "Rule sets",
+	"sb_router_expert_stat_rulesets_text": "Lists of domains and IPs referenced by route rules and DNS rules.",
+	"sb_router_expert_stat_rulesets_remote": "Remote — downloaded and updated.",
+	"sb_router_expert_stat_rulesets_local": "Local — a file on the router.",
+	"sb_router_expert_stat_rulesets_inline": "Inline — rules are stored right in the config.",
+	"sb_router_expert_stat_outbounds_text": "Available traffic destinations: direct, reject, VPN/selector/composite and subscription groups.",
+	"sb_router_expert_stat_outbounds_item_route": "A route rule selects the outbound.",
+	"sb_router_expert_stat_outbounds_item_dns": "A DNS server can also go through an outbound.",
+	"sb_router_expert_stat_dns_title": "DNS rules",
+	"sb_router_expert_stat_dns_text": "Rules that choose a DNS server by domains, rule-set, query types and other conditions.",
+	"sb_router_expert_stat_dns_item_separate": "They work separately from route rules.",
+	"sb_router_expert_stat_dns_item_domains": "They can direct specific domains to the needed DNS server.",
+	"sb_router_expert_stat_rewrite_title": "DNS rewrites",
+	"sb_router_expert_stat_rewrite_text": "Static DNS answers: a domain or pattern gets a given IP.",
+	"sb_router_expert_stat_rewrite_item_override": "Useful for local overrides.",
+	"sb_router_expert_stat_rewrite_item_before": "It fires before regular DNS resolution.",
+	"sb_router_expert_stat_proxy": "Proxy",
+	"sb_router_expert_stat_proxy_text": "The number of active local inbound proxies for devices.",
+	"sb_router_expert_stat_proxy_item_active": "active — the inbound is running and accepting connections.",
+	"sb_router_expert_stat_proxy_item_off": "off — the entry exists but the runtime is not active.",
+	"sb_router_expert_changed": "Changed {count}",
+	"sb_router_expert_list_changed": "The list changed, the selection was reset",
+	"sb_router_expert_bulk_reset": "— reset —",
+	"sb_router_expert_rule_delete_title": "Delete rule",
+	"sb_router_expert_rule_delete_message": "Delete rule #{n}?",
+	"sb_router_expert_rule_deleted": "Rule deleted",
+	"sb_router_expert_dns_rule_delete_title": "Delete DNS rule",
+	"sb_router_expert_dns_rule_delete_message": "Delete DNS rule #{n}?",
+	"sb_router_expert_dns_rule_deleted": "DNS rule deleted",
+	"sb_router_expert_dns_server_delete_title": "Delete DNS server",
+	"sb_router_expert_dns_server_delete_message": "Delete DNS server “{tag}”?",
+	"sb_router_expert_dns_server_deleted": "DNS server deleted",
+	"sb_router_expert_move_failed": "Move error: {message}",
+	"sb_router_expert_ruleset_delete_title": "Delete set",
+	"sb_router_expert_ruleset_delete_message": "Delete set “{tag}”?",
+	"sb_router_expert_ruleset_deleted": "Set deleted",
+	"sb_router_expert_catalog_added": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Added {count} set from the catalog",
+				"countPlural=*": "Added {count} sets from the catalog"
+			}
+		}
+	],
+	"sb_router_expert_catalog_sagernet_added": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Added {count} set from the SagerNet catalog",
+				"countPlural=*": "Added {count} sets from the SagerNet catalog"
+			}
+		}
+	],
+	"sb_router_expert_catalog_no_sets": "The selected services have no sing-box sets",
+	"sb_router_expert_catalog_already": "The selected sets are already in the config",
+	"sb_router_expert_add_failed": "Failed to add: {message}",
+	"sb_router_expert_outbound_delete_title": "Delete outbound",
+	"sb_router_expert_outbound_delete_message": "Delete outbound “{tag}”?",
+	"sb_router_expert_outbound_deleted": "Outbound deleted",
+	"sb_router_expert_lan_names_removed": "LAN names rule removed",
+	"sb_router_expert_lan_names_created": "LAN names rule created",
+	"sb_router_expert_lan_names_exists": "LAN names rule is already configured",
+	"sb_router_expert_action_failed": "Failed: {message}",
+	"sb_router_expert_rules_title": "Routing rules",
+	"sb_router_expert_select_all": "Select all",
+	"sb_router_expert_select": "Select",
+	"sb_router_expert_add_rule": "+ Rule",
+	"sb_router_expert_first_match_full": "first-match-wins · if nothing matches →",
+	"sb_router_expert_first_match_mobile": "if no match →",
+	"sb_router_expert_apply": "Apply",
+	"sb_router_expert_catalog": "Catalog",
+	"sb_router_expert_geosite_title": "All geosite sets from the SagerNet/sing-geosite repository",
+	"sb_router_expert_add_set": "+ Set",
+	"sb_router_expert_rulesets_cap": "sets of domains and IPs referenced by rules",
+	"sb_router_expert_dns_servers_title": "DNS servers",
+	"sb_router_expert_lan_names_active_title": "The rule is active — click to delete",
+	"sb_router_expert_lan_names_create_title": "Create a rule: names without dots are resolved by the local DNS",
+	"sb_router_expert_lan_names_button": "LAN names → local DNS",
+	"sb_router_expert_add_server": "+ Server",
+	"sb_router_expert_dns_default": "Default DNS",
+	"sb_router_expert_configure": "Configure",
+	"sb_router_expert_add": "+ Add"
 }
