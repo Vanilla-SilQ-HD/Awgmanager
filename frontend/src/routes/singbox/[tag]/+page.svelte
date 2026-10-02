@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { m } from '$lib/i18n';
+	import { m, uiText, type UiText } from '$lib/i18n';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -39,7 +39,7 @@
 	let saving = $state(false);
 	let copyingLink = $state(false);
 	let linkCopied = $state(false);
-	let error = $state<string | null>(null);
+	let error = $state<UiText | null>(null);
 	// The outbound is an arbitrary sing-box JSON object whose shape depends on the
 	// protocol; the editor reads/writes fields by path, so it is modelled as a
 	// dynamic record rather than a fixed interface.
@@ -80,7 +80,7 @@
 		if (!outbound) return;
 		const nextTag = editableTag.trim();
 		if (!nextTag) {
-			error = m.singbox_edit_tag_required();
+			error = () => m.singbox_edit_tag_required();
 			return;
 		}
 		saving = true;
@@ -238,7 +238,7 @@
 	{#if loading}
 		<div class="py-12 text-center text-surface-400">{m.tunnels_loading()}</div>
 	{:else if !outbound}
-		<div class="py-12 text-center text-error-500">{error ?? m.singbox_edit_not_found()}</div>
+		<div class="py-12 text-center text-error-500">{error ? uiText(error) : m.singbox_edit_not_found()}</div>
 	{:else}
 		<form class="tab-form" onsubmit={(e) => { e.preventDefault(); save(); }}>
 				<section class="card tunnel-section">
@@ -745,7 +745,7 @@
 			{/if}
 
 			{#if error}
-				<div class="error-msg">{error}</div>
+				<div class="error-msg">{uiText(error)}</div>
 			{/if}
 
 			<section class="card tunnel-section egress-section">

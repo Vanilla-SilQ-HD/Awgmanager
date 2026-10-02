@@ -7,7 +7,7 @@
 		vpnLinkUnsupportedPortalReason
 	} from '$lib/utils/vpnlink';
 	import { shouldShowPremiumChrome } from '$lib/utils/amneziaPremiumVpnPaste';
-	import { m } from '$lib/i18n';
+	import { m, uiText, type UiText } from '$lib/i18n';
 
 	interface Props {
 		/** vpn:// ввод */
@@ -30,7 +30,7 @@
 		onregularconfig
 	}: Props = $props();
 
-	let linkError = $state('');
+	let linkError = $state<UiText>('');
 
 	let vpnDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 	let vpnAnalysisGen = 0;
@@ -69,7 +69,7 @@
 		if (!raw) return;
 
 		if (!isVpnLink(raw)) {
-			linkError = m.tunnel_edit_vpn_expected();
+			linkError = () => m.tunnel_edit_vpn_expected();
 			return;
 		}
 
@@ -84,7 +84,7 @@
 				}
 			} catch (e) {
 				configContent = '';
-				linkError = e instanceof Error ? e.message : m.tunnel_edit_vpn_decode_error();
+				linkError = e instanceof Error ? e.message : () => m.tunnel_edit_vpn_decode_error();
 			}
 			return;
 		}
@@ -113,7 +113,7 @@
 		</p>
 	{/if}
 	{#if linkError}
-		<p class="link-error">{linkError}</p>
+		<p class="link-error">{uiText(linkError)}</p>
 	{/if}
 	{#if linkPreview}
 		<AmneziaConfEditor bind:value={linkPreview} variant={previewVariant} readonly />

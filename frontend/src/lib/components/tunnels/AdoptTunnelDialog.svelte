@@ -2,7 +2,7 @@
 	import { TriangleAlert, CircleX } from 'lucide-svelte';
 	import { Modal, Button } from '$lib/components/ui';
 	import { tunnelNameError } from '$lib/utils/tunnelName';
-	import { m } from '$lib/i18n';
+	import { m, uiText, type UiText } from '$lib/i18n';
 
 	interface Props {
 		interfaceName: string;
@@ -25,7 +25,7 @@
 	let step = $state<'upload' | 'instructions' | 'error'>('upload');
 	let configContent = $state('');
 	let tunnelName = $state('');
-	let localError = $state('');
+	let localError = $state<UiText>('');
 
 	$effect(() => {
 		if (error) {
@@ -43,18 +43,22 @@
 			configContent = e.target?.result as string;
 		};
 		reader.onerror = () => {
-			localError = m.tunnels_read_file_failed();
+			localError = () => m.tunnels_read_file_failed();
 		};
 		reader.readAsText(file);
 	}
 
 	function handleNext(): void {
 		if (!configContent.trim()) {
-			localError = m.tunnels_adopt_upload_required();
+			localError = () => m.tunnels_adopt_upload_required();
 			return;
 		}
-		localError = tunnelNameError(tunnelName);
-		if (localError) return;
+		const name = tunnelName;
+		if (tunnelNameError(name)) {
+			localError = () => tunnelNameError(name);
+			return;
+		}
+		localError = '';
 		step = 'instructions';
 	}
 
@@ -72,7 +76,7 @@
 	}
 
 	function displayError(): string {
-		return error || localError;
+		return error || uiText(localError);
 	}
 </script>
 
@@ -110,7 +114,7 @@
 		{/if}
 
 		{#if localError}
-			<p class="error-text">{localError}</p>
+			<p class="error-text">{uiText(localError)}</p>
 		{/if}
 
 	{:else if step === 'instructions'}

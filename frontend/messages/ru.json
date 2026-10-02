@@ -7585,5 +7585,6 @@
 	"common_add": "Добавить",
 	"common_copied": "Скопировано",
 	"common_select": "Выбрать",
-	"common_refresh": "Обновить"
+	"common_refresh": "Обновить",
+	"subscriptions_wizard_config_whole_only": "JSON/YAML-конфиг импортируется только целиком: очистите поле перед загрузкой файла или создайте отдельную подписку"
 }

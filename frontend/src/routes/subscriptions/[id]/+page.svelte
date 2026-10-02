@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { m } from '$lib/i18n';
+	import { m, uiText, type UiText } from '$lib/i18n';
 	import { page } from '$app/stores';
 	import { startVisiblePoll } from '$lib/utils/visiblePoll';
 	import { onMount, onDestroy } from 'svelte';
@@ -32,7 +32,7 @@
 	const id = $derived($page.params.id ?? '');
 	let subscription = $state<Subscription | null>(null);
 	let loading = $state(true);
-	let error = $state('');
+	let error = $state<UiText>('');
 	let progressTotal = $state(0);
 	let progressLoaded = $state(0);
 
@@ -75,7 +75,7 @@
 			await api.restoreSubscriptionMembers(id, tags);
 			loadStream();
 		} catch (e) {
-			error = e instanceof Error ? e.message : m.subscriptions_page_restore_failed();
+			error = e instanceof Error ? e.message : () => m.subscriptions_page_restore_failed();
 		} finally {
 			excludedRestoring = false;
 		}
@@ -98,7 +98,7 @@
 					progressTotal = sub.memberTags?.length ?? sub.members?.length ?? 0;
 					progressLoaded = progressTotal;
 				} catch {
-					error = m.subscriptions_page_load_failed();
+					error = () => m.subscriptions_page_load_failed();
 				} finally {
 					loading = false;
 				}
@@ -195,9 +195,11 @@
 			// Browser fires onerror on connection drop. Surface partial state
 			// if we got members, generic error otherwise.
 			if (progressLoaded > 0 && progressTotal > 0) {
-				error = m.subscriptions_page_connection_lost_partial({ loaded: progressLoaded, total: progressTotal });
+				const loaded = progressLoaded;
+				const total = progressTotal;
+				error = () => m.subscriptions_page_connection_lost_partial({ loaded, total });
 			} else {
-				error = m.subscriptions_page_load_failed();
+				error = () => m.subscriptions_page_load_failed();
 			}
 			loading = false;
 			evtSrc?.close();
@@ -296,7 +298,7 @@
 			<LoadingSpinner size="md" message={m.subscriptions_page_loading()} />
 		</div>
 	{:else if !subscription && error}
-		<div class="err">{error}</div>
+		<div class="err">{uiText(error)}</div>
 	{:else if subscription}
 		<PageHeader title={subscription.label || subscription.url} backTo="/?tab=subscriptions" />
 		{@const excludedCount = subscription.excludedMembers?.length ?? 0}
@@ -324,7 +326,7 @@
 			</div>
 		{/if}
 		{#if error}
-			<div class="err">{error}</div>
+			<div class="err">{uiText(error)}</div>
 		{/if}
 		<section class="content">
 			{#if active === 'members'}

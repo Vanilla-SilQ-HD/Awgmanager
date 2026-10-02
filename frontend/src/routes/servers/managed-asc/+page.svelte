@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { m } from '$lib/i18n';
+	import { m, uiText, type UiText } from '$lib/i18n';
 	import { api } from '$lib/api/client';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -19,7 +19,7 @@
 	let systemInfo = $state<SystemInfo | null>(null);
 	let saving = $state(false);
 	let loading = $state(true);
-	let error = $state<string | null>(null);
+	let error = $state<UiText | null>(null);
 	let generating = $state(false);
 
 	let canClearASC = $derived.by(() => ascParams !== null && !isZeroASCState(ascParams));
@@ -64,7 +64,7 @@
 			loadData();
 		} else {
 			loading = false;
-			error = m.servers_asc_no_server_id();
+			error = () => m.servers_asc_no_server_id();
 		}
 	});
 
@@ -80,7 +80,7 @@
 			ascParams = asc;
 			systemInfo = info;
 		} catch (e) {
-			error = e instanceof Error ? e.message : m.servers_asc_load_failed();
+			error = e instanceof Error ? e.message : () => m.servers_asc_load_failed();
 		} finally {
 			loading = false;
 		}
@@ -169,7 +169,7 @@
 	{#if loading}
 		<div class="py-12 text-center text-surface-400">{m.tunnels_loading()}</div>
 	{:else if error}
-		<div class="py-12 text-center text-error-500">{error}</div>
+		<div class="py-12 text-center text-error-500">{uiText(error)}</div>
 	{:else if ascParams}
 		<div class="tab-content">
 			<ASCEditor bind:params={ascParams} signatureModes="none" idPrefix="managed-" />

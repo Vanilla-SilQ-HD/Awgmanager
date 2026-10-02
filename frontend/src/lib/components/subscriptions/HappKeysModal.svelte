@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { m } from '$lib/i18n';
+	import { m, uiText, type UiText } from '$lib/i18n';
 	import { api } from '$lib/api/client';
 	import { Modal, Button } from '$lib/components/ui';
 	import { Key, Upload, Trash2, CheckCircle2, AlertCircle } from 'lucide-svelte';
@@ -17,8 +17,8 @@
 	let keysCount = $state(0);
 	let loading = $state(false);
 	let saving = $state(false);
-	let error = $state('');
-	let successMsg = $state('');
+	let error = $state<UiText>('');
+	let successMsg = $state<UiText>('');
 	let fileInput = $state<HTMLInputElement | null>(null);
 
 	async function loadStatus(): Promise<void> {
@@ -48,7 +48,7 @@
 		error = '';
 		successMsg = '';
 		if (!keysText.trim()) {
-			error = m.subscriptions_happ_paste_keys();
+			error = () => m.subscriptions_happ_paste_keys();
 			return;
 		}
 		saving = true;
@@ -56,11 +56,12 @@
 			const res = await api.saveHappKeys(keysText);
 			configured = res.configured;
 			keysCount = res.count;
-			successMsg = m.subscriptions_happ_saved_count({ count: res.count });
+			const count = res.count;
+			successMsg = () => m.subscriptions_happ_saved_count({ count });
 			keysText = '';
 			onsaved?.();
 		} catch (e) {
-			error = e instanceof Error ? e.message : m.subscriptions_happ_save_failed();
+			error = e instanceof Error ? e.message : () => m.subscriptions_happ_save_failed();
 		} finally {
 			saving = false;
 		}
@@ -74,11 +75,11 @@
 			await api.clearHappKeys();
 			configured = false;
 			keysCount = 0;
-			successMsg = m.subscriptions_happ_deleted();
+			successMsg = () => m.subscriptions_happ_deleted();
 			keysText = '';
 			onsaved?.();
 		} catch (e) {
-			error = e instanceof Error ? e.message : m.subscriptions_happ_delete_failed();
+			error = e instanceof Error ? e.message : () => m.subscriptions_happ_delete_failed();
 		} finally {
 			saving = false;
 		}
@@ -153,13 +154,13 @@
 
 		{#if error}
 			<div class="alert-box alert-error">
-				{error}
+				{uiText(error)}
 			</div>
 		{/if}
 
 		{#if successMsg}
 			<div class="alert-box alert-success">
-				{successMsg}
+				{uiText(successMsg)}
 			</div>
 		{/if}
 	</div>

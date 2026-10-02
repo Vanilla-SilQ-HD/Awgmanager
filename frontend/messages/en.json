@@ -7205,5 +7205,6 @@
 	"common_add": "Add",
 	"common_copied": "Copied",
 	"common_select": "Select",
-	"common_refresh": "Refresh"
+	"common_refresh": "Refresh",
+	"subscriptions_wizard_config_whole_only": "A JSON/YAML config can only be imported as a whole: clear the field before loading the file or create a separate subscription"
 }

@@ -50,8 +50,12 @@ const ALLOWED: Record<string, { lines: number; reason: string }> = {
 	'/src/routes/tunnels/[id]/+page.svelte': { lines: 1, reason: 'подпись «Через …» сохраняется на бэкенде' },
 };
 
+/** \u0410-escape — та же кириллица, просто записанная кодами. */
+const decodeEscapes = (s: string) =>
+	s.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
+
 function cyrillicLines(path: string, src: string): string[] {
-	return stripComments(path, src)
+	return decodeEscapes(stripComments(path, src))
 		.split('\n')
 		.filter((l) => CYRILLIC.test(l))
 		.map((l) => l.trim());
@@ -86,6 +90,25 @@ describe('нет захардкоженного русского текста', 
 		expect(
 			offenders,
 			'Вынесите текст в messages/*.json (см. CONTRIBUTING.md) или, если это не текст интерфейса, добавьте файл в ALLOWED с причиной',
+		).toEqual([]);
+	});
+});
+
+describe('состояние компонентов', () => {
+	it('обработчики не записывают готовый текст i18n в состояние', () => {
+		// `error = m.foo()` фиксирует строку на языке момента присваивания.
+		const re = /^\s*[A-Za-z_$][\w$.]*\s*=\s*m\.[a-z0-9_]+\(/m;
+		const offenders: string[] = [];
+		for (const [path, src] of Object.entries(sources)) {
+			if (!path.endsWith('.svelte')) continue;
+			for (const [i, line] of src.split('\n').entries()) {
+				if (/^\s*(const|let|var)\b/.test(line)) continue;
+				if (re.test(line)) offenders.push(`${path}:${i + 1}: ${line.trim()}`);
+			}
+		}
+		expect(
+			offenders,
+			'Не кладите m.foo() в состояние готовой строкой: запишите () => m.foo() (тип UiText) и показывайте через uiText(...) из $lib/i18n — тогда текст следует за языком',
 		).toEqual([]);
 	});
 });

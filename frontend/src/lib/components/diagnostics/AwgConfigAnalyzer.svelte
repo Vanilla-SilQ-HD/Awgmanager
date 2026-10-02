@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { m } from '$lib/i18n';
+	import { m, uiText, type UiText } from '$lib/i18n';
 	import { Button, ConfirmModal, Dropdown } from '$lib/components/ui';
 	import { api } from '$lib/api/client';
 	import { notifications } from '$lib/stores/notifications';
@@ -36,7 +36,7 @@
 	let raw = $state('');
 	let lastAnalyzedRaw = $state('');
 	let loadedTunnelRaw = $state('');
-	let error = $state('');
+	let error = $state<UiText>('');
 	let parsed: AwgParsed | null = $state(null);
 	// Результат считается из ответа бэкенда: тексты следуют за языком интерфейса.
 	let analysis: AwgAnalyzeData | null = $state(null);
@@ -89,7 +89,7 @@
 
 		const t = raw.trim();
 		if (!t) {
-			error = m.diag_awg_analyzer_paste_conf();
+			error = () => m.diag_awg_analyzer_paste_conf();
 			return;
 		}
 
@@ -642,7 +642,7 @@
 			/>
 
 			{#if error}
-				<div class="err" role="alert">{error}</div>
+				<div class="err" role="alert">{uiText(error)}</div>
 			{/if}
 		</div>
 

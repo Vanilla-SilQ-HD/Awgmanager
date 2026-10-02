@@ -5,7 +5,7 @@
   поэтому тестируется без моков api.
 -->
 <script lang="ts">
-	import { m } from '$lib/i18n';
+	import { m, uiText, type UiText } from '$lib/i18n';
 	import { Badge, Button, ConfirmModal, IconButton, Modal, Toggle } from '$lib/components/ui';
 	import SettingsSectionLabel from './SettingsSectionLabel.svelte';
 	import { copyToClipboard } from '$lib/utils/clipboard';
@@ -36,7 +36,7 @@
 	// ключа нельзя, иначе выданный агенту ключ менял бы права под ним.
 	let readOnlyDraft = $state(false);
 	let creating = $state(false);
-	let createError = $state<string | null>(null);
+	let createError = $state<UiText | null>(null);
 	let created = $state<McpKeyCreated | null>(null);
 	let revokeTarget = $state<McpKey | null>(null);
 	let revoking = $state(false);
@@ -63,7 +63,7 @@
 	async function submitCreate() {
 		const name = nameDraft.trim();
 		if (!name) {
-			createError = m.settings_mcp_name_required();
+			createError = () => m.settings_mcp_name_required();
 			return;
 		}
 		creating = true;
@@ -71,7 +71,7 @@
 		try {
 			created = await oncreate(name, readOnlyDraft);
 		} catch (e) {
-			createError = e instanceof Error ? e.message : m.settings_mcp_create_failed();
+			createError = e instanceof Error ? e.message : () => m.settings_mcp_create_failed();
 		} finally {
 			creating = false;
 		}
@@ -234,7 +234,7 @@
 			<span class="setting-description text-xs">
 				{m.settings_mcp_read_only_description()}
 			</span>
-			{#if createError}<span class="text-error text-sm">{createError}</span>{/if}
+			{#if createError}<span class="text-error text-sm">{uiText(createError)}</span>{/if}
 		</div>
 	{:else}
 		<div class="flex flex-col gap-3">

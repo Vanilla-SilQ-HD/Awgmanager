@@ -899,18 +899,17 @@
     const on = lanNamesOn;
     lanNamesBusy = true;
     try {
-      let msg: string;
-      if (on) {
-        await removeLanNamesRule();
-        msg = m.sb_router_expert_lan_names_removed();
-      } else {
-        msg =
-          (await ensureLanNamesRule()) === 'created'
-            ? m.sb_router_expert_lan_names_created()
-            : m.sb_router_expert_lan_names_exists();
-      }
+      let created: 'created' | 'exists' | null = null;
+      if (on) await removeLanNamesRule();
+      else created = (await ensureLanNamesRule()) === 'created' ? 'created' : 'exists';
       await singboxRouterStore.loadAll();
-      notifications.success(msg);
+      notifications.success(
+        created === null
+          ? m.sb_router_expert_lan_names_removed()
+          : created === 'created'
+            ? m.sb_router_expert_lan_names_created()
+            : m.sb_router_expert_lan_names_exists()
+      );
     } catch (e) {
       notifications.error(m.sb_router_expert_action_failed({ message: e instanceof Error ? e.message : String(e) }));
     } finally {

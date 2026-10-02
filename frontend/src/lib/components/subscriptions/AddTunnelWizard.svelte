@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { m } from '$lib/i18n';
+	import { m, uiText, type UiText } from '$lib/i18n';
 	import { goto } from '$app/navigation';
 	import { Modal, Button, Dropdown } from '$lib/components/ui';
 	import { api } from '$lib/api/client';
@@ -49,7 +49,7 @@
 
 	let kind = $state<WizardKind | 'choose'>('choose');
 	let submitting = $state(false);
-	let error = $state('');
+	let error = $state<UiText>('');
 
 	// "Один сервер" state — paste of N share-links, each becomes its
 	// own sing-box tunnel via /singbox/import-links.
@@ -124,7 +124,7 @@
 	});
 
 	let detectingHeaders = $state(false);
-	let detectedNotice = $state('');
+	let detectedNotice = $state<UiText>('');
 	let detectStatus = $state<'ok' | 'keys' | 'error'>('ok');
 	let showHappKeysModal = $state(false);
 	let detectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -168,16 +168,19 @@
 				}
 				if (res && res.serverCount > 0) {
 					headersText = res.headersText;
+					const { label, serverCount: count } = res;
 					if (res.isEncrypted && res.decryptedUrl) {
-						detectedNotice = m.subscriptions_wizard_decrypted_full({ url: res.decryptedUrl, label: res.label, count: res.serverCount });
+						const decryptedUrl = res.decryptedUrl;
+						detectedNotice = () => m.subscriptions_wizard_decrypted_full({ url: decryptedUrl, label, count });
 					} else {
-						detectedNotice = m.subscriptions_wizard_recognized({ label: res.label, count: res.serverCount });
+						detectedNotice = () => m.subscriptions_wizard_recognized({ label, count });
 					}
 				} else if (res && res.isEncrypted && res.decryptedUrl) {
-					detectedNotice = m.subscriptions_wizard_decrypted({ url: res.decryptedUrl });
+					const decryptedUrl = res.decryptedUrl;
+					detectedNotice = () => m.subscriptions_wizard_decrypted({ url: decryptedUrl });
 				} else if (res && res.isEncrypted && !res.decryptedUrl) {
 					detectStatus = 'keys';
-					detectedNotice = m.subscriptions_wizard_happ_encrypted();
+					detectedNotice = () => m.subscriptions_wizard_happ_encrypted();
 				}
 			} catch (e) {
 				if (seq !== detectSeq) return;
@@ -185,7 +188,7 @@
 				lastDetectedUrl = '';
 				detectStatus = 'error';
 				detectedNotice =
-					e instanceof Error ? e.message : m.subscriptions_wizard_detect_failed();
+					e instanceof Error ? e.message : () => m.subscriptions_wizard_detect_failed();
 			} finally {
 				if (seq === detectSeq) {
 					detectingHeaders = false;
@@ -278,24 +281,24 @@
 		// Кап тела запроса на бэкенде — 1 МБ (http.MaxBytesReader): больший
 		// файл упал бы только на submit с невнятным 413.
 		if (file.size > 1 << 20) {
-			error = m.subscriptions_wizard_file_too_big({ name: file.name });
+			error = () => m.subscriptions_wizard_file_too_big({ name: file.name });
 			return;
 		}
 		try {
 			const text = await file.text();
 			if (!text.trim()) {
-				error = m.subscriptions_wizard_file_empty({ name: file.name });
+				error = () => m.subscriptions_wizard_file_empty({ name: file.name });
 				return;
 			}
 			const merged = appendImportedFileText(get(), text);
-			if (merged.error) {
-				error = merged.error;
+			if (merged.rejected) {
+				error = () => m.subscriptions_wizard_config_whole_only();
 				return;
 			}
 			set(merged.text);
 			error = '';
 		} catch {
-			error = m.subscriptions_wizard_file_read_failed({ name: file.name });
+			error = () => m.subscriptions_wizard_file_read_failed({ name: file.name });
 		}
 	}
 
@@ -336,10 +339,10 @@
 				inlineText = singleLinks;
 				singleLinks = '';
 				kind = 'inline';
-				error = m.subscriptions_wizard_trusttunnel_multi({ count: n });
+				error = () => m.subscriptions_wizard_trusttunnel_multi({ count: n });
 				return;
 			}
-			error = e instanceof Error ? e.message : m.subscriptions_wizard_import_failed();
+			error = e instanceof Error ? e.message : () => m.subscriptions_wizard_import_failed();
 		} finally {
 			submitting = false;
 		}
@@ -348,7 +351,7 @@
 	async function fetchPreview(): Promise<void> {
 		const isFile = kind === 'file';
 		if (previewing || (isFile ? !filePath.trim() : !url.trim())) {
-			error = isFile ? m.subscriptions_wizard_enter_path() : m.subscriptions_wizard_enter_url();
+			error = isFile ? () => m.subscriptions_wizard_enter_path() : () => m.subscriptions_wizard_enter_url();
 			return;
 		}
 		previewing = true;
@@ -374,7 +377,7 @@
 			excludedKeys = new Set();
 			urlStep = 'preview';
 		} catch (e) {
-			error = e instanceof Error ? e.message : m.subscriptions_wizard_preview_failed();
+			error = e instanceof Error ? e.message : () => m.subscriptions_wizard_preview_failed();
 		} finally {
 			previewing = false;
 		}
@@ -403,15 +406,15 @@
 			inlineText = normalizeSpaceSeparatedShareLinks(inlineText);
 		}
 		if (isInline && !inlineText.trim()) {
-			error = m.subscriptions_wizard_paste_link();
+			error = () => m.subscriptions_wizard_paste_link();
 			return;
 		}
 		if (isFile && !filePath.trim()) {
-			error = m.subscriptions_wizard_enter_path();
+			error = () => m.subscriptions_wizard_enter_path();
 			return;
 		}
 		if (!isInline && !isFile && !url.trim()) {
-			error = m.subscriptions_wizard_enter_url();
+			error = () => m.subscriptions_wizard_enter_url();
 			return;
 		}
 		submitting = true;
@@ -443,7 +446,7 @@
 			reset();
 			goto(`/subscriptions/${sub.id}`);
 		} catch (e) {
-			error = e instanceof Error ? e.message : m.subscriptions_wizard_create_failed();
+			error = e instanceof Error ? e.message : () => m.subscriptions_wizard_create_failed();
 		} finally {
 			submitting = false;
 		}
@@ -532,7 +535,7 @@
 				accept={IMPORT_FILE_ACCEPT_SINGLE}
 				onfile={(f) => void onImportFile(f, () => singleLinks, (v) => (singleLinks = v))}
 			/>
-			{#if error}<div class="err">{error}</div>{/if}
+			{#if error}<div class="err">{uiText(error)}</div>{/if}
 			{#if singleResult && singleResult.errors.length > 0}
 				<div class="err">
 					<div>{m.subscriptions_wizard_import_result({ imported: singleResult.imported, errors: singleResult.errors.length })}</div>
@@ -557,7 +560,7 @@
 			onselectAll={selectAllMembers}
 			onselectNone={selectNoneMembers}
 		/>
-		{#if error}<div class="err">{error}</div>{/if}
+		{#if error}<div class="err">{uiText(error)}</div>{/if}
 	{:else}
 		<form
 			class="form"
@@ -603,7 +606,7 @@
 							class:detect-warning={detectStatus !== 'ok'}
 							class:detect-success={detectStatus === 'ok'}
 						>
-							<span>{detectedNotice}</span>
+							<span>{uiText(detectedNotice)}</span>
 							{#if detectStatus === 'keys'}
 								<Button
 									size="sm"
@@ -748,7 +751,7 @@
 				<input type="checkbox" bind:checked={enabled} />
 				<span>{m.subscriptions_wizard_enable_now()}</span>
 			</label>
-			{#if error}<div class="err">{error}</div>{/if}
+			{#if error}<div class="err">{uiText(error)}</div>{/if}
 		</form>
 	{/if}
 

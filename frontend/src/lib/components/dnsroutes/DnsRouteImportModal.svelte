@@ -6,7 +6,7 @@
         findRoutingTunnelLabel,
     } from '$lib/utils/routingTunnelOptions';
     import type { RoutingTunnel } from '$lib/types';
-    import { m } from '$lib/i18n';
+    import { m, uiText, type UiText } from '$lib/i18n';
     import RoutingImportDropZone from '$lib/components/routing/RoutingImportDropZone.svelte';
 
     interface Props {
@@ -27,7 +27,7 @@
 
     let parsed = $state<PortableDnsRoute[] | null>(null);
     let selectedFlags = $state<boolean[]>([]);
-    let parseError = $state('');
+    let parseError = $state<UiText>('');
     let importing = $state(false);
     let wasOpen = $state(false);
     let defaultTunnelId = $state('');
@@ -73,7 +73,7 @@
             const text = await file.text();
             const routes = parseImportFile(text);
             if (routes.length === 0) {
-                parseError = m.dns_routes_import_no_rules();
+                parseError = () => m.dns_routes_import_no_rules();
                 return;
             }
             parsed = routes;
@@ -81,7 +81,7 @@
             tunnelOverrides = {};
             editingTunnelIdx = null;
         } catch (e) {
-            parseError = e instanceof Error ? e.message : m.routing_import_read_error();
+            parseError = e instanceof Error ? e.message : () => m.routing_import_read_error();
         }
     }
 
@@ -100,7 +100,7 @@
     {#if !parsed}
         <RoutingImportDropZone
             subject={m.dns_routes_import_subject()}
-            parseError={parseError}
+            parseError={uiText(parseError)}
             onfile={processFile}
         />
     {:else}
