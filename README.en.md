@@ -1,11 +1,11 @@
 # AWG Manager
 
-> 🇷🇺 [Русская версия](README.md)
+> [Russian](README.md)
 
 > A web interface for managing AmneziaWG VPN tunnels on Keenetic routers.
 Experimental support for Sing-box has been added (vless tcp, hysteria, trojan, etc.)
 
-> **Disclaimer:** AWG Manager is an independent open-source project, not affiliated with [Amnezia.org](https://amnezia.org) or Sing-box [SagerNet](https://github.com/SagerNet/sing-box), and is not an official product of either. The program is in a state of perpetual BETA.
+> **Disclaimer:** AWG Manager is an independent open-source project, not affiliated with [Amnezia.org](https://amnezia.org) or [SagerNet](https://github.com/SagerNet/sing-box) (Sing-box), and is not an official product of either. The program is in a state of perpetual BETA.
 
 ![awgm-showcase](https://raw.githubusercontent.com/hoaxisr/awg-manager/develop/scripts/dev/awgm-showcase.webp)
 
@@ -20,13 +20,13 @@ Experimental support for Sing-box has been added (vless tcp, hysteria, trojan, e
 - Create AWG servers on the router
 - DNS routing through tunnels, with support for NDMS system WireGuard interfaces and the Sing-box rule system
 - Real-time connection status view
-- Compatible with Keenetic using Entware (OPKG)
+- Works on Keenetic routers with Entware (OPKG)
 
 ---
 
 ## Requirements
 
-- A Keenetic router with Entware support and the Wireguard component installed
+- A Keenetic router with Entware support and the WireGuard component installed
 
 ---
 
@@ -56,7 +56,7 @@ opkg remove awg-manager
 rm -rf /opt/etc/awg-manager /opt/etc/awg-manager.pre-restore-*
 ```
 
-`awg-manager.pre-restore-*` are copies of the data directory that restoring from a backup left behind in versions before 2.19.10.
+`awg-manager.pre-restore-*` are copies of the data directory left behind by restoring from a backup in versions before 2.19.10.
 
 ---
 
@@ -69,11 +69,11 @@ awg-manager can expose its functions to AI agents (Claude Code, Cursor, Claude D
 3. Connect: `claude mcp add --transport http awg-manager http://<router>:2222/mcp --header "Authorization: Bearer <key>"`.
    Via KeenDNS: `https://<domain>/mcp`.
 
-Access is by key only (even if web interface authentication is turned off). Available: viewing status, logs, tunnels, and routes, plus safe changes (starting/stopping tunnels, DNS/static/client routes, sing-box), as well as analyzing how a domain or address is routed, checking the external IP through a tunnel, viewing proxies, subscriptions, server groups, and sing-box router rules, enabling and disabling subscriptions, and managing the clients of the built-in WG server. A key can be issued as read-only — then any tool that changes the router will be refused. Deleting tunnels, backups, updates and file access are not available via MCP. Deleting a route list (DNS or static) is available, irreversible, and cannot be restored via MCP: the client flags these tools as destructive and usually asks for confirmation.
+Access is by key only (even if web interface authentication is turned off). Agents can view status, logs, tunnels, and routes and make safe changes (starting/stopping tunnels, DNS/static/client routes, sing-box). They can also analyze how a domain or address is routed, check the external IP through a tunnel, view proxies, subscriptions, server groups, and sing-box router rules, enable and disable subscriptions, and manage the clients of the built-in WG server. A key can be issued as read-only — then any tool that changes the router will be refused. Deleting tunnels, backups, updates, and file access are not available via MCP. Deleting a route list (DNS or static) is available but irreversible — the list cannot be restored via MCP, so the client flags these tools as destructive and usually asks for confirmation.
 
 Before issuing a key, keep in mind:
 
-- **The key is the endpoint's only protection from the outside.** Attempt limiting works only for clients on the local network: behind the KeenDNS reverse proxy, all remote clients arrive from the proxy's own address (127.0.0.1), so counting by IP would not protect anything there — on the contrary, any remote client could lock out everyone else with a couple of wrong keys. That is why the limit is not applied at all to loopback requests, and protection against brute force from outside comes from the key length (256 bits): store the key like a password and revoke it as soon as it is no longer needed.
+- **The key is the endpoint's only protection from the outside.** Limiting failed attempts works only for clients on the local network: behind the KeenDNS reverse proxy, all remote clients arrive from the proxy's own address (127.0.0.1), so counting by IP would not protect anything there — on the contrary, any remote client could lock out everyone else with a couple of wrong keys. That is why the limit is not applied at all to loopback requests, and protection against brute force from outside comes from the key length (256 bits): store the key like a password and revoke it as soon as it is no longer needed.
 - **The key gives access to VPN private keys.** The `export_tunnel_config` tool returns the entire tunnel configuration, including `PrivateKey`. This means anyone who has the MCP key (and the agent you gave it to) can export the private keys of all tunnels on the router. Issue the key only to clients you trust as much as the router itself.
 
 ---
