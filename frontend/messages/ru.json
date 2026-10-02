@@ -7638,5 +7638,58 @@
 	"terms_back": "← Вернуться",
 	"subscriptions_groups_delete_message": "Группа <strong>{label}</strong> будет удалена вместе с её sing-box outbound'ом и NDMS Proxy. Подписки и их серверы не пострадают.",
 	"subscriptions_delete_confirm_message": "Подписка <strong>{label}</strong> будет удалена вместе с её sing-box outbound'ами и NDMS Proxy <code class=\"mono\">Proxy{index}</code>.",
-	"tunnels_modals_delete_sub_message": "Подписка <strong>{label}</strong> будет удалена вместе с её sing-box outbound'ами и NDMS Proxy-интерфейсом."
+	"tunnels_modals_delete_sub_message": "Подписка <strong>{label}</strong> будет удалена вместе с её sing-box outbound'ами и NDMS Proxy-интерфейсом.",
+	"format_ago_suffix": "назад",
+	"format_seconds_count": "{count} сек.",
+	"format_minutes_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} минуту",
+				"countPlural=few": "{count} минуты",
+				"countPlural=many": "{count} минут",
+				"countPlural=*": "{count} минуты"
+			}
+		}
+	],
+	"format_hours_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} час",
+				"countPlural=few": "{count} часа",
+				"countPlural=many": "{count} часов",
+				"countPlural=*": "{count} часа"
+			}
+		}
+	],
+	"format_days_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} день",
+				"countPlural=few": "{count} дня",
+				"countPlural=many": "{count} дней",
+				"countPlural=*": "{count} дня"
+			}
+		}
+	]
 }

@@ -156,3 +156,29 @@ export function formatRelativeTime(timestamp: string | Date): string {
 
     return m.format_days_ago({ count: Math.floor(diffSec / 86400) });
 }
+
+/**
+ * Относительное время по частям: число с единицей и суффикс «назад» отдельно —
+ * для вёрстки, где суффикс мельче или не нужен. Части берутся из отдельных
+ * сообщений, а не вырезаются из готовой фразы: разбор переведённого текста
+ * сломался бы на другом языке или при правке перевода. «Только что» — без
+ * суффикса.
+ */
+export function formatRelativeTimeParts(timestamp: string | Date): { main: string; suffix?: string } {
+    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+    if (isNaN(date.getTime())) return { main: '—' };
+
+    const diffSec = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (diffSec < 10) return { main: m.format_just_now() };
+
+    const suffix = m.format_ago_suffix();
+    if (diffSec < 60) return { main: m.format_seconds_count({ count: diffSec }), suffix };
+
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return { main: m.format_minutes_count({ count: diffMin }), suffix };
+
+    const diffHours = Math.floor(diffSec / 3600);
+    if (diffHours < 24) return { main: m.format_hours_count({ count: diffHours }), suffix };
+
+    return { main: m.format_days_count({ count: Math.floor(diffSec / 86400) }), suffix };
+}

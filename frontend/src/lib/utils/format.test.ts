@@ -5,6 +5,7 @@ import {
 	formatDate,
 	formatDuration,
 	formatRelativeTime,
+	formatRelativeTimeParts,
 } from './format';
 import { locale } from '$lib/i18n';
 
@@ -106,5 +107,33 @@ describe('скорости', () => {
 		expect(formatBitRate(0)).toBe('0 bit/s');
 		expect(formatBitRate(1_250)).toBe('10 kbit/s');
 		expect(formatBitRate(125_000)).toBe('1 Mbit/s');
+	});
+});
+
+describe('formatRelativeTimeParts', () => {
+	const NOW = new Date('2026-10-01T12:00:00Z').getTime();
+	const ago = (sec: number) => new Date(NOW - sec * 1000);
+
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(NOW);
+	});
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	// Части совпадают с цельной фразой formatRelativeTime, но берутся из своих
+	// сообщений — без разбора переведённого текста.
+	it.each([
+		[5, 'только что', undefined, 'just now', undefined],
+		[42, '42 сек.', 'назад', '42 s', 'ago'],
+		[21 * 60, '21 минуту', 'назад', '21 minutes', 'ago'],
+		[2 * 3600, '2 часа', 'назад', '2 hours', 'ago'],
+		[3 * 86400, '3 дня', 'назад', '3 days', 'ago'],
+	])('%i с', (sec, ruMain, ruSuffix, enMain, enSuffix) => {
+		expect(formatRelativeTimeParts(ago(sec))).toEqual({ main: ruMain, suffix: ruSuffix });
+		expect(`${ruMain}${ruSuffix ? ` ${ruSuffix}` : ''}`).toBe(formatRelativeTime(ago(sec)));
+		locale.set('en');
+		expect(formatRelativeTimeParts(ago(sec))).toEqual({ main: enMain, suffix: enSuffix });
 	});
 });

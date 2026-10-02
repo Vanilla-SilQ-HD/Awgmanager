@@ -16,6 +16,7 @@
 	import { api } from '$lib/api/client';
 	import {
 		formatRelativeTime,
+		formatRelativeTimeParts,
 		formatDuration,
 		secondsSince,
 		formatBytes,
@@ -218,7 +219,7 @@
 	let inlineTxRate = $derived(txRates.length > 0 ? txRates[txRates.length - 1] : 0);
 
 	function compactRelativeTime(value: string | null | undefined): string {
-		return value ? formatRelativeTime(value).replace(/\s+(назад|ago)$/u, '') : '—';
+		return value ? formatRelativeTimeParts(value).main : '—';
 	}
 
 	$effect(() => {

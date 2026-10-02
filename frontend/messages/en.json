@@ -7264,5 +7264,52 @@
 	"terms_back": "← Back",
 	"subscriptions_groups_delete_message": "The group <strong>{label}</strong> will be deleted together with its sing-box outbound and NDMS Proxy. The subscriptions and their servers are not affected.",
 	"subscriptions_delete_confirm_message": "Subscription <strong>{label}</strong> will be deleted together with its sing-box outbounds and NDMS Proxy <code class=\"mono\">Proxy{index}</code>.",
-	"tunnels_modals_delete_sub_message": "Subscription <strong>{label}</strong> will be deleted together with its sing-box outbounds and NDMS Proxy interface."
+	"tunnels_modals_delete_sub_message": "Subscription <strong>{label}</strong> will be deleted together with its sing-box outbounds and NDMS Proxy interface.",
+	"format_ago_suffix": "ago",
+	"format_seconds_count": "{count} s",
+	"format_minutes_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} minute",
+				"countPlural=*": "{count} minutes"
+			}
+		}
+	],
+	"format_hours_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} hour",
+				"countPlural=*": "{count} hours"
+			}
+		}
+	],
+	"format_days_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} day",
+				"countPlural=*": "{count} days"
+			}
+		}
+	]
 }
