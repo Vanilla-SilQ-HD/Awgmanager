@@ -19,7 +19,7 @@
     "lint:fix": "eslint . --fix",
     "test": "vitest run",
     "gen:qure-icons": "node scripts/generate-qure-icons.mjs",
-    "prepare": "svelte-kit sync && npm run i18n:compile || echo ''"
+    "prepare": "npm run i18n:compile && (svelte-kit sync || echo '')"
   },
   "devDependencies": {
     "@fontsource/ibm-plex-mono": "^5.2.7",
