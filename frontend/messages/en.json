@@ -3907,5 +3907,552 @@
 	"access_policy_empty": "No access policies. Create a policy to route devices’ traffic through the selected interfaces.",
 	"access_policy_delete_title": "Delete policy",
 	"access_policy_delete_message": "Delete policy “{name}”?",
-	"access_policy_delete_secondary": "All devices will be unbound from this policy."
+	"access_policy_delete_secondary": "All devices will be unbound from this policy.",
+	"dns_routes_card_download_via": "Updating via {route}",
+	"dns_routes_card_dedup_exact": "{domain} — duplicate of {coveredBy} ({list})",
+	"dns_routes_card_dedup_covered": "{domain} — covered by {coveredBy} ({list})",
+	"dns_routes_card_removed": "{count} removed",
+	"dns_routes_card_edit_title": "Edit DNS route “{name}”",
+	"dns_routes_card_refresh_via_title": "Refresh subscriptions of DNS route “{name}” via {route}",
+	"dns_routes_card_refresh_title": "Refresh subscriptions of DNS route “{name}”",
+	"dns_routes_card_delete_title": "Delete DNS route “{name}”",
+	"dns_routes_editor_entries_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} entry",
+				"countPlural=*": "{count} entries"
+			}
+		}
+	],
+	"dns_routes_editor_errors_label": "Errors on lines:",
+	"dns_routes_editor_goto_line": "Go to line {line}",
+	"dns_routes_editor_placeholder": "# Video services\nyoutube.com\ninstagram.com\ntiktok.com\n\n# Subnets\n10.0.0.0/8\n2001:db8::/32",
+	"dns_routes_editor_hint": "One domain or CIDR per line.\nComments start with #\nCtrl+/ or Cmd+/ toggles comments on selected lines.",
+	"dns_routes_import_title": "Upload a rule set",
+	"dns_routes_import_subject": "DNS routing rules",
+	"dns_routes_import_no_rules": "No valid rules found in the file",
+	"dns_routes_import_found": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} rule found",
+				"countPlural=*": "{count} rules found"
+			}
+		}
+	],
+	"dns_routes_policy_hint_prefix": "For DNS routing to work, the client must be in the “Default policy” access policy — in the router web interface, section ",
+	"dns_routes_policy_hint_section": "Connection priorities",
+	"dns_routes_policy_hint_suffix": ". If the device is bound to another policy, DNS routes do not apply to it.",
+	"dns_routes_ndms_limit_policy": "The route only works for clients in the “Default policy” policy. A device bound to its own access policy is not covered by DNS routes.",
+	"dns_routes_ndms_limit_doh": "Encrypted DNS (DoH/DoT) on the device or in the browser bypasses the route — the query does not go through the router resolver.",
+	"dns_routes_ndms_limit_first_requests": "The first requests to a domain may bypass the route: addresses reach the routing table only after the DNS reply.",
+	"dns_routes_ndms_limit_suffix": "Matching is by suffix: a rule for x.com also catches yandex.com.",
+	"dns_routes_ndms_limit_ttl": "Domains with a short TTL may not make it into the routing table.",
+	"dns_routes_ndms_limit_entware": "Third-party Entware software that intercepts DNS queries breaks the mechanism.",
+	"dns_routes_ndms_quiz1_question": "The device is bound to its own access policy, not to the “Default policy”. Will its traffic go through the DNS route?",
+	"dns_routes_ndms_quiz1_option_yes": "Yes, the policy does not affect DNS routes",
+	"dns_routes_ndms_quiz_option_no": "No",
+	"dns_routes_ndms_quiz1_explain": "DNS routing only serves the “Default policy”.",
+	"dns_routes_ndms_quiz2_question": "The browser on the device has its own DoH enabled. Will the DNS route work?",
+	"dns_routes_ndms_quiz2_option_yes": "Yes, the router will still see the query",
+	"dns_routes_ndms_quiz2_option_no": "No: the query bypasses the router resolver",
+	"dns_routes_ndms_quiz2_explain": "The router cannot see the encrypted query and cannot add the address to the route.",
+	"dns_routes_ndms_quiz3_question": "A rule is created for the domain x.com. What else will the rule match?",
+	"dns_routes_ndms_quiz3_option_exact": "Only x.com and its subdomains",
+	"dns_routes_ndms_quiz3_option_suffix": "Any domain with that suffix, for example yandex.com",
+	"dns_routes_ndms_quiz3_explain": "Matching is by string suffix, not by domain boundary.",
+	"dns_routes_ndms_accepted": "NDMS routing limitations accepted",
+	"dns_routes_ndms_show": "Show",
+	"dns_routes_ndms_title": "NDMS DNS routing limitations",
+	"dns_routes_ndms_sources": "Details on the Keenetic forum:",
+	"dns_routes_ndms_source_dns_routes": "DNS routes",
+	"dns_routes_ndms_source_dns_routing": "DNS routing questions",
+	"dns_routes_ndms_collapse": "Collapse",
+	"dns_routes_ndms_check_yourself": "I have read it — check myself",
+	"dns_routes_catalog_title": "Service catalog",
+	"dns_routes_catalog_cat_social": "Social",
+	"dns_routes_catalog_cat_media": "Media",
+	"dns_routes_catalog_cat_ai": "AI",
+	"dns_routes_catalog_cat_developer": "Development",
+	"dns_routes_catalog_cat_cloud": "Cloud",
+	"dns_routes_catalog_cat_gaming": "Games",
+	"dns_routes_catalog_cat_block": "Block",
+	"dns_routes_catalog_services_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} service",
+				"countPlural=*": "{count} services"
+			}
+		}
+	],
+	"dns_routes_catalog_create": "Create ({count})",
+	"dns_routes_catalog_select_count": "Select ({count})",
+	"dns_routes_catalog_loading": "Loading catalog…",
+	"dns_routes_catalog_empty": "The catalog is empty",
+	"dns_routes_catalog_no_results": "Nothing found for your query.",
+	"dns_routes_catalog_already_included": "Already included in “{name}”",
+	"dns_routes_catalog_in_name": "in {name}",
+	"dns_routes_catalog_large_dns_aria": "large DNS list",
+	"dns_routes_catalog_note_aria": "note",
+	"dns_routes_catalog_member_of_composite_aria": "already part of an added composite list",
+	"dns_routes_catalog_engine": "Engine",
+	"dns_routes_catalog_url_list_note": "If a service uses a URL list, it will be fetched via",
+	"dns_routes_catalog_no_tunnels": "Create at least one tunnel",
+	"dns_routes_icon_embedded_svg": "Embedded SVG",
+	"dns_routes_icon_apply_failed": "Failed to apply the icon",
+	"dns_routes_icon_upload_failed": "Failed to upload the file",
+	"dns_routes_icon_default_hint": "If nothing is selected, the built-in icon ({slug}) is used, as in SingBox",
+	"dns_routes_icon_custom_bg_hint": "The custom color will be saved in the route settings",
+	"dns_routes_icon_auto_bg_hint": "Auto — a uniform tile background that contrasts with the route card",
+	"dns_routes_icon_bg_label": "Icon background",
+	"dns_routes_icon_pick_color": "Choose color",
+	"dns_routes_icon_pick_tile_color_aria": "Choose tile background color",
+	"dns_routes_icon_hex_aria": "Background color HEX",
+	"dns_routes_icon_auto": "Auto",
+	"dns_routes_icon_title": "Choose an icon",
+	"dns_routes_icon_source_aria": "Icon source",
+	"dns_routes_icon_tab_catalog": "Qure catalog",
+	"dns_routes_icon_tab_custom": "Custom icon",
+	"dns_routes_icon_search_placeholder": "Search (telegram, netflix, github...)",
+	"dns_routes_icon_search_aria": "Search icons",
+	"dns_routes_icon_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} icon",
+				"countPlural=*": "{count} icons"
+			}
+		}
+	],
+	"dns_routes_icon_count_filtered": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} icon (filtered)",
+				"countPlural=*": "{count} icons (filtered)"
+			}
+		}
+	],
+	"dns_routes_icon_url_label": "Image URL",
+	"dns_routes_icon_or": "or",
+	"dns_routes_icon_svg_label": "SVG code",
+	"dns_routes_icon_svg_hint": "Paste an <svg>…</svg> snippet or a whole file.",
+	"dns_routes_icon_file_aria": "Icon file upload",
+	"dns_routes_icon_drop_title": "Drag a file here",
+	"dns_routes_icon_drop_sub": "or click to choose · PNG, JPG, WebP, SVG · up to 96 KB",
+	"dns_routes_icon_remove_file": "Remove file",
+	"dns_routes_icon_invalid_svg": "Invalid SVG — an <svg> tag without scripts is required",
+	"dns_routes_icon_saved_hint": "The icon is saved in the route settings. A URL is a link; SVG and files are embedded as data URLs.",
+	"dns_routes_icon_reset": "↺ Reset (to auto)",
+	"dns_routes_icon_apply": "Apply",
+	"dns_routes_edit_new_title": "New DNS route",
+	"dns_routes_edit_name_placeholder": "Blocked sites",
+	"dns_routes_edit_engine_label": "Routing engine",
+	"dns_routes_edit_engine_ndms": "Router software (NDMS)",
+	"dns_routes_edit_manual_domains": "Domains (manual)",
+	"dns_routes_edit_geo_hint": "geosite:TAG is supported, for example geosite:GOOGLE",
+	"dns_routes_edit_subscriptions": "Subscriptions",
+	"dns_routes_edit_url_lists_note": "URL lists will be checked and updated via",
+	"dns_routes_edit_remove_subscription": "Remove subscription",
+	"dns_routes_edit_route": "Route",
+	"dns_routes_edit_mode_interface": "Interface",
+	"dns_routes_edit_mode_policy": "Policy",
+	"dns_routes_edit_target_interface": "Target interface",
+	"dns_routes_edit_target_interface_hint": "Traffic is sent directly to the interface (DirectRoute)",
+	"dns_routes_edit_route_order": "Route (order = priority)",
+	"dns_routes_edit_route_required": "Add at least one tunnel for routing",
+	"dns_routes_edit_move_up": "Up",
+	"dns_routes_edit_move_down": "Down",
+	"dns_routes_edit_fallback_label": "If all are unavailable:",
+	"dns_routes_edit_fallback_provider": "provider",
+	"dns_routes_edit_fallback_exclusive": "exclusive",
+	"dns_routes_edit_policy_name": "Policy name:",
+	"dns_routes_edit_policy_hint": "Order = priority. The policy is created automatically on the router.",
+	"dns_routes_edit_excludes": "Exclusions",
+	"dns_routes_edit_excludes_placeholder": "# Domains that should NOT be routed\nexample.com\n.local\n\n# Subnets that should NOT be routed\n10.0.0.0/8\n2001:db8::/32",
+	"dns_routes_edit_excludes_hint": "These domains will be excluded from routing through the tunnel.\nComments start with #\nCtrl+/ or Cmd+/ toggles comments on selected lines.",
+	"dns_routes_edit_dedup_summary": [
+		{
+			"declarations": [
+				"input total",
+				"input exact",
+				"input wildcard",
+				"local totalPlural = total: plural",
+				"local exactPlural = exact: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"exactPlural"
+			],
+			"match": {
+				"totalPlural=one, exactPlural=one": "Removed {total} duplicate ({exact} exact, {wildcard} wildcard)",
+				"totalPlural=one, exactPlural=*": "Removed {total} duplicate ({exact} exact, {wildcard} wildcard)",
+				"totalPlural=*, exactPlural=one": "Removed {total} duplicates ({exact} exact, {wildcard} wildcard)",
+				"totalPlural=*, exactPlural=*": "Removed {total} duplicates ({exact} exact, {wildcard} wildcard)"
+			}
+		}
+	],
+	"dns_routes_edit_dedup_exact": "duplicate",
+	"dns_routes_edit_dedup_exact_in_name": "duplicate in “{list}”",
+	"dns_routes_edit_dedup_exact_in_id": "duplicate in {list}",
+	"dns_routes_edit_dedup_wildcard": "covered by {coveredBy}",
+	"dns_routes_edit_dedup_wildcard_in_name": "covered by {coveredBy} in “{list}”",
+	"dns_routes_edit_dedup_wildcard_in_id": "covered by {coveredBy} in {list}",
+	"dns_routes_edit_dedup_subnet": "covered by subnet {coveredBy}",
+	"dns_routes_edit_dedup_subnet_in_name": "covered by subnet {coveredBy} in “{list}”",
+	"dns_routes_edit_dedup_subnet_in_id": "covered by subnet {coveredBy} in {list}",
+	"dns_routes_edit_total_domains": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Total: {count} domain",
+				"countPlural=*": "Total: {count} domains"
+			}
+		}
+	],
+	"dns_routes_edit_total_groups": [
+		{
+			"declarations": [
+				"input domains",
+				"input groups",
+				"local domainsPlural = domains: plural",
+				"local groupsPlural = groups: plural"
+			],
+			"selectors": [
+				"domainsPlural",
+				"groupsPlural"
+			],
+			"match": {
+				"domainsPlural=one, groupsPlural=one": "Total: {domains} domain → {groups} group of 300",
+				"domainsPlural=one, groupsPlural=*": "Total: {domains} domain → {groups} groups of 300",
+				"domainsPlural=*, groupsPlural=one": "Total: {domains} domains → {groups} group of 300",
+				"domainsPlural=*, groupsPlural=*": "Total: {domains} domains → {groups} groups of 300"
+			}
+		}
+	],
+	"singbox_routing_slot_draft_saved": "Draft saved",
+	"singbox_routing_slot_config_applied": "Configuration applied",
+	"singbox_routing_slot_draft_discarded": "Draft discarded",
+	"singbox_routing_slot_enabled_toast": "Slot enabled",
+	"singbox_routing_slot_disabled_toast": "Slot disabled",
+	"singbox_routing_slot_copy_failed": "Failed to copy",
+	"singbox_routing_slot_status_dirty": "modified, not saved",
+	"singbox_routing_slot_status_draft": "draft saved, not applied",
+	"singbox_routing_slot_status_applied": "applied",
+	"singbox_routing_slot_hint": "The slot extends the config: its own outbounds/inbounds/rules are appended last. The dns/route scalars (final, strategy) are set in the router settings and are not overridden here. Tags must not match existing ones.",
+	"singbox_routing_slot_invalid_json": "Invalid JSON",
+	"singbox_routing_slot_invalid_json_at": "Invalid JSON — line {line}, column {column}",
+	"singbox_routing_slot_check_failed": "Check failed",
+	"singbox_routing_slot_warnings_title": "Warnings — applying is possible",
+	"singbox_routing_slot_check_ok": "Check passed — the config is compatible with the active slots.",
+	"singbox_routing_slot_tun_warning": "Changing the tun inbound will reload sing-box — connections through this tun will be dropped.",
+	"singbox_routing_slot_readonly_note": "Generated automatically — edits will be overwritten by the slot producer.",
+	"singbox_routing_slot_enabled": "Enabled",
+	"singbox_routing_slot_disabled": "Disabled",
+	"singbox_routing_slot_discarding": "Discarding…",
+	"singbox_routing_slot_discard": "Discard draft",
+	"singbox_routing_slot_checking": "Checking…",
+	"singbox_routing_slot_check": "Check",
+	"singbox_routing_slot_saving": "Saving…",
+	"singbox_routing_slot_save_draft": "Save draft",
+	"singbox_routing_slot_applying": "Applying…",
+	"singbox_routing_slots_confirm_discard": "You have unsaved changes — close without saving?",
+	"singbox_routing_slots_size_bytes": "{size} B",
+	"singbox_routing_slots_size_kb": "{size} KB",
+	"singbox_routing_slots_title_slot": "Slot {filename}",
+	"singbox_routing_slots_title": "sing-box configuration",
+	"singbox_routing_slots_back": "← Back to slot list",
+	"singbox_routing_slots_badge_generated": "generated automatically",
+	"singbox_routing_slots_badge_user": "user",
+	"singbox_routing_slots_badge_draft": "draft",
+	"singbox_routing_slots_badge_disabled": "disabled",
+	"singbox_routing_slots_refresh": "Refresh",
+	"singbox_routing_slots_merged": "Merged config",
+	"singbox_routing_slots_load_failed": "Failed to load slots",
+	"singbox_routing_slots_list_hint": "Files are merged in lexicographic order. System slots are fully overwritten by their generators — only the user slot 90-user.json is editable.",
+	"singbox_routing_json_copied_toast": "Config copied to clipboard",
+	"singbox_routing_json_downloaded_toast": "Config downloaded",
+	"singbox_routing_json_title": "sing-box config",
+	"singbox_routing_json_export": "Export",
+	"singbox_routing_json_loading": "Loading config…",
+	"singbox_routing_json_load_failed": "Failed to load config",
+	"singbox_routing_json_empty": "The config is empty",
+	"singbox_routing_staging_since": "since {time}",
+	"singbox_routing_staging_reset": "Reset",
+	"singbox_routing_staging_applying": "Applying…",
+	"singbox_routing_staging_cannot_apply": "Cannot apply",
+	"singbox_routing_staging_unsaved": "Unsaved changes",
+	"singbox_routing_staging_missing_rule_set": "The DNS rule references rule_set “{tag}”, which is not in Route → Sets. Add the set or delete the DNS rule that references it.",
+	"singbox_routing_staging_discard_title": "Discard changes?",
+	"singbox_routing_staging_discard_body": "All accumulated changes will be discarded.",
+	"singbox_routing_staging_discarding": "Reverting…",
+	"singbox_routing_inspector_waiting_backend": "Waiting for the backend response…",
+	"singbox_routing_inspector_rule_of": "Rule #{index} of {total}",
+	"singbox_routing_inspector_rule_of_with_set": "Rule #{index} of {total} · rule_set: {tag}",
+	"singbox_routing_inspector_set_only": "rule_set: {tag}",
+	"singbox_routing_inspector_next_wait_config": "Waiting for the configuration to load",
+	"singbox_routing_inspector_next_finish_rule_set": "Finish the rule_set check and go to the result of rule #{rule}",
+	"singbox_routing_inspector_next_rule": "Next: rule #{rule} of {total}",
+	"singbox_routing_inspector_next_final": "Next: final route decision",
+	"singbox_routing_inspector_next_wait_step": "Waiting for the next check step",
+	"singbox_routing_inspector_less_than_second": "less than 1 s",
+	"singbox_routing_inspector_check_failed": "Failed to check the route: {message}",
+	"singbox_routing_inspector_title": "Route inspector",
+	"singbox_routing_inspector_input_label": "Domain or IP",
+	"singbox_routing_inspector_input_placeholder": "google.com or 8.8.8.8",
+	"singbox_routing_inspector_checking": "Checking…",
+	"singbox_routing_inspector_check": "Check",
+	"singbox_routing_inspector_hide_advanced": "Hide advanced options",
+	"singbox_routing_inspector_show_advanced": "Show advanced options",
+	"singbox_routing_inspector_port": "Port",
+	"singbox_routing_inspector_port_placeholder": "optional",
+	"singbox_routing_inspector_protocol": "Protocol",
+	"singbox_routing_inspector_protocol_unset": "not set",
+	"singbox_routing_inspector_quick_check": "Quick check:",
+	"singbox_routing_inspector_in_progress_title": "Route check in progress",
+	"singbox_routing_inspector_total_time": "Total time: {seconds} s",
+	"singbox_routing_inspector_rules_progress": "Rules: {checked} of {total}",
+	"singbox_routing_inspector_current_rule": "Current rule: #{index}",
+	"singbox_routing_inspector_progress_hint": "The inspector simulates the rules and can check rule_set via sing-box.",
+	"singbox_routing_inspector_steps_aria": "Check progress",
+	"singbox_routing_inspector_step_checked": "Checked",
+	"singbox_routing_inspector_step_now": "Now",
+	"singbox_routing_inspector_step_next": "Next",
+	"singbox_routing_inspector_type_domain": "domain",
+	"singbox_routing_inspector_type_ip": "IP address",
+	"singbox_routing_inspector_matched_rule": "Rule #{index} matched",
+	"singbox_routing_inspector_default_outbound": "Default outbound (final: {final})",
+	"singbox_routing_inspector_rule_num": "Rule #{index}",
+	"singbox_routing_inspector_conditions": "Conditions:",
+	"singbox_routing_inspector_no_match_prefix": "No rule matched — traffic will go through",
+	"singbox_routing_inspector_note": "Note:",
+	"singbox_routing_inspector_report_title": "Check report",
+	"singbox_routing_inspector_report_checked_rules": "Rules checked: {checked} of {total}",
+	"singbox_routing_inspector_report_decision": "Decision",
+	"singbox_routing_inspector_report_matched": "Matched",
+	"singbox_routing_inspector_report_slowest": "Slowest steps",
+	"singbox_routing_inspector_report_rule_set_checks": "Rule-set checks",
+	"singbox_routing_inspector_walkthrough_hide": "Hide breakdown of all rules ({count})",
+	"singbox_routing_inspector_walkthrough_show": "Show breakdown of all rules ({count})",
+	"singbox_routing_inspector_walkthrough_title": "Rule check order",
+	"singbox_routing_inspector_row_matched_non_final": "matched (not final)",
+	"singbox_routing_inspector_row_matched": "matched",
+	"singbox_routing_inspector_row_not_matched": "not matched",
+	"singbox_routing_inspector_row_final_hint": "used if no rule matches",
+	"singbox_routing_inspector_empty": "Enter a domain or IP address — the inspector will show which outbound the traffic goes through and which rule matches. This is a simulation; sing-box is not called.",
+	"hrneo_tab_policy_interfaces": "Policy interfaces",
+	"hrneo_tab_policy_interfaces_hint": "Changes are saved immediately via RCI",
+	"hrneo_tab_new_rule": "+ New rule",
+	"hrneo_tab_daemon_settings": "Daemon settings",
+	"hrneo_tab_delete_title": "Delete HR rule",
+	"hrneo_tab_delete_prefix": "Delete rule ",
+	"hrneo_tab_delete_hint_prefix": "The entry will be removed from ",
+	"hrneo_tab_delete_hint_and": " and ",
+	"hrneo_tab_delete_hint_suffix": ". HR Neo will be restarted automatically.",
+	"hrneo_tab_icon_changed": "Icon changed",
+	"hrneo_tab_icon_reset": "Icon reset",
+	"hrneo_tab_icon_update_failed": "Failed to update the icon",
+	"hrneo_sidebar_no_rules": "No rules yet",
+	"hrneo_sidebar_service": "Service",
+	"hrneo_sidebar_geodata": "Geo data",
+	"hrneo_sidebar_daemon_settings": "Daemon settings",
+	"hrneo_sidebar_disabled_tags": "Disabled tags",
+	"hrneo_rules_list_add": "Add rule",
+	"hrneo_rules_list_empty": "Empty. Add the first rule for this target.",
+	"hrneo_settings_title": "hrneo daemon settings",
+	"hrneo_settings_behavior": "Behavior",
+	"hrneo_settings_desc_autostart": "start on router boot",
+	"hrneo_settings_desc_clear_ipset": "clear ipset on start",
+	"hrneo_settings_desc_conntrack": "flush conntrack when a new IP appears",
+	"hrneo_settings_desc_policies_warn": "overwrites router policies — use with caution",
+	"hrneo_settings_desc_timeout": "ipset entries will be removed on timeout",
+	"hrneo_settings_desc_timeout_seconds": "seconds (21600 = 6 hours)",
+	"hrneo_settings_desc_maxelem": "max entries, default 65536",
+	"hrneo_settings_logging": "Logging",
+	"hrneo_settings_advanced": "Advanced (require hrneo restart)",
+	"hrneo_settings_desc_direct_route": "direct routing to the interface",
+	"hrneo_disabled_tags_banner": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "HR Neo excluded {count} tag from routing — it exceeds",
+				"countPlural=*": "HR Neo excluded {count} tags from routing — they exceed"
+			}
+		}
+	],
+	"hrneo_disabled_tags_entries": [
+		{
+			"declarations": [
+				"input count",
+				"input formatted",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{formatted} entry",
+				"countPlural=*": "{formatted} entries"
+			}
+		}
+	],
+	"hrneo_disabled_tags_title": "Disabled tags",
+	"hrneo_rule_card_edit": "Edit",
+	"hrneo_geo_refresh_title": "Geo file auto-refresh",
+	"hrneo_geo_refresh_description": "Periodically re-download custom geoip/geosite files on a schedule.",
+	"hrneo_geo_refresh_mode": "Refresh mode:",
+	"hrneo_geo_refresh_mode_interval": "every N hours",
+	"hrneo_geo_refresh_mode_daily": "daily",
+	"hrneo_geo_refresh_hours_suffix": "h",
+	"hrneo_geo_refresh_saving": "Saving...",
+	"hrneo_geo_refresh_interval_hint": "6 to 24 hours is recommended",
+	"hrneo_geo_refresh_daily_hint": "Router local time",
+	"hrneo_geo_picker_aria": "Choose {kind} tag",
+	"hrneo_geo_action_add": "Adding a geo file",
+	"hrneo_geo_action_preset": "Adding a preset",
+	"hrneo_geo_action_update": "Updating {file}",
+	"hrneo_geo_action_sync": "Syncing geo files",
+	"hrneo_geo_msg_added": "File downloaded",
+	"hrneo_geo_msg_preset": "Preset downloaded",
+	"hrneo_geo_msg_updated": "File updated",
+	"hrneo_geo_msg_synced": "Sync completed",
+	"hrneo_geo_sync_partial": "Updated {updated}, errors: {error}",
+	"hrneo_geo_sync": "Sync",
+	"hrneo_geo_sync_title": "Pull paths from hrneo.conf (External) and re-download AWGM files (External files are left alone — update them in HR Neo)",
+	"hrneo_geo_route_error": "{error}. Open Settings → Downloads and updates or reload the page.",
+	"hrneo_geo_route_loading": "Loading geo.dat route settings…",
+	"hrneo_geo_route_warn_prefix": "Via: ",
+	"hrneo_geo_route_warn_suffix": ". Failed to refresh the route list, the last known list is used: {warning}",
+	"hrneo_geo_last_ok": "Last operation succeeded: {action} ({route}) — {message}",
+	"hrneo_geo_last_failed": "Failed: {action} ({route})",
+	"hrneo_geo_empty": "No files uploaded. Add a URL below.",
+	"hrneo_geo_hide_path": "Hide path",
+	"hrneo_geo_external_title": "This file is managed by HydraRoute Neo",
+	"hrneo_geo_source_aria": "Source",
+	"hrneo_geo_source_title": "Show source",
+	"hrneo_geo_local_title": "Uploaded manually",
+	"hrneo_geo_local": "local",
+	"hrneo_geo_validating": "validating…",
+	"hrneo_geo_take_control": "Take control",
+	"hrneo_geo_presets": "Ground-Zerro presets",
+	"hrneo_geo_preset_hint": "An aggregate of v2fly + RU blocklists, updated daily.",
+	"hrneo_geo_add_by_url": "Add by URL",
+	"hrneo_geo_validating_file": "Validating the file…",
+	"hrneo_geo_connecting": "Connecting via {route}…",
+	"hrneo_geo_downloading": "Downloading via {route}: {percent} — {downloaded}",
+	"hrneo_geo_downloading_of": "Downloading via {route}: {percent} — {downloaded} of {total}",
+	"hrneo_geo_type_hint_prefix": "Type ",
+	"hrneo_geo_type_hint_suffix": " must match the content. A file with 0 entries will be rejected — make sure the correct type is selected for this URL. Size limit: 200 MB.",
+	"hrneo_geo_take_control_message": "Move “{file}” to the awg-manager directory?",
+	"hrneo_geo_take_control_secondary": "The file will be moved from the HydraRoute directory (/opt/etc/HydraRoute) and managed from AWGM from then on. The path in hrneo.conf will be updated on sync.",
+	"hrneo_geo_take_control_confirm": "Move",
+	"hrneo_geo_delete_title": "Delete geo file",
+	"hrneo_geo_delete_external_message": "Delete “{file}” from disk? The file is managed by HydraRoute Neo — it will be deleted from /opt/etc/HydraRoute, not only from the AWGM directory.",
+	"hrneo_geo_delete_message": "Delete “{file}”?",
+	"hrneo_geo_delete_secondary": "The line {key}={path} will be removed from hrneo.conf (if HydraRoute is installed).",
+	"hrneo_geo_source_modal_title": "Geo file source",
+	"hrneo_geo_files_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} file",
+				"countPlural=*": "{count} files"
+			}
+		}
+	],
+	"hrneo_edit_new_title": "New HR rule",
+	"hrneo_edit_policy_name_required": "Enter a policy name",
+	"hrneo_edit_policy_name_max": "Maximum {max} characters",
+	"hrneo_edit_policy_name_reserved": "The name {name} is reserved for router system policies — HR Neo cannot route into them",
+	"hrneo_edit_policy_name_latin": "Latin letters only (a-z, A-Z), no digits, spaces or special characters",
+	"hrneo_edit_policy_name_is_interface": "The name matches the interface \"{name}\". You may have meant to choose Target = Interface.",
+	"hrneo_edit_policy_name_exists": "A policy named \"{name}\" already exists. Choose \"Existing\" above.",
+	"hrneo_edit_catalog_change": "Change",
+	"hrneo_edit_catalog_cta_title": "Fill from catalog",
+	"hrneo_edit_catalog_cta_hint": "Choose a service — we will fill in the domains and CIDRs",
+	"hrneo_edit_icon_custom": "Custom icon",
+	"hrneo_edit_icon_preset": "Icon from preset",
+	"hrneo_edit_icon_preset_hint": "You can replace it with your own icon",
+	"hrneo_edit_icon_auto_hint": "Enter a name or upload your own icon",
+	"hrneo_edit_target": "Target",
+	"hrneo_edit_target_unknown": "Target: {target} (not found in the list) — choose a tunnel",
+	"hrneo_edit_target_unset": "The rule target is not set — choose a tunnel",
+	"hrneo_edit_policy_existing": "Existing",
+	"hrneo_edit_policy_new": "New",
+	"hrneo_edit_no_compatible_policies": "No HR-compatible policies. Create a new one.",
+	"hrneo_edit_system_policies_prefix": "Router system policies (",
+	"hrneo_edit_system_policies_suffix": ") are not shown — HR Neo cannot route into them.",
+	"hrneo_edit_policy_interfaces_hint": "Policy interfaces are edited on its card in the sidebar.",
+	"hrneo_edit_new_policy_header": "New policy on the router",
+	"hrneo_edit_policy_name": "Policy name",
+	"hrneo_edit_policy_name_hint": "Latin letters only (a–Z), up to {max} characters.",
+	"hrneo_edit_policy_created_hint": "The policy and bindings are created after you click “Save”.",
+	"hrneo_edit_domains": "Domains",
+	"hrneo_edit_domains_hint": "Domains · .suffix · geosite:TAG — one per line. They are written comma-separated on a single line.",
+	"hrneo_edit_cidr_hint": "CIDR · geoip:TAG — one per line. A block in ip.list.",
+	"hrneo_edit_catalog_entries": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} entry from the catalog",
+				"countPlural=*": "{count} entries from the catalog"
+			}
+		}
+	]
 }

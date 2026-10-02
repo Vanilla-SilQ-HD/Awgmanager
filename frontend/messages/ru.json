@@ -4163,5 +4163,588 @@
 	"access_policy_empty": "Нет политик доступа. Создайте политику, чтобы направить трафик устройств через выбранные интерфейсы.",
 	"access_policy_delete_title": "Удаление политики",
 	"access_policy_delete_message": "Удалить политику «{name}»?",
-	"access_policy_delete_secondary": "Все устройства будут отвязаны от этой политики."
+	"access_policy_delete_secondary": "Все устройства будут отвязаны от этой политики.",
+	"dns_routes_card_download_via": "Обновление через {route}",
+	"dns_routes_card_dedup_exact": "{domain} — дубль {coveredBy} ({list})",
+	"dns_routes_card_dedup_covered": "{domain} — покрыт {coveredBy} ({list})",
+	"dns_routes_card_removed": "{count} убрано",
+	"dns_routes_card_edit_title": "Изменить DNS-маршрут «{name}»",
+	"dns_routes_card_refresh_via_title": "Обновить подписки DNS-маршрута «{name}» через {route}",
+	"dns_routes_card_refresh_title": "Обновить подписки DNS-маршрута «{name}»",
+	"dns_routes_card_delete_title": "Удалить DNS-маршрут «{name}»",
+	"dns_routes_editor_entries_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} запись",
+				"countPlural=few": "{count} записи",
+				"countPlural=many": "{count} записей",
+				"countPlural=*": "{count} записи"
+			}
+		}
+	],
+	"dns_routes_editor_errors_label": "Ошибки в строках:",
+	"dns_routes_editor_goto_line": "Перейти к строке {line}",
+	"dns_routes_editor_placeholder": "# Видео-сервисы\nyoutube.com\ninstagram.com\ntiktok.com\n\n# Подсети\n10.0.0.0/8\n2001:db8::/32",
+	"dns_routes_editor_hint": "Один домен или CIDR на строку.\nКомментарии начинаются с #\nCtrl+/ или Cmd+/ комментирует выбранные строки.",
+	"dns_routes_import_title": "Загрузить набор правил",
+	"dns_routes_import_subject": "правилами DNS-маршрутизации",
+	"dns_routes_import_no_rules": "Не найдено валидных правил в файле",
+	"dns_routes_import_found": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Найдено {count} правило",
+				"countPlural=few": "Найдено {count} правила",
+				"countPlural=many": "Найдено {count} правил",
+				"countPlural=*": "Найдено {count} правила"
+			}
+		}
+	],
+	"dns_routes_policy_hint_prefix": "Для работы DNS-маршрутизации клиент должен находиться в политике доступа «Политика по умолчанию» — в веб-интерфейсе роутера, раздел ",
+	"dns_routes_policy_hint_section": "Приоритеты подключений",
+	"dns_routes_policy_hint_suffix": ". Если устройство привязано к другой политике, DNS-маршруты на него не распространяются.",
+	"dns_routes_ndms_limit_policy": "Маршрут работает только для клиентов в политике «Политика по умолчанию». Устройство, привязанное к своей политике доступа, под DNS-маршруты не попадает.",
+	"dns_routes_ndms_limit_doh": "Своё шифрованное DNS (DoH/DoT) на устройстве или в браузере обходит маршрут — запрос не проходит через резолвер роутера.",
+	"dns_routes_ndms_limit_first_requests": "Первые запросы к домену могут уйти мимо маршрута: адреса попадают в таблицу маршрутизации уже после ответа DNS.",
+	"dns_routes_ndms_limit_suffix": "Совпадение идёт по суффиксу: правило на x.com поймает и yandex.com.",
+	"dns_routes_ndms_limit_ttl": "Домены с коротким TTL могут не попадать в таблицу маршрутизации.",
+	"dns_routes_ndms_limit_entware": "Стороннее ПО в Entware, перехватывающее DNS-запросы, ломает механизм.",
+	"dns_routes_ndms_quiz1_question": "Устройство привязано к своей политике доступа, а не к «Политике по умолчанию». Попадёт ли его трафик в DNS-маршрут?",
+	"dns_routes_ndms_quiz1_option_yes": "Да, политика на DNS-маршруты не влияет",
+	"dns_routes_ndms_quiz_option_no": "Нет",
+	"dns_routes_ndms_quiz1_explain": "DNS-маршрутизация обслуживает только «Политику по умолчанию».",
+	"dns_routes_ndms_quiz2_question": "В браузере на устройстве включён свой DoH. Сработает ли DNS-маршрут?",
+	"dns_routes_ndms_quiz2_option_yes": "Да, роутер всё равно увидит запрос",
+	"dns_routes_ndms_quiz2_option_no": "Нет: запрос уходит мимо резолвера роутера",
+	"dns_routes_ndms_quiz2_explain": "Роутер не видит шифрованный запрос и не может добавить адрес в маршрут.",
+	"dns_routes_ndms_quiz3_question": "Правило создано на домен x.com. Что ещё попадёт под правило?",
+	"dns_routes_ndms_quiz3_option_exact": "Только x.com и его поддомены",
+	"dns_routes_ndms_quiz3_option_suffix": "Любой домен с таким суффиксом, например yandex.com",
+	"dns_routes_ndms_quiz3_explain": "Совпадение идёт по суффиксу строки, а не по границе домена.",
+	"dns_routes_ndms_accepted": "Ограничения NDMS-маршрутизации приняты",
+	"dns_routes_ndms_show": "Показать",
+	"dns_routes_ndms_title": "Ограничения DNS-маршрутизации NDMS",
+	"dns_routes_ndms_sources": "Подробности на форуме Keenetic:",
+	"dns_routes_ndms_source_dns_routes": "маршруты DNS",
+	"dns_routes_ndms_source_dns_routing": "вопросы по DNS routing",
+	"dns_routes_ndms_collapse": "Свернуть",
+	"dns_routes_ndms_check_yourself": "Я прочитал — проверить себя",
+	"dns_routes_catalog_title": "Каталог сервисов",
+	"dns_routes_catalog_cat_social": "Соцсети",
+	"dns_routes_catalog_cat_media": "Медиа",
+	"dns_routes_catalog_cat_ai": "AI",
+	"dns_routes_catalog_cat_developer": "Разработка",
+	"dns_routes_catalog_cat_cloud": "Облако",
+	"dns_routes_catalog_cat_gaming": "Игры",
+	"dns_routes_catalog_cat_block": "Блок",
+	"dns_routes_catalog_services_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} сервис",
+				"countPlural=few": "{count} сервиса",
+				"countPlural=many": "{count} сервисов",
+				"countPlural=*": "{count} сервиса"
+			}
+		}
+	],
+	"dns_routes_catalog_create": "Создать ({count})",
+	"dns_routes_catalog_select_count": "Выбрать ({count})",
+	"dns_routes_catalog_loading": "Загрузка каталога…",
+	"dns_routes_catalog_empty": "Каталог пуст",
+	"dns_routes_catalog_no_results": "По запросу ничего не нашлось.",
+	"dns_routes_catalog_already_included": "Уже включено в «{name}»",
+	"dns_routes_catalog_in_name": "в {name}",
+	"dns_routes_catalog_large_dns_aria": "большой DNS-список",
+	"dns_routes_catalog_note_aria": "примечание",
+	"dns_routes_catalog_member_of_composite_aria": "уже входит в добавленный композитный список",
+	"dns_routes_catalog_engine": "Движок",
+	"dns_routes_catalog_url_list_note": "Если сервис использует URL-лист, он будет получен через",
+	"dns_routes_catalog_no_tunnels": "Создайте хотя бы один туннель",
+	"dns_routes_icon_embedded_svg": "Встроенный SVG",
+	"dns_routes_icon_apply_failed": "Не удалось применить иконку",
+	"dns_routes_icon_upload_failed": "Не удалось загрузить файл",
+	"dns_routes_icon_default_hint": "Без выбора используется встроенная иконка ({slug}), как в SingBox",
+	"dns_routes_icon_custom_bg_hint": "Свой цвет сохранится в настройках маршрута",
+	"dns_routes_icon_auto_bg_hint": "Авто — единый фон плитки, контрастный с карточкой маршрута",
+	"dns_routes_icon_bg_label": "Фон иконки",
+	"dns_routes_icon_pick_color": "Выбрать цвет",
+	"dns_routes_icon_pick_tile_color_aria": "Выбрать цвет фона плитки",
+	"dns_routes_icon_hex_aria": "HEX цвета фона",
+	"dns_routes_icon_auto": "Авто",
+	"dns_routes_icon_title": "Выбрать иконку",
+	"dns_routes_icon_source_aria": "Источник иконки",
+	"dns_routes_icon_tab_catalog": "Каталог Qure",
+	"dns_routes_icon_tab_custom": "Своя иконка",
+	"dns_routes_icon_search_placeholder": "Поиск (telegram, netflix, github...)",
+	"dns_routes_icon_search_aria": "Поиск иконки",
+	"dns_routes_icon_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} иконка",
+				"countPlural=few": "{count} иконки",
+				"countPlural=many": "{count} иконок",
+				"countPlural=*": "{count} иконки"
+			}
+		}
+	],
+	"dns_routes_icon_count_filtered": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} иконка (отфильтровано)",
+				"countPlural=few": "{count} иконки (отфильтровано)",
+				"countPlural=many": "{count} иконок (отфильтровано)",
+				"countPlural=*": "{count} иконки (отфильтровано)"
+			}
+		}
+	],
+	"dns_routes_icon_url_label": "URL картинки",
+	"dns_routes_icon_or": "или",
+	"dns_routes_icon_svg_label": "Код SVG",
+	"dns_routes_icon_svg_hint": "Вставьте фрагмент <svg>…</svg> или целый файл.",
+	"dns_routes_icon_file_aria": "Загрузка файла иконки",
+	"dns_routes_icon_drop_title": "Перетащите файл сюда",
+	"dns_routes_icon_drop_sub": "или нажмите для выбора · PNG, JPG, WebP, SVG · до 96 КБ",
+	"dns_routes_icon_remove_file": "Убрать файл",
+	"dns_routes_icon_invalid_svg": "Некорректный SVG — нужен тег <svg> без скриптов",
+	"dns_routes_icon_saved_hint": "Иконка сохраняется в настройках маршрута. URL — ссылка; SVG и файлы — встроенные data URL.",
+	"dns_routes_icon_reset": "↺ Сбросить (на авто)",
+	"dns_routes_icon_apply": "Применить",
+	"dns_routes_edit_new_title": "Новый DNS-маршрут",
+	"dns_routes_edit_name_placeholder": "Заблокированные сайты",
+	"dns_routes_edit_engine_label": "Движок маршрутизации",
+	"dns_routes_edit_engine_ndms": "ПО роутера (NDMS)",
+	"dns_routes_edit_manual_domains": "Домены (вручную)",
+	"dns_routes_edit_geo_hint": "Поддерживается geosite:TAG, например geosite:GOOGLE",
+	"dns_routes_edit_subscriptions": "Подписки",
+	"dns_routes_edit_url_lists_note": "URL-листы будут проверены и обновлены через",
+	"dns_routes_edit_remove_subscription": "Удалить подписку",
+	"dns_routes_edit_route": "Маршрут",
+	"dns_routes_edit_mode_interface": "Интерфейс",
+	"dns_routes_edit_mode_policy": "Политика",
+	"dns_routes_edit_target_interface": "Целевой интерфейс",
+	"dns_routes_edit_target_interface_hint": "Трафик направляется напрямую на интерфейс (DirectRoute)",
+	"dns_routes_edit_route_order": "Маршрут (порядок = приоритет)",
+	"dns_routes_edit_route_required": "Добавьте хотя бы один туннель для маршрутизации",
+	"dns_routes_edit_move_up": "Вверх",
+	"dns_routes_edit_move_down": "Вниз",
+	"dns_routes_edit_fallback_label": "Если все недоступны:",
+	"dns_routes_edit_fallback_provider": "провайдер",
+	"dns_routes_edit_fallback_exclusive": "эксклюзивный",
+	"dns_routes_edit_policy_name": "Имя политики:",
+	"dns_routes_edit_policy_hint": "Порядок = приоритет. Политика создаётся автоматически на роутере.",
+	"dns_routes_edit_excludes": "Исключения",
+	"dns_routes_edit_excludes_placeholder": "# Домены, которые НЕ маршрутизировать\nexample.com\n.local\n\n# Подсети, которые НЕ маршрутизировать\n10.0.0.0/8\n2001:db8::/32",
+	"dns_routes_edit_excludes_hint": "Эти домены будут исключены из маршрутизации через туннель.\nКомментарии начинаются с #\nCtrl+/ или Cmd+/ комментирует выбранные строки.",
+	"dns_routes_edit_dedup_summary": [
+		{
+			"declarations": [
+				"input total",
+				"input exact",
+				"input wildcard",
+				"local totalPlural = total: plural",
+				"local exactPlural = exact: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"exactPlural"
+			],
+			"match": {
+				"totalPlural=one, exactPlural=one": "Убрано {total} дубль ({exact} точный, {wildcard} wildcard)",
+				"totalPlural=one, exactPlural=*": "Убрано {total} дубль ({exact} точных, {wildcard} wildcard)",
+				"totalPlural=few, exactPlural=one": "Убрано {total} дубля ({exact} точный, {wildcard} wildcard)",
+				"totalPlural=few, exactPlural=*": "Убрано {total} дубля ({exact} точных, {wildcard} wildcard)",
+				"totalPlural=many, exactPlural=one": "Убрано {total} дублей ({exact} точный, {wildcard} wildcard)",
+				"totalPlural=many, exactPlural=*": "Убрано {total} дублей ({exact} точных, {wildcard} wildcard)",
+				"totalPlural=*, exactPlural=one": "Убрано {total} дубля ({exact} точный, {wildcard} wildcard)",
+				"totalPlural=*, exactPlural=*": "Убрано {total} дубля ({exact} точных, {wildcard} wildcard)"
+			}
+		}
+	],
+	"dns_routes_edit_dedup_exact": "дубль",
+	"dns_routes_edit_dedup_exact_in_name": "дубль в «{list}»",
+	"dns_routes_edit_dedup_exact_in_id": "дубль в {list}",
+	"dns_routes_edit_dedup_wildcard": "покрыт {coveredBy}",
+	"dns_routes_edit_dedup_wildcard_in_name": "покрыт {coveredBy} в «{list}»",
+	"dns_routes_edit_dedup_wildcard_in_id": "покрыт {coveredBy} в {list}",
+	"dns_routes_edit_dedup_subnet": "покрыт подсетью {coveredBy}",
+	"dns_routes_edit_dedup_subnet_in_name": "покрыт подсетью {coveredBy} в «{list}»",
+	"dns_routes_edit_dedup_subnet_in_id": "покрыт подсетью {coveredBy} в {list}",
+	"dns_routes_edit_total_domains": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Итого: {count} домен",
+				"countPlural=few": "Итого: {count} домена",
+				"countPlural=many": "Итого: {count} доменов",
+				"countPlural=*": "Итого: {count} домена"
+			}
+		}
+	],
+	"dns_routes_edit_total_groups": [
+		{
+			"declarations": [
+				"input domains",
+				"input groups",
+				"local domainsPlural = domains: plural",
+				"local groupsPlural = groups: plural"
+			],
+			"selectors": [
+				"domainsPlural",
+				"groupsPlural"
+			],
+			"match": {
+				"domainsPlural=one, groupsPlural=one": "Итого: {domains} домен → {groups} группа по 300",
+				"domainsPlural=one, groupsPlural=few": "Итого: {domains} домен → {groups} группы по 300",
+				"domainsPlural=one, groupsPlural=many": "Итого: {domains} домен → {groups} групп по 300",
+				"domainsPlural=one, groupsPlural=*": "Итого: {domains} домен → {groups} группы по 300",
+				"domainsPlural=few, groupsPlural=one": "Итого: {domains} домена → {groups} группа по 300",
+				"domainsPlural=few, groupsPlural=few": "Итого: {domains} домена → {groups} группы по 300",
+				"domainsPlural=few, groupsPlural=many": "Итого: {domains} домена → {groups} групп по 300",
+				"domainsPlural=few, groupsPlural=*": "Итого: {domains} домена → {groups} группы по 300",
+				"domainsPlural=many, groupsPlural=one": "Итого: {domains} доменов → {groups} группа по 300",
+				"domainsPlural=many, groupsPlural=few": "Итого: {domains} доменов → {groups} группы по 300",
+				"domainsPlural=many, groupsPlural=many": "Итого: {domains} доменов → {groups} групп по 300",
+				"domainsPlural=many, groupsPlural=*": "Итого: {domains} доменов → {groups} группы по 300",
+				"domainsPlural=*, groupsPlural=one": "Итого: {domains} домена → {groups} группа по 300",
+				"domainsPlural=*, groupsPlural=few": "Итого: {domains} домена → {groups} группы по 300",
+				"domainsPlural=*, groupsPlural=many": "Итого: {domains} домена → {groups} групп по 300",
+				"domainsPlural=*, groupsPlural=*": "Итого: {domains} домена → {groups} группы по 300"
+			}
+		}
+	],
+	"singbox_routing_slot_draft_saved": "Черновик сохранён",
+	"singbox_routing_slot_config_applied": "Конфигурация применена",
+	"singbox_routing_slot_draft_discarded": "Черновик отменён",
+	"singbox_routing_slot_enabled_toast": "Слот включён",
+	"singbox_routing_slot_disabled_toast": "Слот выключен",
+	"singbox_routing_slot_copy_failed": "Не удалось скопировать",
+	"singbox_routing_slot_status_dirty": "изменено, не сохранено",
+	"singbox_routing_slot_status_draft": "черновик сохранён, не применён",
+	"singbox_routing_slot_status_applied": "применено",
+	"singbox_routing_slot_hint": "Слот дополняет конфиг: свои outbounds/inbounds/правила добавляются последними. Скаляры dns/route (final, strategy) задаются в настройках роутера и отсюда не переопределяются. Теги не должны совпадать с существующими.",
+	"singbox_routing_slot_invalid_json": "Некорректный JSON",
+	"singbox_routing_slot_invalid_json_at": "Некорректный JSON — строка {line}, колонка {column}",
+	"singbox_routing_slot_check_failed": "Проверка не пройдена",
+	"singbox_routing_slot_warnings_title": "Предупреждения — применение возможно",
+	"singbox_routing_slot_check_ok": "Проверка пройдена — конфиг совместим с активными слотами.",
+	"singbox_routing_slot_tun_warning": "Изменение tun-inbound перезагрузит sing-box — соединения через этот tun оборвутся.",
+	"singbox_routing_slot_readonly_note": "Генерируется автоматически — правки перезапишет продюсер слота.",
+	"singbox_routing_slot_enabled": "Включён",
+	"singbox_routing_slot_disabled": "Выключен",
+	"singbox_routing_slot_discarding": "Отменяю…",
+	"singbox_routing_slot_discard": "Отменить черновик",
+	"singbox_routing_slot_checking": "Проверяю…",
+	"singbox_routing_slot_check": "Проверить",
+	"singbox_routing_slot_saving": "Сохраняю…",
+	"singbox_routing_slot_save_draft": "Сохранить черновик",
+	"singbox_routing_slot_applying": "Применяю…",
+	"singbox_routing_slots_confirm_discard": "Есть несохранённые изменения — закрыть без сохранения?",
+	"singbox_routing_slots_size_bytes": "{size} Б",
+	"singbox_routing_slots_size_kb": "{size} КБ",
+	"singbox_routing_slots_title_slot": "Слот {filename}",
+	"singbox_routing_slots_title": "Конфигурация sing-box",
+	"singbox_routing_slots_back": "← К списку слотов",
+	"singbox_routing_slots_badge_generated": "генерируется автоматически",
+	"singbox_routing_slots_badge_user": "пользовательский",
+	"singbox_routing_slots_badge_draft": "черновик",
+	"singbox_routing_slots_badge_disabled": "выключен",
+	"singbox_routing_slots_refresh": "Обновить",
+	"singbox_routing_slots_merged": "Итоговый конфиг",
+	"singbox_routing_slots_load_failed": "Не удалось загрузить слоты",
+	"singbox_routing_slots_list_hint": "Файлы объединяются в лексикографическом порядке. Системные слоты полностью перезаписываются своими генераторами — редактируется только пользовательский слот 90-user.json.",
+	"singbox_routing_json_copied_toast": "Конфиг скопирован в буфер обмена",
+	"singbox_routing_json_downloaded_toast": "Конфиг скачан",
+	"singbox_routing_json_title": "Конфиг sing-box",
+	"singbox_routing_json_export": "Экспорт",
+	"singbox_routing_json_loading": "Загрузка конфига…",
+	"singbox_routing_json_load_failed": "Не удалось загрузить конфиг",
+	"singbox_routing_json_empty": "Конфиг пуст",
+	"singbox_routing_staging_since": "с {time}",
+	"singbox_routing_staging_reset": "Сбросить",
+	"singbox_routing_staging_applying": "Применяю…",
+	"singbox_routing_staging_cannot_apply": "Не могу применить",
+	"singbox_routing_staging_unsaved": "Несохранённые изменения",
+	"singbox_routing_staging_missing_rule_set": "DNS-правило ссылается на rule_set «{tag}», которого нет в Route → Наборы. Добавьте набор или удалите DNS-правило, которое на него ссылается.",
+	"singbox_routing_staging_discard_title": "Откатить правки?",
+	"singbox_routing_staging_discard_body": "Все накопленные изменения будут отброшены.",
+	"singbox_routing_staging_discarding": "Откатываю…",
+	"singbox_routing_inspector_waiting_backend": "Ожидаем ответ backend…",
+	"singbox_routing_inspector_rule_of": "Правило #{index} из {total}",
+	"singbox_routing_inspector_rule_of_with_set": "Правило #{index} из {total} · rule_set: {tag}",
+	"singbox_routing_inspector_set_only": "rule_set: {tag}",
+	"singbox_routing_inspector_next_wait_config": "Ожидаем загрузку конфигурации",
+	"singbox_routing_inspector_next_finish_rule_set": "Завершить проверку rule_set и перейти к результату правила #{rule}",
+	"singbox_routing_inspector_next_rule": "Далее: правило #{rule} из {total}",
+	"singbox_routing_inspector_next_final": "Далее: финальное решение маршрута",
+	"singbox_routing_inspector_next_wait_step": "Ожидаем следующий шаг проверки",
+	"singbox_routing_inspector_less_than_second": "менее 1 сек",
+	"singbox_routing_inspector_check_failed": "Не удалось проверить маршрут: {message}",
+	"singbox_routing_inspector_title": "Инспектор маршрутов",
+	"singbox_routing_inspector_input_label": "Домен или IP",
+	"singbox_routing_inspector_input_placeholder": "google.com или 8.8.8.8",
+	"singbox_routing_inspector_checking": "Проверяем…",
+	"singbox_routing_inspector_check": "Проверить",
+	"singbox_routing_inspector_hide_advanced": "Скрыть дополнительные параметры",
+	"singbox_routing_inspector_show_advanced": "Показать дополнительные параметры",
+	"singbox_routing_inspector_port": "Порт",
+	"singbox_routing_inspector_port_placeholder": "опционально",
+	"singbox_routing_inspector_protocol": "Протокол",
+	"singbox_routing_inspector_protocol_unset": "не задан",
+	"singbox_routing_inspector_quick_check": "Быстрая проверка:",
+	"singbox_routing_inspector_in_progress_title": "Идёт проверка маршрута",
+	"singbox_routing_inspector_total_time": "Общее время: {seconds} сек",
+	"singbox_routing_inspector_rules_progress": "Правила: {checked} из {total}",
+	"singbox_routing_inspector_current_rule": "Текущее правило: #{index}",
+	"singbox_routing_inspector_progress_hint": "Инспектор симулирует правила и может проверять rule_set через sing-box.",
+	"singbox_routing_inspector_steps_aria": "Ход проверки",
+	"singbox_routing_inspector_step_checked": "Проверено",
+	"singbox_routing_inspector_step_now": "Сейчас",
+	"singbox_routing_inspector_step_next": "Далее",
+	"singbox_routing_inspector_type_domain": "домен",
+	"singbox_routing_inspector_type_ip": "IP-адрес",
+	"singbox_routing_inspector_matched_rule": "Сработало правило #{index}",
+	"singbox_routing_inspector_default_outbound": "Дефолтный outbound (final: {final})",
+	"singbox_routing_inspector_rule_num": "Правило #{index}",
+	"singbox_routing_inspector_conditions": "Условия:",
+	"singbox_routing_inspector_no_match_prefix": "Ни одно правило не сработало — трафик пойдёт через",
+	"singbox_routing_inspector_note": "Примечание:",
+	"singbox_routing_inspector_report_title": "Отчёт проверки",
+	"singbox_routing_inspector_report_checked_rules": "Проверено правил: {checked} из {total}",
+	"singbox_routing_inspector_report_decision": "Решение",
+	"singbox_routing_inspector_report_matched": "Сработало",
+	"singbox_routing_inspector_report_slowest": "Самые долгие этапы",
+	"singbox_routing_inspector_report_rule_set_checks": "Rule-set проверки",
+	"singbox_routing_inspector_walkthrough_hide": "Скрыть разбор всех правил ({count})",
+	"singbox_routing_inspector_walkthrough_show": "Показать разбор всех правил ({count})",
+	"singbox_routing_inspector_walkthrough_title": "Порядок проверки правил",
+	"singbox_routing_inspector_row_matched_non_final": "совпало (не финальное)",
+	"singbox_routing_inspector_row_matched": "совпало",
+	"singbox_routing_inspector_row_not_matched": "не совпало",
+	"singbox_routing_inspector_row_final_hint": "используется, если ни одно правило не подходит",
+	"singbox_routing_inspector_empty": "Введите домен или IP-адрес — инспектор покажет, через какой outbound пойдёт трафик и какое правило сработает. Это симуляция, sing-box не вызывается.",
+	"hrneo_tab_policy_interfaces": "Интерфейсы политики",
+	"hrneo_tab_policy_interfaces_hint": "Изменения сохраняются сразу через RCI",
+	"hrneo_tab_new_rule": "+ Новое правило",
+	"hrneo_tab_daemon_settings": "Настройки демона",
+	"hrneo_tab_delete_title": "Удалить HR правило",
+	"hrneo_tab_delete_prefix": "Удалить правило ",
+	"hrneo_tab_delete_hint_prefix": "Запись пропадёт из ",
+	"hrneo_tab_delete_hint_and": " и ",
+	"hrneo_tab_delete_hint_suffix": ". HR Neo будет перезапущен автоматически.",
+	"hrneo_tab_icon_changed": "Иконка изменена",
+	"hrneo_tab_icon_reset": "Иконка сброшена",
+	"hrneo_tab_icon_update_failed": "Не удалось обновить иконку",
+	"hrneo_sidebar_no_rules": "Пока нет правил",
+	"hrneo_sidebar_service": "Служебное",
+	"hrneo_sidebar_geodata": "Гео-данные",
+	"hrneo_sidebar_daemon_settings": "Настройки демона",
+	"hrneo_sidebar_disabled_tags": "Отключённые теги",
+	"hrneo_rules_list_add": "Добавить правило",
+	"hrneo_rules_list_empty": "Пусто. Добавьте первое правило для этого target.",
+	"hrneo_settings_title": "Настройки демона hrneo",
+	"hrneo_settings_behavior": "Поведение",
+	"hrneo_settings_desc_autostart": "запуск при загрузке роутера",
+	"hrneo_settings_desc_clear_ipset": "очищать ipset при старте",
+	"hrneo_settings_desc_conntrack": "сбрасывать conntrack при появлении нового IP",
+	"hrneo_settings_desc_policies_warn": "перезаписывает политики роутера — используйте осторожно",
+	"hrneo_settings_desc_timeout": "записи в ipset будут удаляться по таймауту",
+	"hrneo_settings_desc_timeout_seconds": "секунды (21600 = 6 часов)",
+	"hrneo_settings_desc_maxelem": "макс. записей, стандартно 65536",
+	"hrneo_settings_logging": "Логирование",
+	"hrneo_settings_advanced": "Расширенные (требуют перезапуск hrneo)",
+	"hrneo_settings_desc_direct_route": "прямая маршрутизация на интерфейс",
+	"hrneo_disabled_tags_banner": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "HR Neo исключил {count} тег из маршрутизации — превышают",
+				"countPlural=few": "HR Neo исключил {count} тега из маршрутизации — превышают",
+				"countPlural=many": "HR Neo исключил {count} тегов из маршрутизации — превышают",
+				"countPlural=*": "HR Neo исключил {count} тега из маршрутизации — превышают"
+			}
+		}
+	],
+	"hrneo_disabled_tags_entries": [
+		{
+			"declarations": [
+				"input count",
+				"input formatted",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{formatted} запись",
+				"countPlural=few": "{formatted} записи",
+				"countPlural=many": "{formatted} записей",
+				"countPlural=*": "{formatted} записи"
+			}
+		}
+	],
+	"hrneo_disabled_tags_title": "Отключённые теги",
+	"hrneo_rule_card_edit": "Изменить",
+	"hrneo_geo_refresh_title": "Автообновление гео-файлов",
+	"hrneo_geo_refresh_description": "Периодически перекачивать пользовательские geoip/geosite по расписанию.",
+	"hrneo_geo_refresh_mode": "Режим обновления:",
+	"hrneo_geo_refresh_mode_interval": "каждые N часов",
+	"hrneo_geo_refresh_mode_daily": "ежедневно",
+	"hrneo_geo_refresh_hours_suffix": "ч.",
+	"hrneo_geo_refresh_saving": "Сохранение...",
+	"hrneo_geo_refresh_interval_hint": "Рекомендуется от 6 до 24 часов",
+	"hrneo_geo_refresh_daily_hint": "Локальное время роутера",
+	"hrneo_geo_picker_aria": "Выбор {kind} тега",
+	"hrneo_geo_action_add": "Добавление geo-файла",
+	"hrneo_geo_action_preset": "Добавление пресета",
+	"hrneo_geo_action_update": "Обновление {file}",
+	"hrneo_geo_action_sync": "Синхронизация geo-файлов",
+	"hrneo_geo_msg_added": "Файл скачан",
+	"hrneo_geo_msg_preset": "Пресет скачан",
+	"hrneo_geo_msg_updated": "Файл обновлён",
+	"hrneo_geo_msg_synced": "Синхронизация выполнена",
+	"hrneo_geo_sync_partial": "Обновлено {updated}, ошибки: {error}",
+	"hrneo_geo_sync": "Синхронизировать",
+	"hrneo_geo_sync_title": "Подтянуть пути из hrneo.conf (External) и перекачать файлы AWGM (External не трогаем — обновляйте в HR Neo)",
+	"hrneo_geo_route_error": "{error}. Откройте Настройки → Загрузки и обновления или обновите страницу.",
+	"hrneo_geo_route_loading": "Загрузка настроек маршрута geo.dat…",
+	"hrneo_geo_route_warn_prefix": "Через: ",
+	"hrneo_geo_route_warn_suffix": ". Не удалось обновить список маршрутов, используется последний известный список: {warning}",
+	"hrneo_geo_last_ok": "Последняя операция успешна: {action} ({route}) — {message}",
+	"hrneo_geo_last_failed": "Не удалось: {action} ({route})",
+	"hrneo_geo_empty": "Файлы не загружены. Добавьте URL ниже.",
+	"hrneo_geo_hide_path": "Скрыть путь",
+	"hrneo_geo_external_title": "Данный файл управляется HydraRoute Neo",
+	"hrneo_geo_source_aria": "Источник",
+	"hrneo_geo_source_title": "Показать источник",
+	"hrneo_geo_local_title": "Загружен вручную",
+	"hrneo_geo_local": "локальный",
+	"hrneo_geo_validating": "валидация…",
+	"hrneo_geo_take_control": "Взять под управление",
+	"hrneo_geo_presets": "Пресеты Ground-Zerro",
+	"hrneo_geo_preset_hint": "Агрегат v2fly + RU-блоклистов, обновляется ежедневно.",
+	"hrneo_geo_add_by_url": "Добавить по URL",
+	"hrneo_geo_validating_file": "Валидация файла…",
+	"hrneo_geo_connecting": "Подключение через {route}…",
+	"hrneo_geo_downloading": "Скачивание через {route}: {percent} — {downloaded}",
+	"hrneo_geo_downloading_of": "Скачивание через {route}: {percent} — {downloaded} из {total}",
+	"hrneo_geo_type_hint_prefix": "Тип ",
+	"hrneo_geo_type_hint_suffix": " должен соответствовать содержимому. Файл с 0 записей будет отклонён — убедитесь что выбран правильный тип для этого URL. Лимит размера: 200 МБ.",
+	"hrneo_geo_take_control_message": "Перенести «{file}» в каталог awg-manager?",
+	"hrneo_geo_take_control_secondary": "Файл будет перенесён из директории HydraRoute (/opt/etc/HydraRoute) и дальше управляться из AWGM. Путь в hrneo.conf обновится при синхронизации.",
+	"hrneo_geo_take_control_confirm": "Перенести",
+	"hrneo_geo_delete_title": "Удалить гео-файл",
+	"hrneo_geo_delete_external_message": "Удалить «{file}» с диска? Файл управляется HydraRoute Neo — будет удалён из /opt/etc/HydraRoute, не только из каталога AWGM.",
+	"hrneo_geo_delete_message": "Удалить «{file}»?",
+	"hrneo_geo_delete_secondary": "Из hrneo.conf уберётся строка {key}={path} (если установлен HydraRoute).",
+	"hrneo_geo_source_modal_title": "Источник гео-файла",
+	"hrneo_geo_files_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} файл",
+				"countPlural=few": "{count} файла",
+				"countPlural=many": "{count} файлов",
+				"countPlural=*": "{count} файла"
+			}
+		}
+	],
+	"hrneo_edit_new_title": "Новое HR правило",
+	"hrneo_edit_policy_name_required": "Введите имя политики",
+	"hrneo_edit_policy_name_max": "Максимум {max} символов",
+	"hrneo_edit_policy_name_reserved": "Имя {name} зарезервировано для системных политик роутера — HR Neo не может в них маршрутизировать",
+	"hrneo_edit_policy_name_latin": "Только латинские буквы (a-z, A-Z), без цифр, пробелов и спецсимволов",
+	"hrneo_edit_policy_name_is_interface": "Имя совпадает с интерфейсом \"{name}\". Возможно, вы хотели выбрать Target = Интерфейс.",
+	"hrneo_edit_policy_name_exists": "Политика с именем \"{name}\" уже существует. Выберите \"Существующая\" выше.",
+	"hrneo_edit_catalog_change": "Сменить",
+	"hrneo_edit_catalog_cta_title": "Заполнить из каталога",
+	"hrneo_edit_catalog_cta_hint": "Выберите сервис — подставим домены и CIDR",
+	"hrneo_edit_icon_custom": "Пользовательская иконка",
+	"hrneo_edit_icon_preset": "Иконка из пресета",
+	"hrneo_edit_icon_preset_hint": "Можно заменить своей иконкой",
+	"hrneo_edit_icon_auto_hint": "Введите имя или загрузите свою иконку",
+	"hrneo_edit_target": "Цель",
+	"hrneo_edit_target_unknown": "Цель: {target} (не найдена в списке) — выберите туннель",
+	"hrneo_edit_target_unset": "Цель правила не задана — выберите туннель",
+	"hrneo_edit_policy_existing": "Существующая",
+	"hrneo_edit_policy_new": "Новая",
+	"hrneo_edit_no_compatible_policies": "Нет HR-совместимых политик. Создайте новую.",
+	"hrneo_edit_system_policies_prefix": "Системные политики роутера (",
+	"hrneo_edit_system_policies_suffix": ") не отображаются — HR Neo не может маршрутизировать в них.",
+	"hrneo_edit_policy_interfaces_hint": "Интерфейсы политики редактируются на её карточке в сайдбаре.",
+	"hrneo_edit_new_policy_header": "Новая политика на роутере",
+	"hrneo_edit_policy_name": "Имя политики",
+	"hrneo_edit_policy_name_hint": "Только латинские буквы (a–Z), до {max} символов.",
+	"hrneo_edit_policy_created_hint": "Политика и привязки создаются после нажатия «Сохранить».",
+	"hrneo_edit_domains": "Домены",
+	"hrneo_edit_domains_hint": "Домены · .суффикс · geosite:TAG — строкой на запись. Записываются через запятую в одну строку.",
+	"hrneo_edit_cidr_hint": "CIDR · geoip:TAG — строкой на запись. Блок в ip.list.",
+	"hrneo_edit_catalog_entries": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} запись из каталога",
+				"countPlural=few": "{count} записи из каталога",
+				"countPlural=many": "{count} записей из каталога",
+				"countPlural=*": "{count} записи из каталога"
+			}
+		}
+	]
 }
