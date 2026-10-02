@@ -41,7 +41,7 @@
 	<div class="fm-toolbar-actions">
 		<Button size="sm" variant="ghost" onclick={onRefresh} disabled={loading}>
 			{#snippet iconBefore()}<RefreshCw size={14} class={loading ? 'spin' : ''} />{/snippet}
-			{m.routing_page_refresh()}
+			{m.common_refresh()}
 		</Button>
 
 		{#if !readOnly}
@@ -62,7 +62,7 @@
 		{#if selected && !selected.isDir}
 			<Button size="sm" variant="secondary" onclick={() => selected && onDownload(selected)}>
 				{#snippet iconBefore()}<Download size={14} />{/snippet}
-				{m.system_files_toolbar_download()}
+				{m.common_download()}
 			</Button>
 		{/if}
 	</div>

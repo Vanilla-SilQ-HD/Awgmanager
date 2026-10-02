@@ -80,7 +80,7 @@
 {/snippet}
 
 <div class="toolbar">
-	<Button variant="secondary" size="sm" onclick={load} loading={loading} iconBefore={refreshIcon}>{m.diag_dns_refresh()}</Button>
+	<Button variant="secondary" size="sm" onclick={load} loading={loading} iconBefore={refreshIcon}>{m.common_refresh()}</Button>
 	<Button variant="secondary" size="sm" onclick={copyData} disabled={!info || loading}>{m.diag_dns_copy_data()}</Button>
 	<Button variant="secondary" size="sm" onclick={saveFile} disabled={!info || loading}>{m.diag_dns_save_file()}</Button>
 </div>

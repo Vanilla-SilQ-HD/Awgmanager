@@ -64,7 +64,7 @@
 			placeholder={m.routing_singbox_geo_search_placeholder({ kind })}
 			bind:value={query}
 		/>
-		<Button variant="ghost" size="sm" onclick={onclose}>{m.proxy_common_close()}</Button>
+		<Button variant="ghost" size="sm" onclick={onclose}>{m.common_close()}</Button>
 	</div>
 
 	{#if files.length === 0}

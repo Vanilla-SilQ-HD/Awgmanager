@@ -17,5 +17,5 @@
 {/snippet}
 
 <Button variant="primary" size="sm" {disabled} {onclick} iconBefore={createIcon}>
-    {label ?? m.routing_create()}
+    {label ?? m.common_create()}
 </Button>

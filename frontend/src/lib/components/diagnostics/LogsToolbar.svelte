@@ -419,15 +419,15 @@
       </button>
       <button type="button" class="chip" onclick={onCopy} disabled={visibleEntries === 0}>
         <Copy size={14} aria-hidden="true" />
-        {m.diag_logs_copy()}
+        {m.common_copy()}
       </button>
       <button type="button" class="chip" onclick={onDownload} disabled={totalEntries === 0 || downloading}>
         <Download size={14} aria-hidden="true" />
-        {downloading ? m.diag_logs_downloading() : m.diag_logs_download()}
+        {downloading ? m.diag_logs_downloading() : m.common_download()}
       </button>
       <button type="button" class="chip chip-danger" onclick={handleClear} disabled={totalEntries === 0 || clearing}>
         <Trash2 size={14} aria-hidden="true" />
-        {clearing ? m.diag_logs_clearing() : m.diag_logs_clear()}
+        {clearing ? m.diag_logs_clearing() : m.common_clear()}
       </button>
     </span>
   </div>
@@ -447,7 +447,7 @@
   </p>
   {#snippet actions()}
     <Button variant="ghost" size="md" onclick={() => (confirmClearOpen = false)}>{m.common_cancel()}</Button>
-    <Button variant="danger" size="md" onclick={confirmClear}>{m.diag_logs_clear()}</Button>
+    <Button variant="danger" size="md" onclick={confirmClear}>{m.common_clear()}</Button>
   {/snippet}
 </Modal>
 

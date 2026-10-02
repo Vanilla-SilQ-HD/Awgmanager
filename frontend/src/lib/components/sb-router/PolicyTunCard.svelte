@@ -350,7 +350,7 @@
   {#snippet actions()}
     <Button variant="ghost" size="md" onclick={() => (pickerOpen = false)}>{m.common_cancel()}</Button>
     <Button variant="primary" size="md" disabled={selected.length === 0} onclick={confirmPicker}>
-      {m.sb_router_policy_tun_enable()}
+      {m.common_enable()}
     </Button>
   {/snippet}
 </Modal>

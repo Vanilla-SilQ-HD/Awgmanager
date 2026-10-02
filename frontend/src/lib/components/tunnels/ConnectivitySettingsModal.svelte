@@ -110,7 +110,7 @@
 	{#snippet actions()}
 		<Button variant="secondary" onclick={onclose}>{m.common_cancel()}</Button>
 		<Button variant="primary" onclick={handleSave} disabled={loading} loading={saving}>
-			{m.settings_page_save()}
+			{m.common_save()}
 		</Button>
 	{/snippet}
 </Modal>

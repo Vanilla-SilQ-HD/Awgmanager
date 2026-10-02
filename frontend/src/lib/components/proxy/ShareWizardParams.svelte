@@ -66,7 +66,7 @@
 		<div class="field-with-btn">
 			<Input label={m.proxy_share_params_obf_key()} type="password" bind:value={fields.obfKey} fullWidth />
 			<Button variant="secondary" size="sm" onclick={() => (fields.obfKey = randomHex(32))}>
-				{m.proxy_share_params_generate()}
+				{m.common_generate()}
 			</Button>
 		</div>
 	</div>

@@ -82,7 +82,7 @@ const emptyStateText = $derived(
 		if (wsStatus === 'open') return { dot: '◐', text: 'Stale', cls: 'warn' };
 		if (wsStatus === 'connecting') return { dot: '◯', text: m.routing_singbox_conn_status_connecting(), cls: 'warn' };
 		if (wsStatus === 'closed') return { dot: '◯', text: m.routing_singbox_conn_status_reconnecting(), cls: 'err' };
-		return { dot: '◯', text: m.routing_singbox_conn_status_error(), cls: 'err' };
+		return { dot: '◯', text: m.common_error(), cls: 'err' };
 	});
 
 	function onFilterToggle(kind: 'outbound' | 'host' | 'client', key: string): void {

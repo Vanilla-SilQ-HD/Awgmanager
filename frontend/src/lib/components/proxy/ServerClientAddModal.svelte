@@ -69,7 +69,7 @@
 	{#snippet actions()}
 		<Button variant="secondary" size="md" disabled={busy} onclick={onclose}>{m.proxy_common_cancel_action()}</Button>
 		<Button variant="primary" size="md" disabled={!canSubmit} loading={busy} onclick={submit}>
-			{m.proxy_common_add()}
+			{m.common_add()}
 		</Button>
 	{/snippet}
 </Modal>

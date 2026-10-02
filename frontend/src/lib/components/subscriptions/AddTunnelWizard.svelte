@@ -305,7 +305,7 @@
 	const IMPORT_FILE_ACCEPT = '.json,.txt,.yaml,.yml,.toml';
 
 	const titleByKind = $derived<Record<WizardKind | 'choose', string>>({
-		choose: m.singbox_tabs_add(),
+		choose: m.common_add(),
 		single: m.tunnels_create_single_title(),
 		inline: m.tunnels_create_group_title(),
 		url: m.tunnels_create_sub_title(),
@@ -548,7 +548,7 @@
 			<span class="step-sep">›</span>
 			<span class="step current">{m.subscriptions_wizard_step_pick()}</span>
 			<span class="step-sep">›</span>
-			<span class="step">{m.subscriptions_wizard_step_done()}</span>
+			<span class="step">{m.common_done()}</span>
 		</div>
 		<SubscriptionImportPreview
 			members={previewMembers}
@@ -573,7 +573,7 @@
 					<span class="step-sep">›</span>
 					<span class="step">{m.subscriptions_wizard_step_pick()}</span>
 					<span class="step-sep">›</span>
-					<span class="step">{m.subscriptions_wizard_step_done()}</span>
+					<span class="step">{m.common_done()}</span>
 				</div>
 			{/if}
 			<label class="row">
@@ -795,7 +795,7 @@
 				disabled={submitting}
 				loading={submitting}
 			>
-				{submitting ? m.subscriptions_wizard_creating() : m.subscriptions_create()}
+				{submitting ? m.subscriptions_wizard_creating() : m.common_create()}
 			</Button>
 		{/if}
 	{/snippet}

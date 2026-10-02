@@ -163,9 +163,9 @@
 			case 'start':
 				return m.settings_integrations_phase_starting();
 			case 'done':
-				return m.settings_integrations_phase_done();
+				return m.common_done();
 			case 'error':
-				return p.error ? m.settings_integrations_phase_error_detail({ error: p.error }) : m.settings_integrations_phase_error();
+				return p.error ? m.settings_integrations_phase_error_detail({ error: p.error }) : m.common_error();
 			default:
 				return '';
 		}
@@ -270,7 +270,7 @@
 					<div class="integration-actions">
 						{#if singboxNeedsUpdate && onupdateSingbox}
 							<Button variant="primary" size="sm" onclick={onupdateSingbox} loading={singboxUpdating}>
-								{singboxUpdating ? m.settings_integrations_updating() : m.settings_integrations_update()}
+								{singboxUpdating ? m.settings_integrations_updating() : m.common_update()}
 							</Button>
 						{:else}
 							<Button variant="secondary" size="sm" href="/?tab=singbox">{m.settings_integrations_open()}</Button>
@@ -321,7 +321,7 @@
 							disabled={!bootstrapValid || !bootstrapDirty || bootstrapSaving}
 							onclick={() => onsaveBootstrapDNS?.(bootstrapDraft.trim())}
 						>
-							{m.settings_integrations_save()}
+							{m.common_save()}
 						</Button>
 					</div>
 				</div>
@@ -353,7 +353,7 @@
 							disabled={!clashPortValid || !clashPortDirty || clashPortSaving}
 							onclick={() => onsaveClashPort?.(clashPortValue)}
 						>
-							{m.settings_integrations_save()}
+							{m.common_save()}
 						</Button>
 					</div>
 				</div>
@@ -387,7 +387,7 @@
 					{#if p.present}
 						{#if p.updateAvailable && p.installAvailable}
 							<Button variant="primary" size="sm" loading={p.busy} onclick={p.oninstall}>
-								{m.settings_integrations_update()}
+								{m.common_update()}
 							</Button>
 						{:else if !p.key.startsWith('obf-')}
 							<Button variant="secondary" size="sm" href="/proxy">{m.settings_integrations_open()}</Button>
@@ -490,7 +490,7 @@
 	{#snippet actions()}
 		<Button variant="ghost" size="sm" onclick={copyError}>{m.settings_integrations_copy()}</Button>
 		<Button variant="primary" size="sm" onclick={() => (errorModalOpen = false)}>
-			{m.settings_integrations_close()}
+			{m.common_close()}
 		</Button>
 	{/snippet}
 </Modal>

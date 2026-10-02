@@ -387,7 +387,7 @@
           </Button>
         {/if}
         <Button variant="primary" size="md" onclick={() => doSave(false)} disabled={!canSave || submitting} iconBefore={iconCheck}>
-          {isEditMode ? m.sb_router_wizard_save_changes() : m.sb_router_common_save()}
+          {isEditMode ? m.sb_router_wizard_save_changes() : m.common_save()}
         </Button>
       </div>
     </div>
@@ -396,7 +396,7 @@
       <Button variant="ghost" size="sm" onclick={closeAddWizard} disabled={submitting}>{m.common_cancel()}</Button>
       <div style="flex:1"></div>
       <Button variant="primary" size="sm" onclick={() => doSave(false)} disabled={!canSave || submitting} iconBefore={iconCheck}>
-        {m.sb_router_common_save()}
+        {m.common_save()}
       </Button>
     </MobileBottomBar>
 

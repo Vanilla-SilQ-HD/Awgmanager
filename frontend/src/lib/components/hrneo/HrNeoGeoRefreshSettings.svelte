@@ -69,7 +69,7 @@
 					<span class="input-suffix">{m.hrneo_geo_refresh_hours_suffix()}</span>
 				</div>
 				{#if settingsChanged}
-					<Button variant="primary" size="sm" onclick={handleSave} loading={saving}>{saving ? m.hrneo_geo_refresh_saving() : m.routing_save()}</Button>
+					<Button variant="primary" size="sm" onclick={handleSave} loading={saving}>{saving ? m.common_saving() : m.common_save()}</Button>
 				{/if}
 			</div>
 			<p class="form-hint">{m.hrneo_geo_refresh_interval_hint()}</p>
@@ -79,7 +79,7 @@
 			<div class="inline-form">
 				<input type="time" bind:value={localDailyTime} disabled={saving} />
 				{#if settingsChanged}
-					<Button variant="primary" size="sm" onclick={handleSave} loading={saving}>{saving ? m.hrneo_geo_refresh_saving() : m.routing_save()}</Button>
+					<Button variant="primary" size="sm" onclick={handleSave} loading={saving}>{saving ? m.common_saving() : m.common_save()}</Button>
 				{/if}
 			</div>
 			<p class="form-hint">{m.hrneo_geo_refresh_daily_hint()}</p>

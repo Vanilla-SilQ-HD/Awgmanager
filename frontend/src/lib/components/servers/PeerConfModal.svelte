@@ -100,7 +100,7 @@
 
 	async function copyConf() {
 		if (await copyToClipboard(conf)) {
-			notifications.success(m.servers_conf_copied());
+			notifications.success(m.common_copied());
 		} else {
 			notifications.error(m.diag_about_copy_failed());
 		}
@@ -128,7 +128,7 @@
 			{showQR ? m.servers_conf_show_conf() : m.servers_conf_show_qr()}
 		</Button>
 		<Button variant="ghost" size="md" onclick={copyConf} disabled={!conf}>
-			{m.diag_logs_copy()}
+			{m.common_copy()}
 		</Button>
 		<Button variant="primary" size="md" onclick={downloadConf} disabled={!conf}>
 			{m.servers_confgen_download()}

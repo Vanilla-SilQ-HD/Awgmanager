@@ -150,7 +150,7 @@
             {m.sb_router_templates_sub()}
           </div>
         </div>
-        <button type="button" class="icon-btn" onclick={closeTemplatesModal} aria-label={m.sb_router_common_close()}>
+        <button type="button" class="icon-btn" onclick={closeTemplatesModal} aria-label={m.common_close()}>
           <XIcon size={18} />
         </button>
       </header>

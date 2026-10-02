@@ -84,14 +84,14 @@
 					</Button>
 					<Button size="sm" variant="danger" loading={runningScript} onclick={() => runAction('stop')}>
 						{#snippet iconBefore()}<Square size={13} />{/snippet}
-						{m.proxy_common_stop()}
+						{m.common_stop()}
 					</Button>
 				{/if}
 			</div>
 		</div>
 
 		{#if scriptRun}
-			<pre class="script-out">{scriptRun.output || (scriptRun.ok ? m.system_files_fps_ok() : m.tunnels_error_generic())}</pre>
+			<pre class="script-out">{scriptRun.output || (scriptRun.ok ? m.system_files_fps_ok() : m.common_error())}</pre>
 		{/if}
 	</div>
 {/if}

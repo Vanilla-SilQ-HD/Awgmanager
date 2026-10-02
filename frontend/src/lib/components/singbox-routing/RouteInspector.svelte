@@ -541,7 +541,7 @@
 					onclick={testRoute}
 					disabled={testing || !inputValue.trim()}
 				>
-					{testing ? m.singbox_routing_inspector_checking() : m.singbox_routing_inspector_check()}
+					{testing ? m.singbox_routing_inspector_checking() : m.common_check()}
 				</Button>
 			</div>
 

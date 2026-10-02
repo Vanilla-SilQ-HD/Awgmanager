@@ -25,7 +25,7 @@
 <aside class="details">
 	<div class="head">
 		<span class="title">{m.connections_details_title()}</span>
-		<button type="button" class="close" onclick={onClose} aria-label={m.sb_router_common_close()}>
+		<button type="button" class="close" onclick={onClose} aria-label={m.common_close()}>
 			<X size={14} aria-hidden="true" />
 		</button>
 	</div>

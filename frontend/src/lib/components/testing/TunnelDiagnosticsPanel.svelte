@@ -758,10 +758,10 @@
 					disabled={!selectedServer && !useCustomServer}
 				>
 					{speedPhase === 'idle'
-						? m.tunnel_test_start()
+						? m.common_start()
 						: speedPhase === 'cancelled'
 							? m.tunnel_test_start_again()
-							: m.tunnel_test_retry()}
+							: m.common_retry()}
 				</Button>
 			{/if}
 		{/if}

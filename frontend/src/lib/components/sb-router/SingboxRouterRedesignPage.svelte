@@ -137,7 +137,7 @@
   <StagingBanner />
   {#if inSubView}
     <button type="button" class="sub-back" onclick={clearSub}>
-      <ArrowLeft size={14} /> {m.sb_router_common_back()}
+      <ArrowLeft size={14} /> {m.common_back()}
     </button>
   {/if}
   {#if activeSingboxSub === 'connections'}

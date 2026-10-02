@@ -187,7 +187,7 @@
 		<div class="actions-spacer"></div>
 		<Button variant="ghost" size="md" onclick={onclose}>{m.common_cancel()}</Button>
 		<Button variant="primary" size="md" onclick={handleSave} disabled={busy} loading={saving}>
-			{status?.exists ? m.pingcheck_update() : m.pingcheck_enable()}
+			{status?.exists ? m.common_update() : m.common_enable()}
 		</Button>
 	{/snippet}
 </SideDrawer>

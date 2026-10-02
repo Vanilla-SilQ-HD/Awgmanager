@@ -645,7 +645,7 @@
 	{#snippet actions()}
 		<Button variant="secondary" onclick={onclose}>{m.common_cancel()}</Button>
 		<Button variant="primary" onclick={handleSave} disabled={!canSave} loading={saving}>
-			{m.routing_save()}
+			{m.common_save()}
 		</Button>
 	{/snippet}
 </Modal>

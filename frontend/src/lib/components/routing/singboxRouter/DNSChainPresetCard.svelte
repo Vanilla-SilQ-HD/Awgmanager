@@ -170,7 +170,7 @@
 		loading={busy}
 		onclick={apply}
 	>
-		{m.routing_singbox_apply()}
+		{m.common_apply()}
 	</Button>
 </section>
 

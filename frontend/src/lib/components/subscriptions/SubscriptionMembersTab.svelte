@@ -396,7 +396,7 @@
 					{excluding ? m.subscriptions_members_excluding() : m.subscriptions_members_confirm_count({ count: selected.size })}
 				</Button>
 				<Button variant="ghost" size="sm" disabled={excluding} onclick={() => (confirmExcludeSelected = false)}>
-					{m.tunnels_back()}
+					{m.common_back()}
 				</Button>
 			{:else}
 				<Button
@@ -453,7 +453,7 @@
 			</Button>
 			{#if isUrlSub && memberList.length > 0}
 				<Button variant="ghost" size="sm" disabled={excluding} onclick={toggleSelectMode}>
-					{m.subscriptions_members_select()}
+					{m.common_select()}
 				</Button>
 			{/if}
 		</div>
@@ -580,7 +580,7 @@
 			{m.common_cancel()}
 		</Button>
 		<Button variant="primary" disabled={adding || !addLink.trim()} loading={adding} onclick={addMember}>
-			{adding ? m.subscriptions_members_adding() : m.singbox_tabs_add()}
+			{adding ? m.subscriptions_members_adding() : m.common_add()}
 		</Button>
 	{/snippet}
 </Modal>

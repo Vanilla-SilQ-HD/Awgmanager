@@ -311,7 +311,7 @@
 				</Button>
 			{:else}
 				{#if hasSelectable}
-					<Button variant="ghost" size="sm" onclick={toggleSelectMode}>{m.sb_router_expert_select()}</Button>
+					<Button variant="ghost" size="sm" onclick={toggleSelectMode}>{m.common_select()}</Button>
 				{/if}
 				<button type="button" class="add ghost" onclick={() => (rsCatalogOpen = true)}>
 					<LayoutGrid size={14} strokeWidth={2} aria-hidden="true" /> {m.sb_router_expert_catalog()}
@@ -429,7 +429,7 @@
 		<BulkSelectBar
 			count={selected.size}
 			options={bulkDetourOptions}
-			applyLabel={m.sb_router_expert_apply()}
+			applyLabel={m.common_apply()}
 			onapply={applyBulkDetour}
 			oncancel={cancelSelectMode}
 			busy={bulkBusy}

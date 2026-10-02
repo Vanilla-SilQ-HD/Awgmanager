@@ -29,7 +29,7 @@
     <CreateIcon />
 {/snippet}
 
-<DropdownMenu label={label ?? m.routing_add()} size="sm" {disabled} iconBefore={createIcon}>
+<DropdownMenu label={label ?? m.common_add()} size="sm" {disabled} iconBefore={createIcon}>
     {#snippet menu(close)}
         {#if oncatalog}
             <button

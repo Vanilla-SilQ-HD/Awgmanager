@@ -186,7 +186,7 @@
 	<div class="pagination">
 		<span>{m.connections_page({ page: currentPage, pages: totalPages })}</span>
 		<div class="pagination-btns">
-			<Button variant="ghost" size="sm" disabled={!hasPrev} onclick={() => onPageChange(Math.max(0, pagination.offset - pagination.limit))}>&larr; {m.sb_router_common_back()}</Button>
+			<Button variant="ghost" size="sm" disabled={!hasPrev} onclick={() => onPageChange(Math.max(0, pagination.offset - pagination.limit))}>&larr; {m.common_back()}</Button>
 			<Button variant="ghost" size="sm" disabled={!hasNext} onclick={() => onPageChange(pagination.offset + pagination.limit)}>{m.connections_next()} &rarr;</Button>
 		</div>
 	</div>

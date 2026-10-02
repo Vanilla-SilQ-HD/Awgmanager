@@ -25,8 +25,8 @@
 			show = !show;
 			onToggle?.();
 		}}
-		aria-label={show ? m.tunnels_hide() : m.tunnels_show()}
-		title={show ? m.tunnels_hide() : m.tunnels_show()}
+		aria-label={show ? m.common_hide() : m.common_show()}
+		title={show ? m.common_hide() : m.common_show()}
 	>
 		{#if show}
 			<Eye size={12} aria-hidden="true" />

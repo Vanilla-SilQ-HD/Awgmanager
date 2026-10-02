@@ -263,12 +263,12 @@
 		<div class="head-actions">
 			{#if running}
 				<Button variant="secondary" size="sm" loading={restarting} disabled={busy || restarting} onclick={restart}>
-					{m.proxy_exit_detail_restart()}
+					{m.common_restart()}
 				</Button>
-				<Button variant="secondary" size="sm" disabled={busy || restarting} onclick={onstop}>{m.proxy_common_stop()}</Button>
+				<Button variant="secondary" size="sm" disabled={busy || restarting} onclick={onstop}>{m.common_stop()}</Button>
 			{:else}
 				<Button variant="primary" size="sm" disabled={busy || !!noPeerHint} onclick={onstart}>
-					{m.proxy_common_start()}
+					{m.common_start()}
 				</Button>
 				{#if noPeerHint}
 					<FieldHint text={noPeerHint} ariaLabel={m.proxy_exit_detail_start_blocked_aria()} />

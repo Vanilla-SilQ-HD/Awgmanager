@@ -287,7 +287,7 @@
 	{#snippet actions()}
 		<button type="button" class="btn ghost" onclick={closeBind} disabled={bindBusy}>{m.common_cancel()}</button>
 		<button type="button" class="btn primary" onclick={saveBind} disabled={bindBusy}>
-			{bindBusy ? m.fakeip_devices_saving() : m.sb_router_common_save()}
+			{bindBusy ? m.fakeip_devices_saving() : m.common_save()}
 		</button>
 	{/snippet}
 </Modal>

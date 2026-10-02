@@ -34,8 +34,8 @@
   <pre class="fatal">{lastError}</pre>
 
   {#snippet actions()}
-    <Button variant="ghost" onclick={copy}>{copied ? m.sb_router_common_copied() : m.sb_router_common_copy()}</Button>
-    <Button variant="ghost" onclick={onclose}>{m.sb_router_common_close()}</Button>
+    <Button variant="ghost" onclick={copy}>{copied ? m.common_copied() : m.common_copy()}</Button>
+    <Button variant="ghost" onclick={onclose}>{m.common_close()}</Button>
   {/snippet}
 </Modal>
 

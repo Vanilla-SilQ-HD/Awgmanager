@@ -479,7 +479,7 @@
 				</Button>
 			{:else}
 				{#if selectableIndices.length > 0}
-					<Button variant="ghost" size="sm" onclick={toggleSelectMode}>{m.sb_router_expert_select()}</Button>
+					<Button variant="ghost" size="sm" onclick={toggleSelectMode}>{m.common_select()}</Button>
 				{/if}
 				<button type="button" class="add" onclick={() => (ruleAddOpen = true)}>
 					<Plus size={14} strokeWidth={2} aria-hidden="true" /> {m.fakeip_dns_add_rule()}
@@ -554,7 +554,7 @@
 								onclick={saveFinal}
 								disabled={finalBusy}
 								aria-label={m.fakeip_routes_final_save_aria()}
-								title={m.sb_router_common_save()}
+								title={m.common_save()}
 							>
 								<Check size={15} strokeWidth={2} />
 							</button>
@@ -598,7 +598,7 @@
 		<BulkSelectBar
 			count={selected.size}
 			options={bulkOutboundOptions}
-			applyLabel={m.sb_router_expert_apply()}
+			applyLabel={m.common_apply()}
 			onapply={applyBulkOutbound}
 			oncancel={cancelSelectMode}
 			busy={bulkBusy}

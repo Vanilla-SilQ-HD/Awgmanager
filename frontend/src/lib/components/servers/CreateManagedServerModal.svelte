@@ -256,7 +256,7 @@
 	{#snippet actions()}
 		<Button variant="ghost" size="md" onclick={onclose}>{m.common_cancel()}</Button>
 		<Button variant="primary" size="md" onclick={handleCreate} disabled={!address || !mask} loading={creating}>
-			{m.tunnels_create()}
+			{m.common_create()}
 		</Button>
 	{/snippet}
 </Modal>

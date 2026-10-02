@@ -252,7 +252,7 @@
 				addOpen = true;
 			}}
 		>
-			{m.proxy_common_add()}
+			{m.common_add()}
 		</Button>
 		{#if enabled}
 			<Button variant="ghost" size="sm" disabled={busy} onclick={() => (disableOpen = true)}>

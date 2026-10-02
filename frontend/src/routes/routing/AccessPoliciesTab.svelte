@@ -177,10 +177,10 @@
                     disabled={policyRefreshing}
                     loading={policyRefreshing}
                 >
-                    {m.routing_page_refresh()}
+                    {m.common_refresh()}
                 </Button>
                 {#if accessPolicies.length > 0}
-                    <Button variant="ghost" size="sm" onclick={() => { policySelectionMode = true; policySelected = new Set(); }}>{m.routing_select()}</Button>
+                    <Button variant="ghost" size="sm" onclick={() => { policySelectionMode = true; policySelected = new Set(); }}>{m.common_select()}</Button>
                 {/if}
                 <RoutingCreateButton onclick={() => (policyCreateOpen = true)} />
             </div>

@@ -133,7 +133,7 @@
 			loading={adding}
 			disabled={!tunnelIP || !!dnsError || !!netError}
 		>
-			{m.servers_peer_add_submit()}
+			{m.common_add()}
 		</Button>
 	{/snippet}
 </Modal>

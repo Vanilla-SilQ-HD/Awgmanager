@@ -261,7 +261,7 @@
 					loading={busy}
 					onclick={() => (confirmOpen = true)}
 				>
-					{busy ? m.settings_http_applying() : m.settings_http_apply()}
+					{busy ? m.settings_http_applying() : m.common_apply()}
 				</Button>
 			</div>
 		{/if}
@@ -270,7 +270,7 @@
 			open={confirmOpen}
 			title={m.settings_http_confirm_title()}
 			message={m.settings_http_confirm_message({ port: portValid ? port : '?', interfaces: confirmIfaceLabel })}
-			confirmLabel={m.settings_http_apply()}
+			confirmLabel={m.common_apply()}
 			variant="primary"
 			busy={busy}
 			onConfirm={() => {

@@ -275,15 +275,15 @@
 				addOpen = true;
 			}}
 		>
-			{m.proxy_common_add()}
+			{m.common_add()}
 		</Button>
-		<Button variant="ghost" size="sm" loading={loading} onclick={() => reload()}>{m.proxy_clients_refresh()}</Button>
+		<Button variant="ghost" size="sm" loading={loading} onclick={() => reload()}>{m.common_refresh()}</Button>
 	</div>
 
 	{#if loadFailed && !users.length}
 		<p class="empty">
 			{m.proxy_clients_load_failed()}
-			<Button variant="secondary" size="sm" onclick={() => reload()}>{m.proxy_clients_retry()}</Button>
+			<Button variant="secondary" size="sm" onclick={() => reload()}>{m.common_retry()}</Button>
 		</p>
 	{:else if users.length}
 		<ul class="list">

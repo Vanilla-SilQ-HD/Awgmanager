@@ -47,7 +47,7 @@
 		updateInfo?.available ? m.settings_update_check_newer_title() : m.settings_update_check_title()
 	);
 	const manualCheckLabel = $derived(
-		checking ? m.settings_update_checking() : updateInfo?.available ? m.settings_update_check_again() : m.settings_update_check()
+		checking ? m.settings_update_checking() : updateInfo?.available ? m.settings_update_check_again() : m.common_check()
 	);
 
 	async function checkForUpdates() {
@@ -228,7 +228,7 @@
 					onclick={confirmUpgrade}
 					disabled={checking}
 				>
-					{m.settings_update_apply()}
+					{m.common_update()}
 				</Button>
 			{/if}
 		{/if}
@@ -277,7 +277,7 @@
 						onclick={saveAutoInstallSchedule}
 						loading={savingAutoInstall}
 					>
-						{savingAutoInstall ? m.settings_update_saving() : m.settings_update_save()}
+						{savingAutoInstall ? m.common_saving() : m.common_save()}
 					</Button>
 				{/if}
 			</div>
@@ -316,7 +316,7 @@
 
 	{#snippet actions()}
 		<Button variant="secondary" size="md" onclick={() => showConfirm = false}>{m.common_cancel()}</Button>
-		<Button variant="primary" size="md" onclick={applyUpgrade}>{m.settings_update_apply()}</Button>
+		<Button variant="primary" size="md" onclick={applyUpgrade}>{m.common_update()}</Button>
 	{/snippet}
 </Modal>
 

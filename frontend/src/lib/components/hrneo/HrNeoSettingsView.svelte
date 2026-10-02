@@ -58,14 +58,14 @@
 			<h2>{m.hrneo_settings_title()}</h2>
 			{#if dirty}
 				<Button variant="primary" size="sm" onclick={save} loading={saving}>
-					{m.routing_save()}
+					{m.common_save()}
 				</Button>
 			{/if}
 		</header>
 	{:else if dirty}
 		<div class="save-bar">
 			<Button variant="primary" size="sm" onclick={save} loading={saving}>
-				{m.routing_save()}
+				{m.common_save()}
 			</Button>
 		</div>
 	{/if}
@@ -73,7 +73,7 @@
 	{#if err}<div class="error-banner">{err}</div>{/if}
 
 	{#if !cfg}
-		<div class="empty">{m.routing_singbox_loading()}</div>
+		<div class="empty">{m.common_loading()}</div>
 	{:else}
 		<div class="settings-stack">
 			<div class="settings-block">

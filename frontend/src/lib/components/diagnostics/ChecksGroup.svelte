@@ -111,7 +111,7 @@
 	const isSingbox = $derived(!isGlobal && !kind?.startsWith('awg') && kind !== 'wg');
 	const plannedTests = $derived(getPlannedTests(isGlobal, isSingbox));
 	const showPlanned = $derived(expanded && !body && tests.length === 0);
-	const runBtnLabel = $derived(groupRunning ? m.diag_group_running() : m.diag_group_check());
+	const runBtnLabel = $derived(groupRunning ? m.diag_group_running() : m.common_check());
 </script>
 
 <section class="group" class:highlight class:expanded>

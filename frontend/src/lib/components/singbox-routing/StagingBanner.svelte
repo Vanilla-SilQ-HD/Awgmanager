@@ -117,7 +117,7 @@
 		{m.singbox_routing_staging_reset()}
 	</Button>
 	<Button variant="primary" size="sm" disabled={applying || discarding} onclick={onApply}>
-		{applying ? m.singbox_routing_staging_applying() : m.routing_singbox_apply()}
+		{applying ? m.singbox_routing_staging_applying() : m.common_apply()}
 	</Button>
 {/snippet}
 

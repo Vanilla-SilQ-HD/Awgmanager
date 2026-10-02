@@ -62,7 +62,7 @@
 	<div class="header">
 		<div class="hint">{m.routing_singbox_rewrites_count({ count: rewrites.length })}</div>
 		<Button variant="primary" size="sm" onclick={() => (addMode = true)} iconBefore={createIcon}>
-			{m.routing_singbox_add()}
+			{m.common_add()}
 		</Button>
 	</div>
 {/if}

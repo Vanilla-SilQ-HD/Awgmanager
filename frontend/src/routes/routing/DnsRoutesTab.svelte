@@ -151,7 +151,7 @@
             const fresh = await api.setDnsRouteEnabled(id, enabled);
             dnsRoutesStore.applyMutationResponse(fresh);
         } catch (e) {
-            notifications.error(errorMessage(e, m.routing_error()));
+            notifications.error(errorMessage(e, m.common_error()));
         } finally {
             dnsToggling = null;
         }
@@ -353,7 +353,7 @@
         <div class="section-buttons">
             <StoreStatusBadge store={dnsRoutesStore} />
             {#if dnsRoutes.length > 0}
-                <Button variant="ghost" size="sm" onclick={() => { dnsSelectionMode = true; dnsSelected = new Set(); }} disabled={bodyLoading}>{m.routing_select()}</Button>
+                <Button variant="ghost" size="sm" onclick={() => { dnsSelectionMode = true; dnsSelected = new Set(); }} disabled={bodyLoading}>{m.common_select()}</Button>
             {/if}
             <RoutingRuleAddMenu
                 disabled={bodyLoading}
@@ -375,11 +375,11 @@
             </div>
             {#if !dnsTunnelMode}
                 <div class="bulk-bar-actions">
-                    <button class="bulk-btn bulk-btn-enable" disabled={dnsSelected.size === 0 || dnsBulkLoading} onclick={() => bulkDnsToggle(true)}>{m.routing_enable()}</button>
-                    <button class="bulk-btn bulk-btn-disable" disabled={dnsSelected.size === 0 || dnsBulkLoading} onclick={() => bulkDnsToggle(false)}>{m.routing_disable()}</button>
+                    <button class="bulk-btn bulk-btn-enable" disabled={dnsSelected.size === 0 || dnsBulkLoading} onclick={() => bulkDnsToggle(true)}>{m.common_enable()}</button>
+                    <button class="bulk-btn bulk-btn-disable" disabled={dnsSelected.size === 0 || dnsBulkLoading} onclick={() => bulkDnsToggle(false)}>{m.common_disable()}</button>
                     <button class="bulk-btn bulk-btn-delete" disabled={dnsSelected.size === 0 || dnsBulkLoading} onclick={() => dnsBulkDeleteConfirm = true}>{m.common_delete()}</button>
                     <button class="bulk-btn bulk-btn-tunnel" disabled={dnsSelected.size === 0 || dnsBulkLoading} onclick={() => { dnsTunnelMode = true; dnsBulkTunnelId = routingTunnels.find(t => t.available)?.id ?? ''; }}>{m.routing_bulk_tunnel()} ▾</button>
-                    <button class="bulk-btn bulk-btn-export" disabled={dnsSelected.size === 0 || dnsBulkLoading} onclick={downloadDnsExport}>{m.routing_export()}</button>
+                    <button class="bulk-btn bulk-btn-export" disabled={dnsSelected.size === 0 || dnsBulkLoading} onclick={downloadDnsExport}>{m.common_export()}</button>
                 </div>
             {:else}
                 {@const dnsBulkTunnelOpts = buildRoutingTunnelDropdownOptions(routingTunnels, {

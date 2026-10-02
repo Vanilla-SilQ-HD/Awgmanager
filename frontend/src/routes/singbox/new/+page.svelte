@@ -21,7 +21,7 @@
 	<div class="sticky-header">
 		<div class="header-left">
 			<Button variant="ghost" size="sm" onclick={() => goto('/?tab=singbox')} iconBefore={backIcon}>
-				{m.tunnels_back()}
+				{m.common_back()}
 			</Button>
 			<h1 class="page-title">{m.singbox_new_title()}</h1>
 		</div>

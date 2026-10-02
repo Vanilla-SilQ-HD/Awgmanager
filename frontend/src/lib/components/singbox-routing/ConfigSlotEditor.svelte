@@ -379,7 +379,7 @@
 		{#if readonly}
 			<span class="readonly-note">{m.singbox_routing_slot_readonly_note()}</span>
 			<div class="spacer"></div>
-			<Button variant="secondary" size="sm" onclick={onCopy}>{m.diag_logs_copy()}</Button>
+			<Button variant="secondary" size="sm" onclick={onCopy}>{m.common_copy()}</Button>
 		{:else}
 			<span class="status" class:dirty>{statusLabel}</span>
 			<div class="spacer"></div>
@@ -403,7 +403,7 @@
 				disabled={busy || !!parseError}
 				onclick={onCheck}
 			>
-				{checkBusy ? m.singbox_routing_slot_checking() : m.singbox_routing_slot_check()}
+				{checkBusy ? m.singbox_routing_slot_checking() : m.common_check()}
 			</Button>
 			<Button
 				variant="secondary"
@@ -419,7 +419,7 @@
 				disabled={busy || !!parseError || (!dirty && !draftSaved)}
 				onclick={onApply}
 			>
-				{applyBusy ? m.singbox_routing_slot_applying() : m.routing_singbox_apply()}
+				{applyBusy ? m.singbox_routing_slot_applying() : m.common_apply()}
 			</Button>
 		{/if}
 	</div>

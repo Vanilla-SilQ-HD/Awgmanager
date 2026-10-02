@@ -140,7 +140,7 @@
 	{/if}
 	<div class="btn-row">
 		<Button variant="primary" loading={saving} disabled={!!saveBlockedHint} onclick={onsave}>
-			{m.proxy_common_save()}
+			{m.common_save()}
 		</Button>
 		<Button variant="ghost" onclick={onrevert}>{m.proxy_common_cancel_action()}</Button>
 		{#if saveBlockedHint}

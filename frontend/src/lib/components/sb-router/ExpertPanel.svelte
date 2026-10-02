@@ -973,7 +973,7 @@
             </Button>
           {:else}
             {#if selectableRuleIndices.length > 0}
-              <Button variant="ghost" size="sm" onclick={toggleRulesSelectMode}>{m.sb_router_expert_select()}</Button>
+              <Button variant="ghost" size="sm" onclick={toggleRulesSelectMode}>{m.common_select()}</Button>
             {/if}
             <Button variant="primary" size="sm" onclick={() => (ruleAddOpen = true)}>{m.sb_router_expert_add_rule()}</Button>
           {/if}
@@ -986,7 +986,7 @@
           </div>
           {#if routeFinalDirty}
             <button class="gb-save" onclick={saveRouteFinal} disabled={routeFinalBusy} type="button">
-              {m.sb_router_common_save()}
+              {m.common_save()}
             </button>
           {/if}
         </div>
@@ -1010,7 +1010,7 @@
           <BulkSelectBar
             count={rulesSelected.size}
             options={bulkOutboundOptions}
-            applyLabel={m.sb_router_expert_apply()}
+            applyLabel={m.common_apply()}
             onapply={applyRulesBulkOutbound}
             oncancel={cancelRulesSelectMode}
             busy={rulesBulkBusy}
@@ -1038,7 +1038,7 @@
                 {m.common_cancel()}
               </Button>
             {:else if rsFilteredSelectableTags.length > 0}
-              <Button variant="ghost" size="sm" onclick={toggleRsSelectMode}>{m.sb_router_expert_select()}</Button>
+              <Button variant="ghost" size="sm" onclick={toggleRsSelectMode}>{m.common_select()}</Button>
             {/if}
             <Button variant="secondary" size="sm" onclick={() => (rsCatalogOpen = true)}>
               {#snippet iconBefore()}
@@ -1080,7 +1080,7 @@
           <BulkSelectBar
             count={rsSelected.size}
             options={rsBulkDetourOptions}
-            applyLabel={m.sb_router_expert_apply()}
+            applyLabel={m.common_apply()}
             onapply={applyRsBulkDetour}
             oncancel={cancelRsSelectMode}
             busy={rsBulkBusy}

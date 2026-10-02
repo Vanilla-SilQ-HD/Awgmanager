@@ -107,7 +107,7 @@
 			<span class="panel-title">{m.proxy_link_panel_title()}</span>
 			<span class="panel-sub">{m.proxy_link_panel_subscriber({ name: user.comment || user.password })}</span>
 		</div>
-		<IconButton size="sm" ariaLabel={m.proxy_common_close()} onclick={onclose}>
+		<IconButton size="sm" ariaLabel={m.common_close()} onclick={onclose}>
 			<X size={14} />
 		</IconButton>
 	</div>

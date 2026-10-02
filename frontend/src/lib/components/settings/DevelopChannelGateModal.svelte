@@ -486,7 +486,7 @@
 					{m.settings_develop_gate_go_develop()}
 				</Button>
 			{:else}
-				<Button variant="primary" size="md" onclick={handleClose}>{m.settings_develop_gate_close()}</Button>
+				<Button variant="primary" size="md" onclick={handleClose}>{m.common_close()}</Button>
 			{/if}
 		{/if}
 	{/snippet}

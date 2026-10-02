@@ -312,7 +312,7 @@
             onkeydown={handleKeydown}
         />
         {#if query}
-            <button class="btn-clear" onclick={handleClear} title={m.routing_search_clear()}>
+            <button class="btn-clear" onclick={handleClear} title={m.common_clear()}>
                 <X size={16} aria-hidden="true" />
             </button>
         {/if}

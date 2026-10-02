@@ -124,7 +124,7 @@
 		<p class="sub-title">{m.proxy_adv_wg_conf()}</p>
 		{#if wgConf && !confShown}
 			<div class="btn-row">
-				<Button variant="secondary" onclick={() => (confShown = true)}>{m.proxy_adv_show()}</Button>
+				<Button variant="secondary" onclick={() => (confShown = true)}>{m.common_show()}</Button>
 			</div>
 		{:else if wgConf}
 			<WgConfExportPanel

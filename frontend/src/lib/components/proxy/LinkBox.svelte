@@ -84,7 +84,7 @@
 	{/if}
 	<div class="link-text">{link}</div>
 	<div class="btn-row">
-		<Button variant="secondary" size="sm" onclick={copy}>{m.proxy_linkbox_copy()}</Button>
+		<Button variant="secondary" size="sm" onclick={copy}>{m.common_copy()}</Button>
 		<Button variant="secondary" size="sm" loading={qrBusy} onclick={toggleQR}>{m.proxy_linkbox_qr()}</Button>
 	</div>
 	{#if qrError}

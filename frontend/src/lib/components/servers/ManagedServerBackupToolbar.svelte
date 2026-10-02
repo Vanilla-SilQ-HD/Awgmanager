@@ -128,7 +128,7 @@
 			iconBefore={exportIcon}
 			title={m.servers_backup_export_servers()}
 		>
-			{m.tunnels_dashboard_export()}
+			{m.common_export()}
 		</Button>
 	{/if}
 	<Button
@@ -176,7 +176,7 @@
 			{m.common_cancel()}
 		</Button>
 		<Button variant="outline-primary" size="md" onclick={confirmExport} loading={exporting}>
-			{exportWarnings.length > 0 ? m.servers_backup_download_anyway() : m.tunnel_edit_header_download()}
+			{exportWarnings.length > 0 ? m.servers_backup_download_anyway() : m.common_download()}
 		</Button>
 	{/snippet}
 </Modal>

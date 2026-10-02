@@ -91,7 +91,7 @@
 			</Button>
 			<Button variant="primary" loading={saving} onclick={() => handleSave(false)}>
 				{#snippet iconBefore()}<Check size={13} />{/snippet}
-				{m.sb_router_common_save()}
+				{m.common_save()}
 			</Button>
 		</div>
 	{/snippet}

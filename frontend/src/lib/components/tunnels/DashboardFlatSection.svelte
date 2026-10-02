@@ -180,7 +180,7 @@
 				{#snippet actions()}
 					<StoreStatusBadge store={tunnels} />
 					<Button variant="secondary" size="md" onclick={ctx.handleExportAll} disabled={ctx.exporting} iconBefore={exportIcon}>
-						{m.tunnels_dashboard_export()}
+						{m.common_export()}
 					</Button>
 				{/snippet}
 			</DashboardToolbar>

@@ -71,7 +71,7 @@
 		<div class="ndms-ack" role="note">
 			<CircleCheck size={16} />
 			<span>{m.dns_routes_ndms_accepted()}</span>
-			<button type="button" class="ack-link" onclick={() => (reopened = true)}>{m.dns_routes_ndms_show()}</button>
+			<button type="button" class="ack-link" onclick={() => (reopened = true)}>{m.common_show()}</button>
 		</div>
 	{:else}
 		<div class="ndms-disclaimer" role="note">

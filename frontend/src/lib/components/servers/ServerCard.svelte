@@ -239,7 +239,7 @@
 			const fresh = await api.toggleSystemServerPeer(server.id, peer.publicKey, !peer.enabled);
 			servers.applyMutationResponse(fresh);
 		} catch (e) {
-			notifications.error(e instanceof Error ? e.message : m.tunnels_error_generic());
+			notifications.error(e instanceof Error ? e.message : m.common_error());
 		} finally {
 			const next = new Set(togglingPeerKeys);
 			next.delete(peer.publicKey);

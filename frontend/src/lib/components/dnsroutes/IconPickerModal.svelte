@@ -453,7 +453,7 @@
 		</div>
 		<div class="footer-right">
 			<Button variant="ghost" onclick={onclose}>{m.common_cancel()}</Button>
-			<Button variant="primary" onclick={handleApply} disabled={!canApply}>{m.dns_routes_icon_apply()}</Button>
+			<Button variant="primary" onclick={handleApply} disabled={!canApply}>{m.common_apply()}</Button>
 		</div>
 	{/snippet}
 </Modal>

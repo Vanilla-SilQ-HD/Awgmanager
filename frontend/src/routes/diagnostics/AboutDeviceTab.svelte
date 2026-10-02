@@ -280,7 +280,7 @@
 
 <div class="about-toolbar">
 	<Button variant="secondary" size="sm" onclick={() => refresh()} loading={refreshing}>
-		{m.diag_dns_refresh()}
+		{m.common_refresh()}
 	</Button>
 	<Button variant="ghost" size="sm" onclick={copyReport} disabled={refreshing || !sysInfo}>
 		{m.diag_dns_copy_data()}

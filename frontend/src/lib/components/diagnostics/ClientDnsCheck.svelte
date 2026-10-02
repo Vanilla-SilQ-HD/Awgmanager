@@ -231,7 +231,7 @@
 			onclick={runCheck}
 			loading={running}
 		>
-			{running ? m.diag_group_running() : m.diag_group_check()}
+			{running ? m.diag_group_running() : m.common_check()}
 		</Button>
 	{/snippet}
 

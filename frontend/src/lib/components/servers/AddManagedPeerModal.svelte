@@ -133,7 +133,7 @@
 	{#snippet actions()}
 		<Button variant="ghost" size="md" onclick={onclose}>{m.common_cancel()}</Button>
 		<Button variant="primary" size="md" onclick={handleAdd} disabled={adding || !!ipError || !!dnsError || !!netError} loading={adding}>
-			{m.servers_peer_add_submit()}
+			{m.common_add()}
 		</Button>
 	{/snippet}
 </Modal>

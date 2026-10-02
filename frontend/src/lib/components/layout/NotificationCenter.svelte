@@ -90,7 +90,7 @@
 					{m.notif_mark_all_read()}
 				</Button>
 				<Button variant="ghost" onclick={() => notificationCenter.clearAll()}>
-					{m.notif_clear()}
+					{m.common_clear()}
 				</Button>
 			</div>
 

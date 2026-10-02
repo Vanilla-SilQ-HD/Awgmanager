@@ -989,7 +989,7 @@ $effect(() => {
 								</div>
 								{#if sessionTtlChanged}
 									<Button variant="primary" size="sm" onclick={saveSessionTtl} loading={saving}>
-										{saving ? m.settings_page_saving() : m.settings_page_save()}
+										{saving ? m.common_saving() : m.common_save()}
 									</Button>
 								{/if}
 							</div>
@@ -1103,7 +1103,7 @@ $effect(() => {
 							</label>
 							<div class="ping-target-action">
 								<Button variant="secondary" size="md" onclick={savePingTargetsSettings} disabled={saving}>
-									{m.settings_page_save()}
+									{m.common_save()}
 								</Button>
 							</div>
 						</div>
@@ -1144,7 +1144,7 @@ $effect(() => {
 							/>
 							<div class="api-key-action">
 								<Button variant="secondary" size="md" onclick={generateApiKey} disabled={saving}>
-									{m.settings_page_apikey_generate()}
+									{m.common_generate()}
 								</Button>
 							</div>
 						</div>
@@ -1249,7 +1249,7 @@ $effect(() => {
 					onclick={() => (restartConfirmOpen = true)}
 					loading={restarting}
 				>
-					{restarting ? m.settings_page_restarting_button() : m.settings_page_restart()}
+					{restarting ? m.settings_page_restarting_button() : m.common_restart()}
 				</Button>
 			</div>
 
@@ -1271,12 +1271,12 @@ $effect(() => {
 									loading={singboxBusy}
 									disabled={singboxStatusValue?.updateAvailable ?? false}
 								>
-									{m.settings_page_restart()}
+									{m.common_restart()}
 								</Button>
 							</span>
-							<Button variant="danger" size="sm" onclick={() => controlSingbox('stop')} loading={singboxBusy}>{m.settings_page_stop()}</Button>
+							<Button variant="danger" size="sm" onclick={() => controlSingbox('stop')} loading={singboxBusy}>{m.common_stop()}</Button>
 						{:else}
-							<Button variant="success" size="sm" onclick={() => controlSingbox('start')} loading={singboxBusy}>{m.settings_page_start()}</Button>
+							<Button variant="success" size="sm" onclick={() => controlSingbox('start')} loading={singboxBusy}>{m.common_start()}</Button>
 						{/if}
 					</div>
 				</div>
@@ -1292,10 +1292,10 @@ $effect(() => {
 					</div>
 					<div class="action-buttons">
 						{#if hydraRunning}
-							<Button variant="secondary" size="sm" onclick={() => controlHydra('restart')} loading={hydraBusy}>{m.settings_page_restart()}</Button>
-							<Button variant="danger" size="sm" onclick={() => controlHydra('stop')} loading={hydraBusy}>{m.settings_page_stop()}</Button>
+							<Button variant="secondary" size="sm" onclick={() => controlHydra('restart')} loading={hydraBusy}>{m.common_restart()}</Button>
+							<Button variant="danger" size="sm" onclick={() => controlHydra('stop')} loading={hydraBusy}>{m.common_stop()}</Button>
 						{:else}
-							<Button variant="success" size="sm" onclick={() => controlHydra('start')} loading={hydraBusy}>{m.settings_page_start()}</Button>
+							<Button variant="success" size="sm" onclick={() => controlHydra('start')} loading={hydraBusy}>{m.common_start()}</Button>
 						{/if}
 					</div>
 				</div>
@@ -1328,7 +1328,7 @@ $effect(() => {
 		secondary={ndmsProxyConfirmEnable
 			? m.settings_page_ndms_confirm_enable_secondary()
 			: m.settings_page_ndms_confirm_disable_secondary()}
-		confirmLabel={ndmsProxyConfirmEnable ? m.settings_page_ndms_confirm_enable() : m.settings_page_ndms_confirm_disable()}
+		confirmLabel={ndmsProxyConfirmEnable ? m.common_enable() : m.common_disable()}
 		variant={ndmsProxyConfirmEnable ? 'primary' : 'danger'}
 		busy={ndmsProxyBusy}
 		onConfirm={applyNDMSProxyToggle}
@@ -1346,7 +1346,7 @@ $effect(() => {
 		</p>
 		{#snippet actions()}
 			<Button variant="ghost" size="md" onclick={() => (restartConfirmOpen = false)}>{m.common_cancel()}</Button>
-			<Button variant="primary" size="md" onclick={restartDaemon}>{m.settings_page_restart()}</Button>
+			<Button variant="primary" size="md" onclick={restartDaemon}>{m.common_restart()}</Button>
 		{/snippet}
 	</Modal>
 

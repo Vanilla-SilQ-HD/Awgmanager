@@ -131,7 +131,7 @@
 		{:else if loadError}
 			<div class="state state-error">
 				<div>{loadError}</div>
-				<Button variant="secondary" size="sm" onclick={() => void load()}>{m.sb_router_catalog_retry()}</Button>
+				<Button variant="secondary" size="sm" onclick={() => void load()}>{m.common_retry()}</Button>
 			</div>
 		{:else if filtered.length === 0}
 			<div class="state">{m.sb_router_catalog_nothing_found({ query })}</div>

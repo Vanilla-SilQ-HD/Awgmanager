@@ -170,7 +170,7 @@
 
 <div class="settings-toolbar">
 	<Button variant="primary" disabled={saving} loading={saving} iconBefore={saveIcon} onclick={save}>
-		{saving ? m.subscriptions_saving() : m.subscriptions_save()}
+		{saving ? m.subscriptions_saving() : m.common_save()}
 	</Button>
 	<Button variant="danger" iconBefore={deleteIcon} onclick={() => (confirmDelete = true)}>
 		{m.subscriptions_settings_delete_btn()}

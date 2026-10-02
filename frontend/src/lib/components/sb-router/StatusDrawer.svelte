@@ -550,11 +550,11 @@
         <Button variant={captureOn ? 'danger' : 'primary'} size="sm" fullWidth disabled={switchBusy} onclick={handleToggleClick}>
           {captureOn ? m.sb_router_status_turn_off() : m.sb_router_status_turn_on()}
         </Button>
-        <Button variant="ghost" size="sm" fullWidth loading={restarting} onclick={restartEngine}>{m.sb_router_status_restart()}</Button>
+        <Button variant="ghost" size="sm" fullWidth loading={restarting} onclick={restartEngine}>{m.common_restart()}</Button>
       </div>
       {#if isExpert}
         <span class="save-status" class:err={lastError}>
-          {saving ? m.sb_router_status_saving() : lastError ? m.sb_router_status_save_error() : m.sb_router_status_saved()}
+          {saving ? m.sb_router_status_saving() : lastError ? m.common_error() : m.sb_router_status_saved()}
         </span>
       {/if}
     </div>

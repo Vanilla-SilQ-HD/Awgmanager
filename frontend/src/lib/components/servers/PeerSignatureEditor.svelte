@@ -68,7 +68,7 @@
 			<Dropdown value={selected} {options} fullWidth onchange={(v) => (selected = v)} />
 		</div>
 		<Button variant="secondary" size="sm" onclick={handleGenerate} disabled={generating} loading={generating}>
-			{m.settings_page_apikey_generate()}
+			{m.common_generate()}
 		</Button>
 	</div>
 

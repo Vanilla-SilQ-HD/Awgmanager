@@ -27,7 +27,7 @@
 </script>
 
 <DropdownMenu
-	label={triggerLabel ?? m.tunnels_create()}
+	label={triggerLabel ?? m.common_create()}
 	size="md"
 	iconBefore={triggerIcon}
 	--dropdown-menu-z-index="30"

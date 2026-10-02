@@ -38,7 +38,7 @@
 			autocomplete="off"
 		/>
 		<Button variant="secondary" size="sm" {disabled} onclick={() => (revealed = !revealed)}>
-			{revealed ? m.proxy_sensitive_hide() : m.proxy_sensitive_show()}
+			{revealed ? m.common_hide() : m.common_show()}
 		</Button>
 	</div>
 	{#if hint}

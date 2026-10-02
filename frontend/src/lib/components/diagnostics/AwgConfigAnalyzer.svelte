@@ -552,7 +552,7 @@
 								/>
 							</div>
 							{#if tunnelLoading}
-								<span class="existing-tunnel-loading">{m.diag_logs_loading_more()}</span>
+								<span class="existing-tunnel-loading">{m.common_loading()}</span>
 							{/if}
 						</div>
 						{#if tunnelLoadError}
@@ -579,7 +579,7 @@
 								/>
 							</div>
 							{#if peerLoading}
-								<span class="existing-tunnel-loading">{m.diag_logs_loading_more()}</span>
+								<span class="existing-tunnel-loading">{m.common_loading()}</span>
 							{/if}
 						</div>
 						{#if peerLoadError}
@@ -619,7 +619,7 @@
 			<div class="bar">
 				<Button variant="primary" onclick={analyze} disabled={!canAnalyze || analyzing} loading={analyzing}>{m.diag_awg_analyzer_analyze()}</Button>
 				<Button variant="secondary" onclick={() => fileInput?.click()}>{m.diag_awg_analyzer_upload_file()}</Button>
-				<Button variant="ghost" onclick={clearAll}>{m.diag_logs_clear()}</Button>
+				<Button variant="ghost" onclick={clearAll}>{m.common_clear()}</Button>
 				{#if canSave}
 					<Button variant="outline-primary" onclick={saveToTunnel} loading={savingTunnel}>
 						{m.diag_awg_analyzer_write_to_tunnel()}

@@ -459,7 +459,7 @@
 								<button
 									class="eye-btn"
 									onclick={() => showEndpoint = !showEndpoint}
-									title={showEndpoint ? m.tunnels_hide() : m.tunnels_show()}
+									title={showEndpoint ? m.common_hide() : m.common_show()}
 								>
 									{#if showEndpoint}
 										<Eye size={12} aria-hidden="true" />
@@ -516,7 +516,7 @@
 						<button
 							class="eye-btn"
 							onclick={() => showEndpoint = !showEndpoint}
-							title={showEndpoint ? m.tunnels_hide() : m.tunnels_show()}
+							title={showEndpoint ? m.common_hide() : m.common_show()}
 						>
 							{#if showEndpoint}
 								<Eye size={14} aria-hidden="true" />
@@ -589,7 +589,7 @@
 				variant="labeled"
 				editHref="/tunnels/{tunnel.id}"
 				editDisabled={locked}
-				editTitle={locked ? lockedTitle : m.tunnels_card_edit()}
+				editTitle={locked ? lockedTitle : m.common_edit()}
 				onTest={() => (diagnosticsOpen = true)}
 				onDelete={() => ondelete?.()}
 				deleteDisabled={deleteLoading || locked}

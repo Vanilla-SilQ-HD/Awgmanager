@@ -40,8 +40,8 @@
 	}: Props = $props();
 
 	const isLabeled = $derived(variant === 'labeled');
-	const editLabelText = $derived(editLabel ?? m.tunnels_card_edit());
-	const editTitleText = $derived(editTitle ?? m.tunnels_card_edit());
+	const editLabelText = $derived(editLabel ?? m.common_edit());
+	const editTitleText = $derived(editTitle ?? m.common_edit());
 	const testTitleText = $derived(testTitle ?? m.ui_tunnel_actions_test());
 	const deleteTitleText = $derived(deleteTitle ?? m.common_delete());
 </script>

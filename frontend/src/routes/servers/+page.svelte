@@ -239,7 +239,7 @@
 			servers.applyMutationResponse(fresh);
 			notifications.success(m.servers_page_unmarked({ id }));
 		} catch (e) {
-			notifications.error(e instanceof Error ? e.message : m.tunnels_error_generic());
+			notifications.error(e instanceof Error ? e.message : m.common_error());
 		}
 	}
 

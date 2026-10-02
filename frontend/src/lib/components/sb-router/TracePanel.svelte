@@ -103,8 +103,8 @@
 <section class="trace">
   {#if !embedded}
     <header class="trace-header">
-      <button type="button" class="back-btn" onclick={closeTrace} aria-label={m.sb_router_common_back()}>
-        ← {m.sb_router_common_back()}
+      <button type="button" class="back-btn" onclick={closeTrace} aria-label={m.common_back()}>
+        ← {m.common_back()}
       </button>
       <span class="bread-sep">/</span>
       <span class="bread-current">{m.sb_router_trace_title()}</span>
@@ -134,7 +134,7 @@
       />
     </div>
     <Button variant="primary" size="md" onclick={handleSubmit} disabled={!canSubmit}>
-      {loading ? m.sb_router_trace_checking() : m.sb_router_trace_check()}
+      {loading ? m.sb_router_trace_checking() : m.common_check()}
     </Button>
   </div>
 

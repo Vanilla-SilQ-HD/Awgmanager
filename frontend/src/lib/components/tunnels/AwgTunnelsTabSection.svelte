@@ -181,10 +181,10 @@
 				{/snippet}
 			</TunnelToolbarViewRow>
 			<Button variant="secondary" size="md" onclick={ctx.handleExportAll} disabled={ctx.exporting} iconBefore={exportIcon}>
-				{m.tunnels_dashboard_export()}
+				{m.common_export()}
 			</Button>
 			<Button variant="primary" size="md" onclick={() => goto('/tunnels/new')} iconBefore={createIcon}>
-				{m.tunnels_create()}
+				{m.common_create()}
 			</Button>
 		</div>
 	</div>
@@ -382,7 +382,7 @@
 									type="button"
 									class="awg-endpoint-eye"
 									onclick={() => ctx.toggleEndpointVisible('managed', tunnel.id)}
-									title={isEndpointShown ? m.tunnels_hide() : m.tunnels_show()}
+									title={isEndpointShown ? m.common_hide() : m.common_show()}
 								>
 									{#if isEndpointShown}
 										<Eye size={14} aria-hidden="true" />
@@ -496,7 +496,7 @@
 									type="button"
 									class="awg-endpoint-eye"
 									onclick={() => ctx.toggleEndpointVisible('system', tunnel.id)}
-									title={isEndpointShown ? m.tunnels_hide() : m.tunnels_show()}
+									title={isEndpointShown ? m.common_hide() : m.common_show()}
 								>
 									{#if isEndpointShown}
 										<Eye size={14} aria-hidden="true" />
@@ -623,7 +623,7 @@
 										type="button"
 										class="awg-endpoint-eye"
 										onclick={() => ctx.toggleEndpointVisible('external', tunnel.interfaceName)}
-										title={isEndpointShown ? m.tunnels_hide() : m.tunnels_show()}
+										title={isEndpointShown ? m.common_hide() : m.common_show()}
 									>
 										{#if isEndpointShown}
 											<Eye size={14} aria-hidden="true" />

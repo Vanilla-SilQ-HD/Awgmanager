@@ -654,7 +654,7 @@
 			loading={busy || inlineModeBusy}
 			type="button"
 		>
-			{m.routing_singbox_save()}
+			{m.common_save()}
 		</Button>
 	{/snippet}
 </SingboxSettingsModal>

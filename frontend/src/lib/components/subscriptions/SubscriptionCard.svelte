@@ -144,7 +144,7 @@
 		subscription.lastError ? 'error' : subscription.lastFetched ? 'ok' : 'pending',
 	);
 	const feedStatusLabel = $derived(
-		!subscription.enabled ? m.subscriptions_card_feed_off() : subscription.lastError ? m.subscriptions_card_feed_error() : 'OK',
+		!subscription.enabled ? m.subscriptions_card_feed_off() : subscription.lastError ? m.common_error() : 'OK',
 	);
 	const modeLabel = $derived(subscription.mode === 'urltest' ? 'URLTest' : 'Selector');
 	const isInlineGroup = $derived(
@@ -276,7 +276,7 @@
 			<td class="tunnel-list-cell tunnel-list-cell--actions lc lc-actions col-actions">
 				<TunnelListActions
 					onEdit={openSettings}
-					editLabel={m.tunnels_card_edit()}
+					editLabel={m.common_edit()}
 					editTitle={m.subscriptions_card_edit_title({ name: subscription.label || subscription.url })}
 					onTest={() => (diagnosticsOpen = true)}
 					testTitle={m.subscriptions_card_test_title({ name: subscription.label || subscription.url })}
@@ -362,7 +362,7 @@
 		<TunnelListActions
 			variant="labeled"
 			onEdit={openSettings}
-			editLabel={m.tunnels_card_edit()}
+			editLabel={m.common_edit()}
 			editTitle={m.subscriptions_card_edit_title({ name: subscription.label || subscription.url })}
 			onTest={() => (diagnosticsOpen = true)}
 			testTitle={m.subscriptions_card_test_title({ name: subscription.label || subscription.url })}
@@ -439,7 +439,7 @@
 		{/if}
 		{#if subscription.lastError}
 			<div class="detail-row detail-row-err">
-				<span class="detail-label">{m.subscriptions_card_feed_error()}</span>
+				<span class="detail-label">{m.common_error()}</span>
 				<span class="detail-value mono" title={subscription.lastError}>{subscription.lastError}</span>
 			</div>
 		{/if}
@@ -449,7 +449,7 @@
 		<TunnelListActions
 			variant="labeled"
 			onEdit={openSettings}
-			editLabel={m.tunnels_card_edit()}
+			editLabel={m.common_edit()}
 			editTitle={m.subscriptions_card_edit_title({ name: subscription.label || subscription.url })}
 			onTest={() => (diagnosticsOpen = true)}
 			testTitle={m.subscriptions_card_test_title({ name: subscription.label || subscription.url })}

@@ -12,5 +12,5 @@
 
 <a {href} class="back-link">
 	<ArrowLeft size={20} strokeWidth={2} aria-hidden="true" />
-	{label ?? m.sb_router_common_back()}
+	{label ?? m.common_back()}
 </a>

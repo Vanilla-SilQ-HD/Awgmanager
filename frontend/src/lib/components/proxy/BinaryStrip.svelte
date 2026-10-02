@@ -55,7 +55,7 @@
 						onclick={b.oninstall}
 					>
 						{#snippet iconBefore()}<Download size={14} strokeWidth={2.5} />{/snippet}
-						{b.binaryPresent ? m.proxy_binary_update() : m.proxy_binary_install()}
+						{b.binaryPresent ? m.common_update() : m.proxy_binary_install()}
 					</Button>
 				{/if}
 			</div>

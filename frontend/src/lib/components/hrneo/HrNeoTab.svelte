@@ -602,7 +602,7 @@
 	presetFilter={hrNeoCatalogPresetFilter}
 	footer="none"
 	multiple={false}
-	confirmLabel={m.routing_select()}
+	confirmLabel={m.common_select()}
 	onclose={() => (catalogOpen = false)}
 	onconfirm={(presets) => {
 		if (editOpen) {

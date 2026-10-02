@@ -216,7 +216,7 @@
             open={confirmOpen}
             title={m.ui_modal_discard_title()}
             message={m.ui_modal_discard_message()}
-            confirmLabel={m.sb_router_common_close()}
+            confirmLabel={m.common_close()}
             cancelLabel={m.routing_page_stay()}
             variant="danger"
             onConfirm={() => { confirmOpen = false; onclose(); }}

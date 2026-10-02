@@ -328,7 +328,7 @@
 				notifications.success(m.tunnels_started_toast());
 			}
 		} catch (e) {
-			notifications.error(e instanceof Error ? e.message : m.tunnels_error_generic());
+			notifications.error(e instanceof Error ? e.message : m.common_error());
 		} finally {
 			const { [id]: _, ...rest } = toggleLoading;
 			toggleLoading = rest;

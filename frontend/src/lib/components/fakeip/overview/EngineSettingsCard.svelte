@@ -220,7 +220,7 @@
 					{#if restarting}
 						<RotateCw size={14} class="spin" />
 					{/if}
-					{m.fakeip_engine_restart()}
+					{m.common_restart()}
 				</button>
 				<Toggle
 					checked={engineOn}

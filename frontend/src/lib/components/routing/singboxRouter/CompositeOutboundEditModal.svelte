@@ -375,7 +375,7 @@
 	{#snippet actions()}
 		<Button variant="ghost" size="md" onclick={onClose} type="button">{m.common_cancel()}</Button>
 		<Button variant="primary" size="md" onclick={save} disabled={busy} loading={busy} type="button">
-			{m.routing_singbox_save()}
+			{m.common_save()}
 		</Button>
 	{/snippet}
 </SingboxSettingsModal>

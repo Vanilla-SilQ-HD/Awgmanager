@@ -86,7 +86,7 @@
 			<Button variant="secondary" size="md" onclick={onclose}>{m.common_cancel()}</Button>
 			<Button variant="outline-primary" size="md" onclick={runImport} loading={importing}>{m.tunnel_edit_import_button()}</Button>
 		{:else}
-			<Button variant="secondary" size="md" onclick={onclose}>{m.settings_changelog_close()}</Button>
+			<Button variant="secondary" size="md" onclick={onclose}>{m.common_close()}</Button>
 		{/if}
 	{/snippet}
 </Modal>

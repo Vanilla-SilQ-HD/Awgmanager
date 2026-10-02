@@ -170,7 +170,7 @@
 		{:else}
 			<div class="list-toolbar">
 				<Button variant="secondary" size="sm" onclick={loadSlots} disabled={listLoading}>
-					{listLoading ? m.routing_singbox_loading() : m.singbox_routing_slots_refresh()}
+					{listLoading ? m.common_loading() : m.common_refresh()}
 				</Button>
 				<div class="spacer"></div>
 				{#if onOpenMerged}
@@ -184,7 +184,7 @@
 					<div class="error-message">{listError}</div>
 				</div>
 			{:else if listLoading && slots.length === 0}
-				<div class="placeholder">{m.routing_singbox_loading()}</div>
+				<div class="placeholder">{m.common_loading()}</div>
 			{:else}
 				<div class="slot-list">
 					{#each slots as s (s.slot)}

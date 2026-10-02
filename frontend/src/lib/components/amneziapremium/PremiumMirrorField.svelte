@@ -94,7 +94,7 @@
 			/>
 			<div class="premium-mirror-actions">
 				<Button variant="secondary" size="sm" disabled={busy} onclick={() => void save(value)}>
-					{m.sb_router_common_save()}
+					{m.common_save()}
 				</Button>
 				<Button variant="ghost" size="sm" disabled={busy} onclick={() => void save('')}>
 					{m.amnezia_premium_mirror_reset()}

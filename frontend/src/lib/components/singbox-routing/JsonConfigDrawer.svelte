@@ -71,7 +71,7 @@
 	<div class="content">
 		<div class="toolbar">
 			<Button variant="secondary" size="sm" onclick={load} disabled={loading}>
-				{loading ? m.routing_singbox_loading() : m.routing_page_refresh()}
+				{loading ? m.common_loading() : m.common_refresh()}
 			</Button>
 			<Button
 				variant="secondary"
@@ -79,7 +79,7 @@
 				onclick={onCopy}
 				disabled={loading || !json}
 			>
-				{copied ? m.servers_conf_copied() : m.diag_logs_copy()}
+				{copied ? m.common_copied() : m.common_copy()}
 			</Button>
 			<Button
 				variant="secondary"
@@ -87,7 +87,7 @@
 				onclick={onExport}
 				disabled={loading || !json}
 			>
-				{m.singbox_routing_json_export()}
+				{m.common_export()}
 			</Button>
 		</div>
 

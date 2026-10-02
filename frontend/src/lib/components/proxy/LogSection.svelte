@@ -85,7 +85,7 @@
 	{/if}
 	{#if routerClock}<span class="meta">{routerClock}</span>{/if}
 	<span class="meta">{m.proxy_log_lines({ count: lineCount })}</span>
-	<Button variant="ghost" size="sm" disabled={!text} onclick={copyLog}>{m.proxy_log_copy()}</Button>
+	<Button variant="ghost" size="sm" disabled={!text} onclick={copyLog}>{m.common_copy()}</Button>
 {/snippet}
 
 <style>

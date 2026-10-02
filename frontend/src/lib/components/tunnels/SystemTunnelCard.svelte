@@ -264,7 +264,7 @@
 									<button
 										class="eye-btn"
 										onclick={() => showEndpoint = !showEndpoint}
-										title={showEndpoint ? m.tunnels_hide() : m.tunnels_show()}
+										title={showEndpoint ? m.common_hide() : m.common_show()}
 									>
 										{#if showEndpoint}
 											<Eye size={12} aria-hidden="true" />
@@ -321,7 +321,7 @@
 							<button
 								class="eye-btn"
 								onclick={() => showEndpoint = !showEndpoint}
-								title={showEndpoint ? m.tunnels_hide() : m.tunnels_show()}
+								title={showEndpoint ? m.common_hide() : m.common_show()}
 							>
 								{#if showEndpoint}
 									<Eye size={14} aria-hidden="true" />

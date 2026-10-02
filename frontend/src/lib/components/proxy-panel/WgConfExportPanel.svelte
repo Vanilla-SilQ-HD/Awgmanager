@@ -55,7 +55,7 @@
 		</div>
 		<textarea class="wg-export-text" readonly rows="8" value={trimmed}></textarea>
 		<div class="wg-export-actions">
-			<Button variant="secondary" size="sm" onclick={copyConf}>{m.proxy_wgexport_copy()}</Button>
+			<Button variant="secondary" size="sm" onclick={copyConf}>{m.common_copy()}</Button>
 			<Button variant="secondary" size="sm" onclick={downloadConf}>{m.proxy_wgexport_download()}</Button>
 			{#if onImportTunnel}
 				<Button

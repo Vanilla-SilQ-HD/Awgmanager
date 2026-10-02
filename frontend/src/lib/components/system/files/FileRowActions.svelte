@@ -46,7 +46,7 @@
 			<button
 				type="button"
 				class="icon-act-btn stop-act-btn"
-				title={m.proxy_common_stop()}
+				title={m.common_stop()}
 				disabled={isBusy}
 				onclick={(e) => { e.stopPropagation(); onScriptAction(entry, 'stop'); }}
 			>

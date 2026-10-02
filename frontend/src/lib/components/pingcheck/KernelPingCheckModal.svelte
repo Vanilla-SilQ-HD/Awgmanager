@@ -129,7 +129,7 @@
 	{#snippet footer()}
 		<Button variant="ghost" size="md" onclick={onclose}>{m.common_cancel()}</Button>
 		<Button variant="primary" size="md" onclick={handleSave} disabled={loading} loading={saving}>
-			{m.sb_router_common_save()}
+			{m.common_save()}
 		</Button>
 	{/snippet}
 </SideDrawer>

@@ -230,7 +230,7 @@
 		<Button variant="ghost" onclick={onclose} disabled={saving}>{m.common_cancel()}</Button>
 		<!-- TODO Phase 1: shake animation on save when invalid (was class:shake={shaking}) -->
 		<Button variant="primary" onclick={handleSave} loading={saving}>
-			{editing ? m.client_route_save() : m.client_route_create()}
+			{editing ? m.common_save() : m.common_create()}
 		</Button>
 	{/snippet}
 </Modal>

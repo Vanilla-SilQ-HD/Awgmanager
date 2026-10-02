@@ -45,7 +45,7 @@
 
 <div class="foot">
 	{#if current > 0}
-		<Button variant="ghost" onclick={() => ongo(current - 1)}>{m.proxy_wizard_back()}</Button>
+		<Button variant="ghost" onclick={() => ongo(current - 1)}>{m.common_back()}</Button>
 	{/if}
 	{#if last}
 		{#if finish}{@render finish()}{/if}

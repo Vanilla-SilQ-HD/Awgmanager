@@ -104,7 +104,7 @@
 		<h4>{m.access_policy_interfaces_title()}</h4>
 		{#if unassigned.length > 0}
 			<Button variant="secondary" size="sm" onclick={() => (showAdd = !showAdd)}>
-				{showAdd ? m.common_cancel() : m.access_policy_add()}
+				{showAdd ? m.common_cancel() : m.common_add()}
 			</Button>
 		{/if}
 	</div>

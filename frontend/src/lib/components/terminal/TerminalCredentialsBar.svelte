@@ -105,8 +105,8 @@
 	</div>
 
 	<div class="actions">
-		<Button variant="primary" onclick={handleSave}>{m.sb_router_common_save()}</Button>
-		<Button variant="ghost" onclick={handleClear}>{m.terminal_creds_clear()}</Button>
+		<Button variant="primary" onclick={handleSave}>{m.common_save()}</Button>
+		<Button variant="ghost" onclick={handleClear}>{m.common_clear()}</Button>
 	</div>
 	</details>
 </Card>

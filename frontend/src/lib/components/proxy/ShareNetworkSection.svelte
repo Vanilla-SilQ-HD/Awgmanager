@@ -321,7 +321,7 @@
 
 	<div class="btn-row">
 		<Button variant="primary" loading={saving} disabled={busy || wanMissing || !!portConflict} onclick={onsave}>
-			{m.proxy_common_save()}
+			{m.common_save()}
 		</Button>
 		<Button variant="ghost" disabled={busy} onclick={onrevert}>{m.proxy_common_cancel_action()}</Button>
 	</div>

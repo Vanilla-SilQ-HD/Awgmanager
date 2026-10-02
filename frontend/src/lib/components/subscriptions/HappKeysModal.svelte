@@ -174,12 +174,12 @@
 					onclick={handleClear}
 				>
 					<Trash2 size={14} />
-					<span>{m.subscriptions_happ_clear()}</span>
+					<span>{m.common_clear()}</span>
 				</Button>
 			{/if}
 			<div class="footer-actions">
 				<Button variant="secondary" size="sm" onclick={onclose}>
-					{m.subscriptions_happ_close()}
+					{m.common_close()}
 				</Button>
 				<Button
 					variant="primary"
@@ -187,7 +187,7 @@
 					disabled={saving || !keysText.trim()}
 					onclick={handleSave}
 				>
-					{saving ? m.subscriptions_happ_saving() : m.subscriptions_save()}
+					{saving ? m.subscriptions_happ_saving() : m.common_save()}
 				</Button>
 			</div>
 		</div>

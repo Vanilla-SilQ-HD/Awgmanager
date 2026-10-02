@@ -8,7 +8,7 @@ import { m } from '$lib/i18n';
  * `Error` with a non-empty message yields that message, everything else (empty
  * message, string throw, plain object, `undefined`) falls back to `fallback`.
  */
-export function errorMessage(e: unknown, fallback: string = m.error_message_fallback()): string {
+export function errorMessage(e: unknown, fallback: string = m.common_error()): string {
 	if (e instanceof Error && e.message) {
 		return e.message;
 	}

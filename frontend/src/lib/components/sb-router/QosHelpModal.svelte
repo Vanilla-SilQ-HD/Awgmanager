@@ -76,7 +76,7 @@
       <div class="blk-cap">{m.sb_router_qos_help_windows_cap()}</div>
       <div class="code-row">
         <pre class="code">{psSnippet}</pre>
-        <IconButton size="sm" ariaLabel={m.sb_router_qos_help_copy_ps_aria()} title={m.sb_router_qos_help_copy_title()} onclick={() => void copy(psSnippet)}>
+        <IconButton size="sm" ariaLabel={m.sb_router_qos_help_copy_ps_aria()} title={m.common_copy()} onclick={() => void copy(psSnippet)}>
           <Copy size={14} />
         </IconButton>
       </div>
@@ -92,7 +92,7 @@
       <div class="blk-cap">{m.sb_router_qos_help_nla_cap()}</div>
       <div class="code-row">
         <pre class="code">{regSnippet}</pre>
-        <IconButton size="sm" ariaLabel={m.sb_router_qos_help_copy_reg_aria()} title={m.sb_router_qos_help_copy_title()} onclick={() => void copy(regSnippet)}>
+        <IconButton size="sm" ariaLabel={m.sb_router_qos_help_copy_reg_aria()} title={m.common_copy()} onclick={() => void copy(regSnippet)}>
           <Copy size={14} />
         </IconButton>
       </div>

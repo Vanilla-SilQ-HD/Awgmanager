@@ -375,7 +375,7 @@
                 {#if missing.length > 0}
                     {m.routing_page_load_missing({ count: missing.length })}
                 {:else}
-                    {m.routing_page_refresh()}
+                    {m.common_refresh()}
                 {/if}
             </Button>
         {/snippet}

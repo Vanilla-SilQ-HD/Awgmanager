@@ -179,7 +179,7 @@
 			</div>
 			<div class="setting-row">
 				{#if keysLoading}
-					<span class="setting-description">{m.settings_mcp_loading()}</span>
+					<span class="setting-description">{m.common_loading()}</span>
 				{:else if keys.length === 0}
 					<span class="setting-description">{m.settings_mcp_no_keys()}</span>
 				{:else}
@@ -262,9 +262,9 @@
 	{#snippet actions()}
 		{#if !created}
 			<Button variant="secondary" size="md" onclick={() => closeCreate()}>{m.common_cancel()}</Button>
-			<Button variant="primary" size="md" onclick={submitCreate} disabled={creating}>{m.settings_mcp_create()}</Button>
+			<Button variant="primary" size="md" onclick={submitCreate} disabled={creating}>{m.common_create()}</Button>
 		{:else}
-			<Button variant="primary" size="md" onclick={() => closeCreate()}>{m.settings_mcp_done()}</Button>
+			<Button variant="primary" size="md" onclick={() => closeCreate()}>{m.common_done()}</Button>
 		{/if}
 	{/snippet}
 </Modal>

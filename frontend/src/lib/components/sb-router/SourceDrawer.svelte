@@ -44,7 +44,7 @@
   {/if}
 
   {#snippet footer()}
-    <Button variant="ghost" size="sm" fullWidth onclick={closeSourceDrawer}>{m.sb_router_common_close()}</Button>
+    <Button variant="ghost" size="sm" fullWidth onclick={closeSourceDrawer}>{m.common_close()}</Button>
   {/snippet}
 </SideDrawer>
 

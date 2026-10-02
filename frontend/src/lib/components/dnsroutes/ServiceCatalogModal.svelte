@@ -182,7 +182,7 @@
     const primaryLabel = $derived.by(() => {
         if (confirmLabel) return confirmLabel;
         if (showTunnelFooter) return m.dns_routes_catalog_create({ count: selected.size });
-        if (!multiple) return m.routing_select();
+        if (!multiple) return m.common_select();
         return m.dns_routes_catalog_select_count({ count: selected.size });
     });
 

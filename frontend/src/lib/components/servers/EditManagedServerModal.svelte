@@ -159,7 +159,7 @@
 	{#snippet actions()}
 		<Button variant="ghost" size="md" onclick={onclose}>{m.common_cancel()}</Button>
 		<Button variant="primary" size="md" onclick={handleSave} loading={saving}>
-			{m.settings_page_save()}
+			{m.common_save()}
 		</Button>
 	{/snippet}
 </Modal>

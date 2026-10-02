@@ -56,7 +56,7 @@
 			/>
 			<Button variant="ghost" onclick={onrefresh} disabled={loading}>
 				{#snippet iconBefore()}<RefreshCw size={14} />{/snippet}
-				{m.routing_page_refresh()}
+				{m.common_refresh()}
 			</Button>
 		</div>
 	</div>

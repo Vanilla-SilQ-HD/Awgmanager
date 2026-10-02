@@ -57,7 +57,7 @@
 			{m.routing_singbox_foreign_hint()}
 		</p>
 		{#if loading}
-			<p class="foreign-hint">{m.routing_singbox_loading()}</p>
+			<p class="foreign-hint">{m.common_loading()}</p>
 		{:else}
 			{#each candidates as c (c.name)}
 				<div class="foreign-row">

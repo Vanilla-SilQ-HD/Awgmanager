@@ -707,7 +707,7 @@
       {#if hasMore && displayLogs.length > 0}
         <div class="load-more-row">
           <button type="button" class="chip load-more" onclick={loadMore} disabled={loadingMore}>
-            {loadingMore ? m.diag_logs_loading_more() : m.diag_logs_load_more({ count: nextBatch })}
+            {loadingMore ? m.common_loading() : m.diag_logs_load_more({ count: nextBatch })}
           </button>
         </div>
       {/if}

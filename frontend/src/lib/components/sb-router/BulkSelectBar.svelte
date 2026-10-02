@@ -46,7 +46,7 @@
     loading={busy}
     onclick={handleApply}
   >
-    {applyLabel ?? m.sb_router_expert_apply()}
+    {applyLabel ?? m.common_apply()}
   </Button>
   <Button variant="ghost" size="sm" disabled={busy} onclick={oncancel}>
     {m.common_cancel()}

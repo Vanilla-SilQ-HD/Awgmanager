@@ -129,7 +129,7 @@
 						onclick={() => openWizard('url')}
 						iconBefore={createIcon}
 					>
-						{m.singbox_tabs_add()}
+						{m.common_add()}
 					</Button>
 				</div>
 			</div>

@@ -74,7 +74,7 @@
 		<div class="sticky-header">
 		<div class="header-left">
 			<Button variant="ghost" size="sm" onclick={() => goto('/')} iconBefore={backIcon}>
-				{m.tunnels_back()}
+				{m.common_back()}
 			</Button>
 			<h1 class="page-title">{tunnel?.description || name}</h1>
 			<span class="badge-system">{m.system_tunnels_card_system_badge()}</span>
@@ -86,7 +86,7 @@
 			disabled={!ascParams}
 			loading={saving}
 		>
-			{saving ? m.tunnels_saving() : m.settings_page_save()}
+			{saving ? m.common_saving() : m.common_save()}
 		</Button>
 	</div>
 

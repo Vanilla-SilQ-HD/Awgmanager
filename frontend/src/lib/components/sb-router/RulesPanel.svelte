@@ -865,7 +865,7 @@
       {:else}
         {#if selectableIndices.length > 0}
           <Button variant="ghost" size="sm" onclick={toggleSelectMode}>
-            {m.sb_router_expert_select()}
+            {m.common_select()}
           </Button>
         {/if}
         <Button variant="secondary" size="sm" onclick={() => openAddWizard()}>
@@ -937,7 +937,7 @@
     <BulkSelectBar
       count={selected.size}
       options={bulkOutboundOptions}
-      applyLabel={m.sb_router_expert_apply()}
+      applyLabel={m.common_apply()}
       onapply={applyBulkOutbound}
       oncancel={cancelSelectMode}
       busy={bulkBusy}

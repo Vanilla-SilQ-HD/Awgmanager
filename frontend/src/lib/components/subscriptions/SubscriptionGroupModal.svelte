@@ -273,7 +273,7 @@
 	{#snippet actions()}
 		<Button variant="ghost" disabled={saving} onclick={onclose}>{m.common_cancel()}</Button>
 		<Button variant="primary" disabled={!canSave} loading={saving} onclick={save}>
-			{saving ? m.subscriptions_saving() : group ? m.subscriptions_save() : m.subscriptions_create()}
+			{saving ? m.subscriptions_saving() : group ? m.common_save() : m.common_create()}
 		</Button>
 	{/snippet}
 </Modal>

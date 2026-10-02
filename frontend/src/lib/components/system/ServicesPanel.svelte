@@ -62,7 +62,7 @@
 			if (res.ok) {
 				notifications.success(`${item.name}: ${action}`);
 			} else {
-				notifications.error(stripAnsi(res.error || res.output || m.tunnels_error_generic()));
+				notifications.error(stripAnsi(res.error || res.output || m.common_error()));
 			}
 			await load();
 		} catch (e) {
@@ -165,7 +165,7 @@
 		open={!!pendingAction}
 		title={m.system_services_stop_managed_title()}
 		message={pendingAction.item.managedHint || pendingAction.item.name}
-		confirmLabel={m.proxy_common_stop()}
+		confirmLabel={m.common_stop()}
 		variant="danger"
 		busy={acting === pendingAction.item.script}
 		onClose={() => (pendingAction = null)}

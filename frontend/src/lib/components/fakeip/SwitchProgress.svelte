@@ -65,7 +65,7 @@
 
 	{#snippet actions()}
 		{#if done}
-			<Button variant="primary" size="md" onclick={onClose}>{m.sb_router_common_close()}</Button>
+			<Button variant="primary" size="md" onclick={onClose}>{m.common_close()}</Button>
 		{/if}
 	{/snippet}
 </Modal>

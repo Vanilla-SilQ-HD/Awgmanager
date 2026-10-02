@@ -310,7 +310,7 @@
 					<span class="kv-stacked-value" title={showServer ? tunnel.server : ''}>
 						{showServer ? tunnel.server : '••••••••'}
 					</span>
-					<button class="icon-btn" onclick={() => (showServer = !showServer)} aria-label={showServer ? m.tunnels_hide() : m.tunnels_show()}>
+					<button class="icon-btn" onclick={() => (showServer = !showServer)} aria-label={showServer ? m.common_hide() : m.common_show()}>
 						{#if showServer}
 							<Eye size={12} aria-hidden="true" />
 						{:else}
@@ -442,7 +442,7 @@
 			{:else}
 				<span class="server-hidden">●●●●●●●●</span>
 			{/if}
-			<button class="icon-btn" onclick={() => (showServer = !showServer)} aria-label={showServer ? m.tunnels_hide() : m.tunnels_show()}>
+			<button class="icon-btn" onclick={() => (showServer = !showServer)} aria-label={showServer ? m.common_hide() : m.common_show()}>
 				<Eye size={12} aria-hidden="true" />
 			</button>
 			<span class="port">:{tunnel.port}</span>

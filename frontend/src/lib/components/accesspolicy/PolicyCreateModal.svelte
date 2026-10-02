@@ -72,7 +72,7 @@
 		<Button variant="ghost" onclick={onclose} disabled={saving}>{m.common_cancel()}</Button>
 		<!-- TODO Phase 1: shake animation on save when invalid (was class:shake={shaking}) -->
 		<Button variant="primary" onclick={handleSave} loading={saving}>
-			{m.access_policy_create()}
+			{m.common_create()}
 		</Button>
 	{/snippet}
 </Modal>

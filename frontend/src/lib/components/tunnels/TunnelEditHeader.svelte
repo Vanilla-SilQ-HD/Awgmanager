@@ -68,7 +68,7 @@
 				{#snippet iconBefore()}
 					<Download size={16} strokeWidth={2} aria-hidden="true" />
 				{/snippet}
-				{m.tunnel_edit_header_download()}
+				{m.common_download()}
 			</Button>
 		{/if}
 		{#if onSaveOnly}
@@ -76,7 +76,7 @@
 				{#snippet iconBefore()}
 					<Save size={16} strokeWidth={2} aria-hidden="true" />
 				{/snippet}
-				{m.settings_page_save()}
+				{m.common_save()}
 			</Button>
 		{/if}
 		{#snippet successIcon()}
@@ -96,11 +96,11 @@
 			onclick={onSaveAndStart}
 		>
 			{#if actionStatus === 'loading'}
-				{m.tunnels_saving()}
+				{m.common_saving()}
 			{:else if actionStatus === 'success'}
 				{m.tunnel_edit_header_saved()}
 			{:else if actionStatus === 'error'}
-				{m.tunnel_edit_header_error()}
+				{m.common_error()}
 			{:else}
 				{tunnelState === 'running' ? m.tunnel_edit_header_save_restart() : m.tunnel_edit_header_save_start()}
 			{/if}

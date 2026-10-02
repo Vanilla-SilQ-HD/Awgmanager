@@ -110,7 +110,7 @@
 	<PageContainer>
 		<div class="terminal-loading">
 			<p>{m.terminal_page_busy()}</p>
-			<Button variant="primary" size="md" onclick={checkStatus}>{m.terminal_retry()}</Button>
+			<Button variant="primary" size="md" onclick={checkStatus}>{m.common_retry()}</Button>
 		</div>
 	</PageContainer>
 {:else if pageState === 'active'}
@@ -132,7 +132,7 @@
 	<PageContainer>
 		<div class="terminal-loading">
 			<p>{m.terminal_page_error()}</p>
-			<Button variant="primary" size="md" onclick={checkStatus}>{m.terminal_retry()}</Button>
+			<Button variant="primary" size="md" onclick={checkStatus}>{m.common_retry()}</Button>
 		</div>
 	</PageContainer>
 {/if}

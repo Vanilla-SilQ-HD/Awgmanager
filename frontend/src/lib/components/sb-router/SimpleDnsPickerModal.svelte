@@ -133,7 +133,7 @@
 
   {#snippet actions()}
     <Button variant="ghost" onclick={onclose}>{m.common_cancel()}</Button>
-    <Button variant="primary" disabled={!canSave} onclick={save}>{m.sb_router_common_save()}</Button>
+    <Button variant="primary" disabled={!canSave} onclick={save}>{m.common_save()}</Button>
   {/snippet}
 </Modal>
 

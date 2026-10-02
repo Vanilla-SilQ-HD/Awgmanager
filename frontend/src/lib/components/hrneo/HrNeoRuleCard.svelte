@@ -79,7 +79,7 @@
 			/>
 		{/if}
 		<div class="action-row">
-			<button class="route-action-btn" title={m.hrneo_rule_card_edit()} onclick={() => onedit()} aria-label="Edit">
+			<button class="route-action-btn" title={m.common_edit()} onclick={() => onedit()} aria-label="Edit">
 				<SquarePen size={15} />
 			</button>
 			<button class="route-action-btn danger" title={m.common_delete()} onclick={() => ondelete()} aria-label="Delete">

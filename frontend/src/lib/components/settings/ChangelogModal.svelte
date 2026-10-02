@@ -75,7 +75,7 @@
 		{/if}
 	</div>
 	{#snippet actions()}
-		<Button variant="primary" size="md" onclick={onclose}>{m.settings_changelog_close()}</Button>
+		<Button variant="primary" size="md" onclick={onclose}>{m.common_close()}</Button>
 	{/snippet}
 </Modal>
 

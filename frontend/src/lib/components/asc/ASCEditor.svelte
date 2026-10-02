@@ -294,7 +294,7 @@
 						disabled={generating || capturing}
 						loading={generating}
 					>
-						{generating ? m.asc_generating() : m.asc_generate()}
+						{generating ? m.asc_generating() : m.common_generate()}
 					</Button>
 				</div>
 			{/if}

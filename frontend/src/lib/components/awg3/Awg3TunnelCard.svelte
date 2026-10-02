@@ -134,7 +134,7 @@
 {#snippet renameForm()}
 	<form class="rename-form" onsubmit={(e) => { e.preventDefault(); void submitRename(); }}>
 		<Input bind:value={renameValue} placeholder={m.awg3_card_name_placeholder()} disabled={savingRename} fullWidth />
-		<IconButton ariaLabel={m.awg3_card_save_name_aria()} title={m.sb_router_common_save()} disabled={savingRename} onclick={() => void submitRename()}>
+		<IconButton ariaLabel={m.awg3_card_save_name_aria()} title={m.common_save()} disabled={savingRename} onclick={() => void submitRename()}>
 			<Check size={16} aria-hidden="true" />
 		</IconButton>
 		<IconButton ariaLabel={m.common_cancel()} title={m.common_cancel()} disabled={savingRename} onclick={cancelRename}>
@@ -158,7 +158,7 @@
 {/snippet}
 
 {#snippet cardActions()}
-	<IconButton ariaLabel={m.awg3_card_check_aria()} title={m.awg3_card_check()} disabled={checking} onclick={() => void triggerCheck()}>
+	<IconButton ariaLabel={m.awg3_card_check_aria()} title={m.common_check()} disabled={checking} onclick={() => void triggerCheck()}>
 		<Activity size={16} aria-hidden="true" />
 	</IconButton>
 	<IconButton ariaLabel={m.awg3_card_rename()} title={m.awg3_card_rename()} disabled={renaming} onclick={startRename}>

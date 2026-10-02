@@ -92,7 +92,7 @@
 						}}
 					>
 						{#snippet iconBefore()}<Download size={14} />{/snippet}
-						{m.system_files_props_download()}
+						{m.common_download()}
 					</Button>
 					{#if onEdit && entry}
 						<Button
@@ -110,7 +110,7 @@
 					{/if}
 				{/if}
 			</div>
-			<Button variant="ghost" onclick={onClose}>{m.sb_router_common_close()}</Button>
+			<Button variant="ghost" onclick={onClose}>{m.common_close()}</Button>
 		</div>
 	{/snippet}
 </Modal>

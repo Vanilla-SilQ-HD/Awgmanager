@@ -29,9 +29,9 @@
 			case 'start':
 				return m.settings_integrations_phase_starting();
 			case 'done':
-				return m.settings_integrations_phase_done();
+				return m.common_done();
 			case 'error':
-				return p.error ? m.settings_integrations_phase_error_detail({ error: p.error }) : m.tunnels_error_generic();
+				return p.error ? m.settings_integrations_phase_error_detail({ error: p.error }) : m.common_error();
 			default:
 				return '';
 		}
@@ -119,7 +119,7 @@
 					{installing ? m.settings_integrations_installing() : m.settings_integrations_install()}
 				</Button>
 			{/if}
-			<IconButton ariaLabel={m.tunnels_hide()} onclick={dismiss}>&times;</IconButton>
+			<IconButton ariaLabel={m.common_hide()} onclick={dismiss}>&times;</IconButton>
 		</div>
 		{#if progress}
 			<div class="progress-widget" class:progress-error={progress.phase === 'error'} class:progress-done={progress.phase === 'done'}>
@@ -144,7 +144,7 @@
 				{m.singbox_banner_no_proxy_prefix()} <code>proxy</code> {m.singbox_banner_no_proxy_suffix()}
 			</span>
 		</div>
-		<IconButton ariaLabel={m.tunnels_hide()} onclick={dismiss}>&times;</IconButton>
+		<IconButton ariaLabel={m.common_hide()} onclick={dismiss}>&times;</IconButton>
 	</div>
 {:else if visible && issue === 'update-available'}
 	<div class="banner banner-stack">
@@ -171,7 +171,7 @@
 					{updating ? m.settings_integrations_updating() : m.singbox_banner_update_btn()}
 				</Button>
 			{/if}
-			<IconButton ariaLabel={m.tunnels_hide()} onclick={dismiss}>&times;</IconButton>
+			<IconButton ariaLabel={m.common_hide()} onclick={dismiss}>&times;</IconButton>
 		</div>
 		{#if progress}
 			<div class="progress-widget" class:progress-error={progress.phase === 'error'} class:progress-done={progress.phase === 'done'}>
@@ -197,7 +197,7 @@
 					{m.singbox_banner_no_space({ required: formatBytes($singboxStatus.data?.requiredBytes ?? 0), free: formatBytes($singboxStatus.data?.freeBytes ?? 0) })}
 				</span>
 			</div>
-			<IconButton ariaLabel={m.tunnels_hide()} onclick={dismiss}>&times;</IconButton>
+			<IconButton ariaLabel={m.common_hide()} onclick={dismiss}>&times;</IconButton>
 		</div>
 	</div>
 {:else if visible && issue === 'outdated-no-space'}
@@ -209,7 +209,7 @@
 					{m.singbox_banner_outdated_desc({ current: $singboxStatus.data?.currentVersion ?? '—', required: $singboxStatus.data?.requiredVersion ?? '—', needed: formatBytes($singboxStatus.data?.requiredBytes ?? 0), free: formatBytes($singboxStatus.data?.freeBytes ?? 0) })}
 				</span>
 			</div>
-			<IconButton ariaLabel={m.tunnels_hide()} onclick={dismiss}>&times;</IconButton>
+			<IconButton ariaLabel={m.common_hide()} onclick={dismiss}>&times;</IconButton>
 		</div>
 	</div>
 {/if}

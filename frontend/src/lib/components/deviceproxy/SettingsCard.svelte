@@ -170,7 +170,7 @@
 				<div class="lbl">{m.device_proxy_password()}</div>
 				<div class="pw-group">
 					<input type="text" bind:value={draft.auth.password} />
-					<Button variant="ghost" size="sm" onclick={generatePassword}>{m.device_proxy_generate()}</Button>
+					<Button variant="ghost" size="sm" onclick={generatePassword}>{m.common_generate()}</Button>
 				</div>
 			</div>
 		{/if}
@@ -179,7 +179,7 @@
 	{#if !hideFooter}
 		<div class="form-actions">
 			<Button variant="ghost" size="md" onclick={reset} disabled={saving}>{m.device_proxy_reset()}</Button>
-			<Button variant="primary" size="md" onclick={save} loading={saving}>{m.sb_router_common_save()}</Button>
+			<Button variant="primary" size="md" onclick={save} loading={saving}>{m.common_save()}</Button>
 		</div>
 	{/if}
 {:else}
@@ -271,7 +271,7 @@
 							<div class="pw-group">
 								<input type="text" bind:value={draft.auth.password} class="text-input" />
 								<Button variant="ghost" size="sm" onclick={generatePassword}>
-									{m.device_proxy_generate()}
+									{m.common_generate()}
 								</Button>
 							</div>
 						</div>
@@ -282,7 +282,7 @@
 
 		<footer class="card-footer">
 			<Button variant="ghost" size="md" onclick={reset} disabled={saving}>{m.device_proxy_reset()}</Button>
-			<Button variant="primary" size="md" onclick={save} loading={saving}>{m.sb_router_common_save()}</Button>
+			<Button variant="primary" size="md" onclick={save} loading={saving}>{m.common_save()}</Button>
 		</footer>
 	</section>
 {/if}

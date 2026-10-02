@@ -580,12 +580,12 @@
 		{/if}
 		<Button variant="secondary" size="md" onclick={onclose}>{m.common_cancel()}</Button>
 		<Button variant="primary" size="md" disabled={!canSubmitKey} onclick={() => void submitKey()}>
-			{m.amnezia_premium_continue()}
+			{m.common_continue()}
 		</Button>
 	{:else if phase === 'error'}
 		<div class="premium-error-actions">
-		<Button variant="secondary" size="md" onclick={onclose}>{m.sb_router_common_close()}</Button>
-		<Button variant="secondary" size="md" onclick={retry}>{retryToList ? m.amnezia_premium_back_to_countries() : m.amnezia_premium_retry()}</Button>
+		<Button variant="secondary" size="md" onclick={onclose}>{m.common_close()}</Button>
+		<Button variant="secondary" size="md" onclick={retry}>{retryToList ? m.amnezia_premium_back_to_countries() : m.common_retry()}</Button>
 		<!-- Без этого действия пользователь с отозванным сохранённым ключом
 		     заперт: вкладки со вставкой vpn:// больше нет. -->
 		<Button variant="primary" size="md" onclick={resetToKeyEntry}>{m.amnezia_premium_enter_other_key()}</Button>

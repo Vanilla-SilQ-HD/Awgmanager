@@ -156,7 +156,7 @@
 								onclick={() => handleScriptAction('restart')}
 							>
 								{#snippet iconBefore()}<RotateCw size={13} />{/snippet}
-								{m.system_files_editor_restart()}
+								{m.common_restart()}
 							</Button>
 							<Button
 								size="sm"
@@ -165,7 +165,7 @@
 								onclick={() => handleScriptAction('stop')}
 							>
 								{#snippet iconBefore()}<Square size={13} />{/snippet}
-								{m.proxy_common_stop()}
+								{m.common_stop()}
 							</Button>
 						{/if}
 					</div>
@@ -209,11 +209,11 @@
 				<span><kbd>Tab</kbd> {m.system_files_editor_hint_indent()}</span>
 			</div>
 			<div class="footer-btns">
-				<Button variant="ghost" onclick={onClose}>{m.sb_router_common_close()}</Button>
+				<Button variant="ghost" onclick={onClose}>{m.common_close()}</Button>
 				{#if !readOnly}
 					<Button variant="primary" loading={saving} disabled={!dirty} onclick={handleSave}>
 						{#snippet iconBefore()}<Save size={14} />{/snippet}
-						{m.sb_router_common_save()}
+						{m.common_save()}
 					</Button>
 				{/if}
 			</div>

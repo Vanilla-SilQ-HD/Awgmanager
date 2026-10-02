@@ -128,7 +128,7 @@
 		<div class="sticky-header">
 		<div class="header-left">
 			<Button variant="ghost" size="sm" onclick={() => goto('/servers')} iconBefore={backIcon}>
-				{m.tunnels_back()}
+				{m.common_back()}
 			</Button>
 			<h1 class="page-title">{m.servers_asc_heading()}</h1>
 			<span class="badge-managed">{m.servers_asc_badge_managed()}</span>
@@ -152,7 +152,7 @@
 				loading={generating}
 			>
 				<span class="gen-label gen-label-desktop">{m.servers_asc_generate_params()}</span>
-				<span class="gen-label gen-label-mobile">{m.settings_page_apikey_generate()}</span>
+				<span class="gen-label gen-label-mobile">{m.common_generate()}</span>
 			</Button>
 			<Button
 				variant="primary"
@@ -161,7 +161,7 @@
 				disabled={generating || !ascParams}
 				loading={saving}
 			>
-				{m.settings_page_save()}
+				{m.common_save()}
 			</Button>
 		</div>
 	</div>

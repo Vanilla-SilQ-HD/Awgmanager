@@ -101,7 +101,7 @@
 						onclick={handleSave}
 						loading={saving}
 					>
-						{saving ? m.settings_dnsroute_saving() : m.settings_dnsroute_save()}
+						{saving ? m.common_saving() : m.common_save()}
 					</Button>
 				{/if}
 			</div>
@@ -123,7 +123,7 @@
 						onclick={handleSave}
 						loading={saving}
 					>
-						{saving ? m.settings_dnsroute_saving() : m.settings_dnsroute_save()}
+						{saving ? m.common_saving() : m.common_save()}
 					</Button>
 				{/if}
 			</div>

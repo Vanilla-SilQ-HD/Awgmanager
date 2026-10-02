@@ -131,7 +131,7 @@
 		<div class="alert alert-error">
 			<CircleX size={24} aria-hidden="true" />
 			<div>
-				<h3>{m.tunnels_adopt_error()}</h3>
+				<h3>{m.common_error()}</h3>
 				<p>{displayError()}</p>
 			</div>
 		</div>
@@ -144,12 +144,12 @@
 				{m.tunnels_adopt_next()}
 			</Button>
 		{:else if step === 'instructions'}
-			<Button variant="secondary" onclick={() => step = 'upload'}>{m.tunnels_back()}</Button>
+			<Button variant="secondary" onclick={() => step = 'upload'}>{m.common_back()}</Button>
 			<Button variant="primary" onclick={handleConfirm} loading={loading}>
-				{m.tunnels_adopt_continue()}
+				{m.common_continue()}
 			</Button>
 		{:else if step === 'error'}
-			<Button variant="secondary" onclick={() => step = 'instructions'}>{m.tunnels_back()}</Button>
+			<Button variant="secondary" onclick={() => step = 'instructions'}>{m.common_back()}</Button>
 		{/if}
 	{/snippet}
 </Modal>

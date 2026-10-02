@@ -76,7 +76,7 @@
       loading={saving}
       type="button"
     >
-      {m.sb_router_common_save()}
+      {m.common_save()}
     </Button>
   {/snippet}
 </SingboxSettingsModal>

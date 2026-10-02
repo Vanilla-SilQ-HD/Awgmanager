@@ -132,7 +132,7 @@
 		<div class="wd-foot">
 			<Button variant="outline-primary" size="sm" onclick={onEnable}>
 				{#snippet iconBefore()}<Power size={14} />{/snippet}
-				{m.pingcheck_enable()}
+				{m.common_enable()}
 			</Button>
 			<Button variant="outline-primary" size="sm" onclick={onConfigure}>
 				{#snippet iconBefore()}<Settings size={14} />{/snippet}
@@ -147,7 +147,7 @@
 		<div class="wd-foot">
 			<Button variant="outline-primary" size="sm" onclick={onConfigure}>
 				{#snippet iconBefore()}<Power size={14} />{/snippet}
-				{m.pingcheck_enable()}
+				{m.common_enable()}
 			</Button>
 		</div>
 	{/if}

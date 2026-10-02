@@ -191,7 +191,7 @@
 			<Button variant="ghost" onclick={onCloseMkdir}>{m.common_cancel()}</Button>
 			<Button variant="primary" loading={busy} disabled={!newDirName.trim()} onclick={handleMkdir}>
 				{#snippet iconBefore()}<FolderPlus size={14} />{/snippet}
-				{m.system_files_create()}
+				{m.common_create()}
 			</Button>
 		{/snippet}
 	</Modal>
@@ -215,7 +215,7 @@
 			<Button variant="ghost" onclick={onCloseNewFile}>{m.common_cancel()}</Button>
 			<Button variant="primary" loading={busy} disabled={!newFileName.trim()} onclick={handleNewFile}>
 				{#snippet iconBefore()}<FilePlus size={14} />{/snippet}
-				{m.system_files_create()}
+				{m.common_create()}
 			</Button>
 		{/snippet}
 	</Modal>
@@ -260,7 +260,7 @@
 			<Button variant="ghost" onclick={onCloseCopy}>{m.common_cancel()}</Button>
 			<Button variant="primary" loading={busy} disabled={!copyPath.trim()} onclick={handleCopy}>
 				{#snippet iconBefore()}<Copy size={14} />{/snippet}
-				{m.sb_router_common_copy()}
+				{m.common_copy()}
 			</Button>
 		{/snippet}
 	</Modal>

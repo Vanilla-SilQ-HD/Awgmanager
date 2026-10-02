@@ -384,7 +384,7 @@
 	);
 
 	let chartStageMessage = $derived.by((): { text: string; error: boolean } | null => {
-		if (loading && !showChart) return { text: m.ui_traffic_chart_loading(), error: false };
+		if (loading && !showChart) return { text: m.common_loading(), error: false };
 		if (error) return { text: error.message || m.ui_traffic_chart_load_failed(), error: true };
 		if (!loading && !hasSufficientPeriodData) {
 			return { text: m.ui_traffic_chart_not_enough(), error: false };

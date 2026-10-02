@@ -293,7 +293,7 @@
 		<InstanceBadges {row} />
 		<div class="head-actions">
 			{#if running}
-				<Button variant="secondary" size="sm" disabled={busy} onclick={onstop}>{m.proxy_common_stop()}</Button>
+				<Button variant="secondary" size="sm" disabled={busy} onclick={onstop}>{m.common_stop()}</Button>
 			{:else}
 				<Button
 					variant="primary"
@@ -301,7 +301,7 @@
 					disabled={busy || !!startBlockedHint}
 					onclick={onstart}
 				>
-					{m.proxy_common_start()}
+					{m.common_start()}
 				</Button>
 				{#if startBlockedHint}
 					<FieldHint text={startBlockedHint} ariaLabel={m.proxy_share_detail_start_blocked_aria()} />

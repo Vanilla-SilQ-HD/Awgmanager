@@ -182,7 +182,7 @@
 	{:else}
 		<div class="term-placeholder">
 			<p>{m.system_terminal_start_failed_text()}</p>
-			<Button variant="secondary" onclick={checkStatus}>{m.terminal_retry()}</Button>
+			<Button variant="secondary" onclick={checkStatus}>{m.common_retry()}</Button>
 		</div>
 	{/if}
 </div>

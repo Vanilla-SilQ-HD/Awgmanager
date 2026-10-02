@@ -536,7 +536,7 @@
 				onkeydown={handleSubKeydown}
 			/>
 			<Button variant="secondary" size="sm" onclick={addSubscription} disabled={!newSubUrl.trim()}>
-				{m.routing_add()}
+				{m.common_add()}
 			</Button>
 		</div>
 	</div>
@@ -599,7 +599,7 @@
 						/>
 					</div>
 					<Button variant="primary" size="sm" onclick={addRoute} iconBefore={createIcon}>
-						{m.routing_add()}
+						{m.common_add()}
 					</Button>
 				</div>
 			{/if}
@@ -693,7 +693,7 @@
 		<Button variant="secondary" onclick={onclose}>{m.common_cancel()}</Button>
 		<!-- TODO Phase 1: shake animation on save when invalid (was class:shake={shaking}) -->
 		<Button variant="primary" onclick={handleSave} loading={saving}>
-			{m.routing_save()}
+			{m.common_save()}
 		</Button>
 	{/snippet}
 </Modal>

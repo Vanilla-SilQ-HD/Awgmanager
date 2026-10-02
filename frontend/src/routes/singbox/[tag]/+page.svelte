@@ -204,7 +204,7 @@
 	<div class="sticky-header">
 		<div class="header-left">
 			<Button variant="ghost" size="sm" onclick={() => goto('/?tab=singbox')} iconBefore={backIcon}>
-				{m.tunnels_back()}
+				{m.common_back()}
 			</Button>
 			<h1 class="page-title">{tag}</h1>
 			{#if protocol}
@@ -221,7 +221,7 @@
 				iconBefore={copyIcon}
 				title={copyLinkTitle}
 			>
-				{linkCopied ? m.servers_conf_copied() : m.singbox_edit_copy_link()}
+				{linkCopied ? m.common_copied() : m.singbox_edit_copy_link()}
 			</Button>
 			<Button
 				variant="primary"
@@ -230,7 +230,7 @@
 				disabled={!outbound}
 				loading={saving}
 			>
-				{m.settings_page_save()}
+				{m.common_save()}
 			</Button>
 		</div>
 	</div>
@@ -761,7 +761,7 @@
 			<div class="form-actions">
 				<Button variant="secondary" size="sm" onclick={() => goto('/?tab=singbox')}>{m.common_cancel()}</Button>
 				<Button variant="primary" size="sm" type="submit" loading={saving}>
-					{m.settings_page_save()}
+					{m.common_save()}
 				</Button>
 			</div>
 		</form>

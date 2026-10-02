@@ -92,7 +92,7 @@
 					onclick={() => openWizard('choose')}
 					iconBefore={createIcon}
 				>
-					{m.singbox_tabs_add()}
+					{m.common_add()}
 				</Button>
 			</div>
 		</div>

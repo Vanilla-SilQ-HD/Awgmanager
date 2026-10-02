@@ -97,7 +97,7 @@
 		<header class="drawer-header" use:sheetSwipeTarget>
 			<h3>{title}</h3>
 			<span class="drawer-close">
-				<IconButton ariaLabel={m.sb_router_common_close()} onclick={onClose}>
+				<IconButton ariaLabel={m.common_close()} onclick={onClose}>
 					<X size={16} aria-hidden="true" />
 				</IconButton>
 			</span>

@@ -237,7 +237,7 @@
 					</table>
 				</div>
 				<div class="pager">
-					<Button variant="ghost" disabled={availableOffset <= 0} onclick={prevPage}>{m.sb_router_common_back()}</Button>
+					<Button variant="ghost" disabled={availableOffset <= 0} onclick={prevPage}>{m.common_back()}</Button>
 					<span>{m.system_packages_pager({ from: availableOffset + 1, to: Math.min(availableOffset + pageSize, availableTotal), total: availableTotal })}</span>
 					<Button variant="ghost" disabled={availableOffset + pageSize >= availableTotal} onclick={nextPage}>{m.system_packages_next()}</Button>
 				</div>
@@ -281,7 +281,7 @@
 		<Card padding="sm">
 			<h3>{m.system_packages_updates_title({ count: upgradable.length })}</h3>
 			{#if loading}
-				<p class="muted">{m.system_packages_loading()}</p>
+				<p class="muted">{m.common_loading()}</p>
 			{:else if upgradable.length === 0}
 				<p class="muted">{m.system_packages_all_up_to_date()}</p>
 			{:else}

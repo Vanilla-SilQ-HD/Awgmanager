@@ -510,7 +510,7 @@
 								loading={busy === f.path}
 								onclick={() => update(f.path)}
 							>
-								{m.routing_page_refresh()}
+								{m.common_refresh()}
 							</Button>
 						{/if}
 						<Button
@@ -576,7 +576,7 @@
 				iconBefore={createIcon}
 				loading={busy === 'add'}
 			>
-				{m.routing_add()}
+				{m.common_add()}
 			</Button>
 		</div>
 		{#if busy === 'add'}
@@ -654,7 +654,7 @@
 		<div class="source-modal">
 			<code class="source-url">{sourceModalFile.url}</code>
 			<Button variant="secondary" size="sm" onclick={copySource}>
-				{copiedSource ? m.servers_conf_copied() : m.diag_logs_copy()}
+				{copiedSource ? m.common_copied() : m.common_copy()}
 			</Button>
 		</div>
 	</Modal>

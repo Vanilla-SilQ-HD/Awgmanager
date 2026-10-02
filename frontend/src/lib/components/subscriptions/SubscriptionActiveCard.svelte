@@ -323,7 +323,7 @@
             >
                 <TunnelListActions
                     onEdit={openSettings}
-                    editLabel={m.tunnels_card_edit()}
+                    editLabel={m.common_edit()}
                     editTitle={m.subscriptions_card_edit_title({ name: subscription.label })}
                     onTest={() => (diagnosticsOpen = true)}
                     testTitle={m.subscriptions_card_test_title({ name: subscription.label })}
@@ -471,7 +471,7 @@
         <TunnelListActions
             variant="labeled"
             onEdit={openSettings}
-            editLabel={m.tunnels_card_edit()}
+            editLabel={m.common_edit()}
             editTitle={m.subscriptions_card_edit_title({ name: subscription.label })}
             onTest={() => (diagnosticsOpen = true)}
             testTitle={m.subscriptions_active_test_title({ name: subscription.label })}
@@ -666,7 +666,7 @@
         <TunnelListActions
             variant="labeled"
             onEdit={openSettings}
-            editLabel={m.tunnels_card_edit()}
+            editLabel={m.common_edit()}
             editTitle={m.subscriptions_card_edit_title({ name: subscription.label })}
             onTest={() => (diagnosticsOpen = true)}
             testTitle={m.subscriptions_card_test_title({ name: subscription.label })}

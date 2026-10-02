@@ -174,11 +174,11 @@
 	{/if}
 	{#snippet actions()}
 		{#if link}
-			<Button variant="primary" size="md" onclick={onclose}>{m.proxy_allowlist_done()}</Button>
+			<Button variant="primary" size="md" onclick={onclose}>{m.common_done()}</Button>
 		{:else}
 			<Button variant="secondary" size="md" disabled={busy} onclick={onclose}>{m.proxy_common_cancel_action()}</Button>
 			<Button variant="primary" size="md" disabled={!canSubmit} loading={busy} onclick={submit}>
-				{m.proxy_common_add()}
+				{m.common_add()}
 			</Button>
 		{/if}
 	{/snippet}

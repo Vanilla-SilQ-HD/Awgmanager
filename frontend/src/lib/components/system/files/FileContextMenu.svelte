@@ -89,7 +89,7 @@
 				<Edit2 size={13} /> {m.system_files_ctx_edit()} <kbd>F4</kbd>
 			</button>
 			<button type="button" role="menuitem" onclick={() => { onDownload(entry); onClose(); }}>
-				<Download size={13} /> {m.system_files_ctx_download()}
+				<Download size={13} /> {m.common_download()}
 			</button>
 			{@const info = getFileTypeInfo(entry.name, entry.isDir)}
 			{@const isRunning = scriptStatuses[entry.path]?.running}
@@ -142,7 +142,7 @@
 			<Check size={13} /> {m.system_files_ctx_select_all()} <kbd>Ctrl+A</kbd>
 		</button>
 		<button type="button" role="menuitem" onclick={() => { onRefresh(); onClose(); }}>
-			<RefreshCw size={13} /> {m.routing_page_refresh()} <kbd>F5</kbd>
+			<RefreshCw size={13} /> {m.common_refresh()} <kbd>F5</kbd>
 		</button>
 	{/if}
 </div>

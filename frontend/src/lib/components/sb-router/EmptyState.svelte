@@ -85,7 +85,7 @@
     <div class="connector"></div>
     <StepPill n={2} label={m.sb_router_empty_step_services()} active={step1Done && !step2Done} done={step2Done} />
     <div class="connector"></div>
-    <StepPill n={3} label={m.sb_router_empty_step_enable()} active={step2Done} done={false} />
+    <StepPill n={3} label={m.common_enable()} active={step2Done} done={false} />
   </div>
 
   <WizardStep n={1} title={m.sb_router_empty_pick_tunnel()} hint={m.sb_router_empty_pick_tunnel_hint()} active={true}>
@@ -119,7 +119,7 @@
     <SelectedTemplatesRow />
   </WizardStep>
 
-  <WizardStep n={3} title={m.sb_router_empty_step_enable()} active={step2Done}>
+  <WizardStep n={3} title={m.common_enable()} active={step2Done}>
     <p class="enable-hint">{m.sb_router_empty_enable_hint()}</p>
     <Button variant="primary" size="md" onclick={handleFinish} disabled={!canFinish} iconBefore={iconCheck}>
       {m.sb_router_empty_enable_button()}

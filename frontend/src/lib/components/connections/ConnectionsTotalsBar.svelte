@@ -47,7 +47,7 @@
 			onclick={onRefresh}
 			disabled={loading}
 			aria-label={m.connections_refresh_aria()}
-			title={m.connections_refresh()}
+			title={m.common_refresh()}
 			style={`--refresh-progress:${progress * 360}deg;`}
 		>
 			<RefreshCw size={15} aria-hidden="true" style="position:relative;z-index:1" />
