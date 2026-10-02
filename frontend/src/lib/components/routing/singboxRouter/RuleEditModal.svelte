@@ -14,7 +14,7 @@
 	import { api } from '$lib/api/client';
 	import type { PolicyDevice, SingboxRouterRule, SingboxRouterRuleSet } from '$lib/types';
 	import { flattenRouterRule } from '$lib/utils/routerRuleShape';
-	import type { OutboundGroup } from './outboundOptions';
+	import { outboundGroupLabel, type OutboundGroup } from './outboundOptions';
 
 	interface Props {
 		rule?: SingboxRouterRule;
@@ -58,7 +58,7 @@
 	const outboundDropdownOptions = $derived<DropdownOption[]>([
 		{ value: '', label: m.routing_singbox_dns_choose() },
 		...outboundOptions.flatMap((g) =>
-			g.items.map((i) => ({ value: i.value, label: i.label, group: g.group })),
+			g.items.map((i) => ({ value: i.value, label: i.label, group: outboundGroupLabel(g.id) })),
 		),
 	]);
 

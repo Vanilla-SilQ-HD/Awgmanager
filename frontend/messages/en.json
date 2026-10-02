@@ -4974,5 +4974,460 @@
 	"sb_router_expert_add_server": "+ Server",
 	"sb_router_expert_dns_default": "Default DNS",
 	"sb_router_expert_configure": "Configure",
-	"sb_router_expert_add": "+ Add"
+	"sb_router_expert_add": "+ Add",
+	"routing_singbox_group_special": "Special",
+	"routing_singbox_group_awg": "AWG tunnels",
+	"routing_singbox_group_system": "System WireGuard",
+	"routing_singbox_group_awg3": "AWG3 tunnels",
+	"routing_singbox_group_singbox": "Sing-box tunnels",
+	"routing_singbox_group_composite": "Composite outbounds",
+	"routing_singbox_option_direct": "direct (bypass VPN)",
+	"sb_router_outbound_in_use": "Outbound is in use ({refs})",
+	"sb_router_outbound_delete_subscription": "A subscription can only be deleted in the “Subscriptions” section",
+	"sb_router_system_tip_sniff": "Inspects the protocol and extracts the domain from the connection (SNI, HTTP Host). Needed so that the following rules can route by domain, not just by IP.",
+	"sb_router_system_tip_hijack_dns": "Intercepts DNS queries on port 53 and handles them with the sing-box DNS module. DNS routing does not work without it.",
+	"sb_router_system_tip_private": "Traffic to local and private networks (RFC1918, loopback, link-local) goes directly, bypassing the VPN. Needed to reach the router, NAS and LAN devices.",
+	"sb_router_system_tip_udp_timeout_value": "Automatically raises the UDP session timeout ({timeout}) to the engine timeout value. Without it, games, VoIP and QUIC break because of short protocol timeouts (10–30 s). Set by the system, cannot be edited.",
+	"sb_router_system_tip_udp_timeout": "Automatically raises the UDP session timeout to the engine timeout value. Without it, games, VoIP and QUIC break because of short protocol timeouts (10–30 s). Set by the system, cannot be edited.",
+	"sb_router_outbound_block": "Block",
+	"sb_router_outbound_direct": "Direct",
+	"sb_router_rules_local_network": "Local network",
+	"sb_router_rules_title_sniff": "Protocol sniffing",
+	"sb_router_rules_title_hijack_dns": "DNS hijack",
+	"sb_router_rules_title_udp_timeout": "UDP timeout",
+	"sb_router_rules_title_default": "Rule #{index}",
+	"sb_router_rules_matchers_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} matcher",
+				"countPlural=*": "{count} matchers"
+			}
+		}
+	],
+	"sb_router_wizard_err_pick_tunnel": "Select a tunnel",
+	"sb_router_wizard_err_list_empty": "The list is empty",
+	"sb_router_wizard_err_no_valid_lines": "No valid lines",
+	"sb_router_wizard_err_pick_template_or_rule": "Select a template or describe a rule",
+	"sb_router_wizard_err_pick_one_template": "Select exactly one template",
+	"sb_router_wizard_err_template_not_found": "Template not found",
+	"sb_router_wizard_preview_route": "The rule will route traffic through the “{tag}” outbound",
+	"sb_router_wizard_preview_create_composite": "A composite outbound “{tag}” will be created from the selected tunnels ({count}) — automatic selection by speed",
+	"sb_router_wizard_preview_use_composite": "The composite outbound “{tag}” made of the selected tunnels ({count}) will be used",
+	"sb_router_wizard_preview_direct": "Traffic will go directly (outbound “{tag}”)",
+	"sb_router_wizard_preview_block": "Traffic will be blocked (reject)",
+	"sb_router_templates_group_services": "Services",
+	"sb_router_templates_group_services_hint": "one service = one rule",
+	"sb_router_templates_group_rulesets": "Domain and CIDR sets",
+	"sb_router_templates_group_rulesets_hint": "rule_set already in config",
+	"sb_router_rules_complex_edit": "This rule can only be edited in expert mode",
+	"sb_router_flow_default_direct": "Direct",
+	"sb_router_flow_dns_system": "system",
+	"sb_router_wizard_rule_updated": "Rule updated",
+	"sb_router_wizard_created_continue": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Created {count} rule. You can add another one.",
+				"countPlural=*": "Created {count} rules. You can add another one."
+			}
+		}
+	],
+	"sb_router_wizard_created": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Created {count} rule",
+				"countPlural=*": "Created {count} rules"
+			}
+		}
+	],
+	"sb_router_wizard_created_partial": "Created {done} of {total}. Errors: {failed}",
+	"sb_router_wizard_create_failed": "Failed to create ({count})",
+	"sb_router_wizard_bc_rules": "Rules",
+	"sb_router_wizard_bc_edit": "Editing",
+	"sb_router_wizard_bc_new": "New rule",
+	"sb_router_wizard_title_edit": "Edit rule",
+	"sb_router_wizard_title_new": "Where should the traffic go?",
+	"sb_router_wizard_sub_edit_external": "Choose another template and where to send the traffic.",
+	"sb_router_wizard_sub_edit_inline": "Edit the list and where to send the traffic.",
+	"sb_router_wizard_sub_new": "Choose a service or describe your own. Then — where to send it.",
+	"sb_router_wizard_step_what": "What to route",
+	"sb_router_wizard_step_what_short": "What",
+	"sb_router_wizard_step_where_short": "Where",
+	"sb_router_wizard_step_preview": "Preview",
+	"sb_router_wizard_step_preview_short": "Check",
+	"sb_router_wizard_what_hint_inline": "list of domains and addresses",
+	"sb_router_wizard_what_hint_new": "pick a template or describe manually",
+	"sb_router_wizard_pick_replace": "Replace template",
+	"sb_router_wizard_pick_new": "Choose from ready-made templates",
+	"sb_router_wizard_services_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} service",
+				"countPlural=*": "{count} services"
+			}
+		}
+	],
+	"sb_router_wizard_sets_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} set",
+				"countPlural=*": "{count} sets"
+			}
+		}
+	],
+	"sb_router_wizard_step_where": "Where to send",
+	"sb_router_wizard_opt_tunnel": "Through a tunnel",
+	"sb_router_wizard_opt_tunnel_sub": "AWG / proxy",
+	"sb_router_wizard_tunnels_available": "{count} available",
+	"sb_router_wizard_opt_direct": "Direct",
+	"sb_router_wizard_opt_direct_sub": "Through the ISP interface",
+	"sb_router_wizard_opt_block": "Block",
+	"sb_router_wizard_opt_block_sub": "Traffic is dropped",
+	"sb_router_wizard_pick_tunnels": "Select tunnels",
+	"sb_router_wizard_tunnels_selected": "{count} selected",
+	"sb_router_wizard_tunnels_hint": "You can select several — a composite outbound will be used",
+	"sb_router_wizard_no_tunnels": "No tunnels available.",
+	"sb_router_wizard_preview_edit_hint": "The changes will be applied to the current rule.",
+	"sb_router_wizard_preview_new_hint": "The rules will appear at the end of the list. You can drag them after creation.",
+	"sb_router_wizard_will_create": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} rule will be created.",
+				"countPlural=*": "{count} rules will be created."
+			}
+		}
+	],
+	"sb_router_wizard_add_another": "+ Add another",
+	"sb_router_wizard_save_changes": "Save changes",
+	"sb_router_rules_bulk_changed": "Changed {count}",
+	"sb_router_rules_selection_reset": "The list has changed, selection cleared",
+	"sb_router_rules_summary_missing": "rule #{n}",
+	"sb_router_rules_summary": "rule #{n}: {title} → {target}",
+	"sb_router_rules_not_found": "The rule is no longer found",
+	"sb_router_rules_ruleset_not_found": "Rule set “{tag}” was not found in the configuration",
+	"sb_router_rules_ruleset_updated": "Rule set updated",
+	"sb_router_rules_deleted": "Rule deleted",
+	"sb_router_rules_addresses_updated": "Addresses updated",
+	"sb_router_rules_move_failed": "Move failed: {message}",
+	"sb_router_rules_title": "What goes where",
+	"sb_router_rules_sub": "Rules are applied from top to bottom. The first matching one wins.",
+	"sb_router_rules_add": "+ Rule",
+	"sb_router_rules_empty_title": "No rules yet",
+	"sb_router_rules_empty_pre": "Create a rule via",
+	"sb_router_rules_empty_expert": "Expert mode",
+	"sb_router_rules_empty_post": "→ the “Rules” sub-tab. A creation wizard will appear here in future versions.",
+	"sb_router_rules_delete_title": "Delete rule",
+	"sb_router_rules_delete_message": "Delete {summary}?",
+	"sb_router_bypass_geo_title": "Bypass by geoip",
+	"sb_router_bypass_geo_loading": "Reading tags of geoip files…",
+	"sb_router_bypass_geo_catalog_error": "Failed to read geo data: {message}",
+	"sb_router_bypass_geo_no_files_pre": "No",
+	"sb_router_bypass_geo_no_files_post": "files connected — add them in",
+	"sb_router_bypass_geo_no_files_link": "Routing → Geo data",
+	"sb_router_bypass_geo_search_placeholder": "Search tag…",
+	"sb_router_bypass_geo_search_aria": "Search geoip tag",
+	"sb_router_bypass_geo_nothing_found": "Nothing found.",
+	"sb_router_bypass_geo_budget": "selected ~{total} of {max}",
+	"sb_router_bypass_geo_over_budget": "The selection exceeds the set limit — saving is blocked, deselect some tags.",
+	"sb_router_bypass_geo_budget_exceeded": "Does not fit into the set: {total} entries with a limit of {max}. Remove some tags.",
+	"sb_router_bypass_geo_full_bypass": "The bypass is complete, including DNS: clients using DNS servers from the selected ranges will not be served by DNS interception. Changes apply to new connections.",
+	"sb_router_bypass_geo_entries": "Entries in the bypass set",
+	"sb_router_bypass_geo_last_populate": "Last populated",
+	"sb_router_bypass_geo_populate_error": "Populate error: {message}",
+	"sb_router_bypass_geo_missing_tags": "Tags not found in geo data: {tags}",
+	"sb_router_bypass_geo_need_ipset_pre": "The package",
+	"sb_router_bypass_geo_need_ipset_post": "is required — the bypass set cannot be built without it.",
+	"sb_router_bypass_geo_installing": "Installing…",
+	"sb_router_bypass_geo_install_ipset": "Install ipset",
+	"sb_router_bypass_geo_conntrack_pre": "Without",
+	"sb_router_bypass_geo_conntrack_post": "existing connections will keep using the old path until the timeout expires.",
+	"sb_router_bypass_geo_install_conntrack": "Install conntrack-tools",
+	"sb_router_bypass_geo_install_failed": "Failed to install {pkg}: {message}",
+	"sb_router_bypass_geo_na": "n/a",
+	"sb_router_trace_outcome_blocked": "BLOCKED",
+	"sb_router_trace_outcome_default": "BY DEFAULT: {final}",
+	"sb_router_trace_outcome_found": "ROUTE FOUND",
+	"sb_router_trace_title": "Where will the request go",
+	"sb_router_trace_sub": "Enter a domain or IP — you will see which rule matches and through which tunnel.",
+	"sb_router_trace_placeholder": "netflix.com or 192.168.1.1",
+	"sb_router_trace_checking": "Checking…",
+	"sb_router_trace_check": "Check",
+	"sb_router_trace_query_type": "Query type",
+	"sb_router_trace_query_any": "any",
+	"sb_router_trace_source": "Source (client IP) · optional",
+	"sb_router_trace_dns_inspector_error": "DNS inspector: {message}",
+	"sb_router_trace_fakeip_conn": "domain is fake-IP’d → into the tunnel",
+	"sb_router_trace_dns_checking": "Checking the DNS decision…",
+	"sb_router_trace_route_step": "Route",
+	"sb_router_trace_from": "From",
+	"sb_router_trace_input_ip": "IP",
+	"sb_router_trace_input_domain": "domain",
+	"sb_router_trace_kicker_default": "By default",
+	"sb_router_trace_kicker_rule": "Rule #{n}",
+	"sb_router_trace_no_match": "no match",
+	"sb_router_trace_to": "To",
+	"sb_router_trace_rules_checked": "Rules ({checked} of {total} checked)",
+	"sb_router_trace_empty": "Enter a domain or IP and click “Check” — you will see a detailed route breakdown.",
+	"sb_router_flow_source_policy": "Access policy",
+	"sb_router_flow_source_all": "Whole router",
+	"sb_router_flow_source_devices": "Devices in a policy",
+	"sb_router_flow_sub_all_lan": "all LAN traffic",
+	"sb_router_flow_sub_no_policy": "no policy selected",
+	"sb_router_flow_engine_off": "off",
+	"sb_router_flow_engine_down": "not running",
+	"sb_router_flow_rest_traffic": "all other traffic",
+	"sb_router_flow_dns_change": "Change output DNS",
+	"sb_router_flow_source_aria_policy": "Open the “Policies + tun” mode settings",
+	"sb_router_flow_source_aria": "Configure the traffic source",
+	"sb_router_flow_cap_source": "Source",
+	"sb_router_flow_engine_aria": "Sing-box engine settings",
+	"sb_router_flow_cap_engine": "Sing-box engine",
+	"sb_router_flow_whole_router": "whole router",
+	"sb_router_flow_default_prefix": "By default →",
+	"sb_router_flow_tunnel_prefix": "Through a tunnel →",
+	"sb_router_flow_dns_wan": "{wan} · DNS: {dns}",
+	"sb_router_flow_dns": "DNS: {dns}",
+	"sb_router_flow_dns_tunnel_named": "DNS: {dns} (through the tunnel)",
+	"sb_router_flow_dns_tunnel": "DNS: through the tunnel",
+	"sb_router_flow_policy_devices": "{label} · {devices}",
+	"sb_router_flow_tunnels_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} tunnel",
+				"countPlural=*": "{count} tunnels"
+			}
+		}
+	],
+	"sb_router_table_col_order": "Order",
+	"sb_router_table_col_action": "Action",
+	"sb_router_table_col_conditions": "Conditions",
+	"sb_router_table_col_outbound": "Outbound",
+	"sb_router_table_col_actions": "Actions",
+	"sb_router_table_select_rule_aria": "Select rule {n}",
+	"sb_router_table_move_up_title": "Move rule #{n} up",
+	"sb_router_table_move_up_aria": "Move rule {n} up",
+	"sb_router_table_move_down_title": "Move rule #{n} down",
+	"sb_router_table_move_down_aria": "Move rule {n} down",
+	"sb_router_table_edit_title": "Edit rule #{n}",
+	"sb_router_table_edit_aria": "Edit rule {n}",
+	"sb_router_table_delete_title": "Delete rule #{n}",
+	"sb_router_table_delete_aria": "Delete rule {n}",
+	"sb_router_table_empty": "No rules",
+	"sb_router_rs_filter_all": "All",
+	"sb_router_rs_sort_alpha": "Sort sets alphabetically",
+	"sb_router_rs_col_tag": "Tag",
+	"sb_router_rs_col_type": "Type",
+	"sb_router_rs_col_source": "Source",
+	"sb_router_rs_col_via": "Via",
+	"sb_router_rs_select_aria": "Select set {tag}",
+	"sb_router_rs_detour_remote_only": "Download detour only applies to remote",
+	"sb_router_rs_edit_title": "Edit rule set “{tag}”",
+	"sb_router_rs_edit_aria": "Edit rule set {tag}",
+	"sb_router_rs_delete_title": "Delete rule set “{tag}”",
+	"sb_router_rs_delete_aria": "Delete rule set {tag}",
+	"sb_router_rs_empty": "No sets",
+	"sb_router_empty_done": "Done — sing-box is running",
+	"sb_router_empty_partial": "Started, but some rules failed: {done} of {total}",
+	"sb_router_empty_failed": "Failed to create rules ({count})",
+	"sb_router_empty_step_tunnel": "Tunnel",
+	"sb_router_empty_step_services": "What to tunnel",
+	"sb_router_empty_step_enable": "Enable",
+	"sb_router_empty_pick_tunnel": "Select a tunnel",
+	"sb_router_empty_pick_tunnel_hint": "all traffic goes directly, except the selected services",
+	"sb_router_empty_create_tunnel": "Create a tunnel",
+	"sb_router_empty_and_return": "and come back here.",
+	"sb_router_empty_services_title": "What to route through the tunnel",
+	"sb_router_empty_services_hint": "the rest goes directly",
+	"sb_router_empty_pick_services": "Select services",
+	"sb_router_empty_enable_hint": "sing-box will be set up for the whole router. Additional engine settings are in “Expert” mode.",
+	"sb_router_empty_enable_button": "Enable sing-box",
+	"sb_router_empty_presets_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} preset",
+				"countPlural=*": "{count} presets"
+			}
+		}
+	],
+	"sb_router_trace_dns_by_default": "by default → {final}",
+	"sb_router_trace_dns_rule": "DNS rule #{n}",
+	"sb_router_trace_dns_title": "DNS decision",
+	"sb_router_trace_dns_server": "server: {server}",
+	"sb_router_trace_dns_fakeip_pre": "{input} will get",
+	"sb_router_trace_dns_fakeip_pool": "fake-ip from pool {pool}",
+	"sb_router_trace_dns_fakeip_post": "→ traffic will go into the tunnel (the actual address is allocated at runtime). Next — step 2.",
+	"sb_router_trace_dns_local": "{input} resolves to an address on the router (local) — domain routing is not applied, route will only match by ip_cidr / sniff.",
+	"sb_router_trace_dns_real": "{input} resolves to a real IP (upstream) — domain routing is not applied, route will only match by ip_cidr / sniff.",
+	"sb_router_trace_dns_breakdown": "DNS rules breakdown ({count})",
+	"sb_router_catalog_stale": "GitHub is unavailable — showing the saved list",
+	"sb_router_catalog_refresh_failed": "Failed to refresh the list: {message}",
+	"sb_router_catalog_geosite_title": "SagerNet geosite catalog",
+	"sb_router_catalog_geosite_search": "Search among {count} sets…",
+	"sb_router_catalog_refresh_title": "Refresh the list from GitHub",
+	"sb_router_catalog_loading": "Loading the list of sets from GitHub…",
+	"sb_router_catalog_retry": "Retry",
+	"sb_router_catalog_nothing_found": "Nothing found for “{query}”.",
+	"sb_router_catalog_added": "added",
+	"sb_router_catalog_cap_hint": "Showing the first {shown} of {total} — refine your search.",
+	"sb_router_catalog_geosite_hint_pre": "The set is added as a remote rule-set",
+	"sb_router_catalog_geosite_code": "geosite-<name>",
+	"sb_router_catalog_geosite_hint_post": "(downloaded by sing-box, updated every 24 h). The routing rule for it is created separately.",
+	"sb_router_catalog_add_sets": "Add sets",
+	"sb_router_catalog_add_sets_count": "Add sets ({count})",
+	"sb_router_catalog_rulesets_title": "Rule set catalog",
+	"sb_router_templates_title": "Ready-made templates",
+	"sb_router_templates_sub": "Services and service sets. Select several at a time — each one creates its own rule.",
+	"sb_router_templates_search_placeholder": "netflix, geoip, telegram...",
+	"sb_router_templates_filter_all": "All",
+	"sb_router_templates_nothing_found": "Nothing matches your search.",
+	"sb_router_templates_selected": "Selected: {count}",
+	"sb_router_templates_done": "Done ({count})",
+	"sb_router_templates_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} template",
+				"countPlural=*": "{count} templates"
+			}
+		}
+	],
+	"sb_router_card_edit_tip": "Edit rule #{n}: {title} → {target}",
+	"sb_router_card_delete_tip": "Delete rule #{n}: {title} → {target}",
+	"sb_router_card_edit_set": "Edit set",
+	"sb_router_card_edit_matchers": "Edit domains and addresses",
+	"sb_router_card_edit_ruleset": "Edit set “{label}”",
+	"sb_router_card_select_aria": "Select rule #{n}",
+	"sb_router_card_drag_aria": "Drag rule #{n}",
+	"sb_router_card_drag_busy": "Please wait, the rule is being moved…",
+	"sb_router_card_more": "+{count} more",
+	"sb_router_card_system": "system",
+	"sb_router_matcher_domain": "domain",
+	"sb_router_matcher_ip": "IP",
+	"sb_router_matcher_port": "port",
+	"sb_router_matcher_src": "source",
+	"sb_router_matcher_ruleset": "set",
+	"sb_router_matcher_protocol": "proto",
+	"sb_router_matcher_private": "type",
+	"sb_router_bulk_selected": "{count} selected",
+	"sb_router_templates_via": "Via:",
+	"sb_router_templates_pick_outbound": "— select —",
+	"sb_router_templates_deselect_all": "Clear all",
+	"sb_router_templates_select_all": "Select all",
+	"sb_router_templates_change": "Change →",
+	"sb_router_templates_remove": "Remove",
+	"sb_router_policy_combo_create_failed": "Failed to create the policy: {message}",
+	"sb_router_policy_combo_current": "Current:",
+	"sb_router_policy_combo_placeholder": "Find or create a policy…",
+	"sb_router_policy_combo_devices": "{count} dev.",
+	"sb_router_policy_combo_creating": "Creating…",
+	"sb_router_policy_combo_create": "+ Create “{name}”",
+	"sb_router_policy_combo_empty": "No policies",
+	"sb_router_outbound_not_found": "Outbound not found in the config",
+	"sb_router_outbound_via_route": "DNS is routed by the route table",
+	"sb_router_empty_hero_status": "Not configured",
+	"sb_router_empty_hero_heading": "Route traffic through VPN tunnels by your own rules",
+	"sb_router_empty_hero_body": "sing-box is a router inside the router. For every request it decides: send it directly, through a tunnel, or block it. Setup takes 3 steps.",
+	"sb_router_trace_row_reject": "✕ block",
+	"sb_router_custom_form_title": "Describe manually",
+	"sb_router_custom_form_meta": "· domains, IPs, CIDRs, ports, geosite:/geoip:",
+	"sb_router_chips_subnet_invalid": "invalid IP/CIDR: {value}",
+	"sb_router_chips_subnet_remove": "remove subnet",
+	"sb_router_chips_subnet_placeholder": "IP or subnet, e.g. 203.0.113.0/24",
+	"sb_router_chips_port_remove": "remove port",
+	"sb_router_chips_port_placeholder": "443 TCP or 5000-5500 UDP",
+	"sb_router_templates_create": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Create {count} rule",
+				"countPlural=*": "Create {count} rules"
+			}
+		}
+	],
+	"sb_router_outbound_overflow_aria": [
+		{
+			"declarations": [
+				"input count",
+				"input title",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{title}, {count} more tunnel",
+				"countPlural=*": "{title}, {count} more tunnels"
+			}
+		}
+	],
+	"sb_router_outbound_overflow_title": "{label} ({count} more)",
+	"sb_router_wizard_edit_bar_label": "Change settings",
+	"sb_router_wizard_edit_bar_hint": "Unlocks the configuration steps for editing (link import, password, NAT, etc.)"
 }

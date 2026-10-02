@@ -5286,5 +5286,482 @@
 	"sb_router_expert_add_server": "+ Сервер",
 	"sb_router_expert_dns_default": "DNS по умолчанию",
 	"sb_router_expert_configure": "Настроить",
-	"sb_router_expert_add": "+ Добавить"
+	"sb_router_expert_add": "+ Добавить",
+	"routing_singbox_group_special": "Специальные",
+	"routing_singbox_group_awg": "AWG туннели",
+	"routing_singbox_group_system": "Системные WireGuard",
+	"routing_singbox_group_awg3": "AWG3 туннели",
+	"routing_singbox_group_singbox": "Sing-box туннели",
+	"routing_singbox_group_composite": "Composite outbounds",
+	"routing_singbox_option_direct": "direct (мимо VPN)",
+	"sb_router_outbound_in_use": "Outbound используется ({refs})",
+	"sb_router_outbound_delete_subscription": "Подписку можно удалить только в разделе «Подписки»",
+	"sb_router_system_tip_sniff": "Анализирует протокол и извлекает домен из соединения (SNI, HTTP Host). Нужно, чтобы следующие правила могли маршрутизировать по домену, а не только по IP.",
+	"sb_router_system_tip_hijack_dns": "Перехватывает DNS-запросы на порту 53 и обрабатывает их через DNS-модуль sing-box. Без этого DNS-маршрутизация не работает.",
+	"sb_router_system_tip_private": "Трафик в локальные и приватные сети (RFC1918, loopback, link-local) идёт напрямую, минуя VPN. Нужен для доступа к роутеру, NAS и устройствам в LAN.",
+	"sb_router_system_tip_udp_timeout_value": "Автоматически поднимает таймаут UDP-сессий ({timeout}) до значения таймаута движка. Без него игры, VoIP и QUIC рвутся из-за коротких протокольных таймаутов (10–30 с). Задаётся системой, редактировать нельзя.",
+	"sb_router_system_tip_udp_timeout": "Автоматически поднимает таймаут UDP-сессий до значения таймаута движка. Без него игры, VoIP и QUIC рвутся из-за коротких протокольных таймаутов (10–30 с). Задаётся системой, редактировать нельзя.",
+	"sb_router_outbound_block": "Блок",
+	"sb_router_outbound_direct": "Прямо",
+	"sb_router_rules_local_network": "Локальная сеть",
+	"sb_router_rules_title_sniff": "Анализ протокола",
+	"sb_router_rules_title_hijack_dns": "Перехват DNS",
+	"sb_router_rules_title_udp_timeout": "UDP таймаут",
+	"sb_router_rules_title_default": "Правило #{index}",
+	"sb_router_rules_matchers_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} матчер",
+				"countPlural=few": "{count} матчера",
+				"countPlural=many": "{count} матчеров",
+				"countPlural=*": "{count} матчера"
+			}
+		}
+	],
+	"sb_router_wizard_err_pick_tunnel": "Выберите туннель",
+	"sb_router_wizard_err_list_empty": "Список пуст",
+	"sb_router_wizard_err_no_valid_lines": "Нет валидных строк",
+	"sb_router_wizard_err_pick_template_or_rule": "Выберите шаблон или опишите правило",
+	"sb_router_wizard_err_pick_one_template": "Выберите один шаблон",
+	"sb_router_wizard_err_template_not_found": "Шаблон не найден",
+	"sb_router_wizard_preview_route": "Правило направит трафик через outbound «{tag}»",
+	"sb_router_wizard_preview_create_composite": "Будет создан composite outbound «{tag}» из выбранных туннелей ({count}) — автовыбор по скорости",
+	"sb_router_wizard_preview_use_composite": "Будет использован composite outbound «{tag}» из выбранных туннелей ({count})",
+	"sb_router_wizard_preview_direct": "Трафик пойдёт напрямую (outbound «{tag}»)",
+	"sb_router_wizard_preview_block": "Трафик будет заблокирован (reject)",
+	"sb_router_templates_group_services": "Сервисы",
+	"sb_router_templates_group_services_hint": "один сервис = одно правило",
+	"sb_router_templates_group_rulesets": "Наборы доменов и CIDR",
+	"sb_router_templates_group_rulesets_hint": "rule_set уже в config",
+	"sb_router_rules_complex_edit": "Данное правило может быть изменено только в экспертном режиме",
+	"sb_router_flow_default_direct": "Напрямую",
+	"sb_router_flow_dns_system": "системный",
+	"sb_router_wizard_rule_updated": "Правило обновлено",
+	"sb_router_wizard_created_continue": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Создано {count} правило. Можно добавить ещё одно.",
+				"countPlural=few": "Создано {count} правила. Можно добавить ещё одно.",
+				"countPlural=many": "Создано {count} правил. Можно добавить ещё одно.",
+				"countPlural=*": "Создано {count} правила. Можно добавить ещё одно."
+			}
+		}
+	],
+	"sb_router_wizard_created": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Создано {count} правило",
+				"countPlural=few": "Создано {count} правила",
+				"countPlural=many": "Создано {count} правил",
+				"countPlural=*": "Создано {count} правила"
+			}
+		}
+	],
+	"sb_router_wizard_created_partial": "Создано {done} из {total}. Ошибок: {failed}",
+	"sb_router_wizard_create_failed": "Не удалось создать ({count})",
+	"sb_router_wizard_bc_rules": "Правила",
+	"sb_router_wizard_bc_edit": "Редактирование",
+	"sb_router_wizard_bc_new": "Новое правило",
+	"sb_router_wizard_title_edit": "Редактировать правило",
+	"sb_router_wizard_title_new": "Куда направить трафик?",
+	"sb_router_wizard_sub_edit_external": "Выберите другой шаблон и куда направить трафик.",
+	"sb_router_wizard_sub_edit_inline": "Измените список и куда направить трафик.",
+	"sb_router_wizard_sub_new": "Выберите сервис или опишите свой. Затем — куда его пустить.",
+	"sb_router_wizard_step_what": "Что направить",
+	"sb_router_wizard_step_what_short": "Что",
+	"sb_router_wizard_step_where_short": "Куда",
+	"sb_router_wizard_step_preview": "Предпросмотр",
+	"sb_router_wizard_step_preview_short": "Проверка",
+	"sb_router_wizard_what_hint_inline": "список доменов и адресов",
+	"sb_router_wizard_what_hint_new": "выберите шаблон или опишите вручную",
+	"sb_router_wizard_pick_replace": "Заменить шаблон",
+	"sb_router_wizard_pick_new": "Выбрать из готовых шаблонов",
+	"sb_router_wizard_services_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} сервис",
+				"countPlural=few": "{count} сервиса",
+				"countPlural=many": "{count} сервисов",
+				"countPlural=*": "{count} сервиса"
+			}
+		}
+	],
+	"sb_router_wizard_sets_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} набор",
+				"countPlural=few": "{count} набора",
+				"countPlural=many": "{count} наборов",
+				"countPlural=*": "{count} набора"
+			}
+		}
+	],
+	"sb_router_wizard_step_where": "Куда направить",
+	"sb_router_wizard_opt_tunnel": "Через туннель",
+	"sb_router_wizard_opt_tunnel_sub": "AWG / прокси",
+	"sb_router_wizard_tunnels_available": "{count} доступно",
+	"sb_router_wizard_opt_direct": "Напрямую",
+	"sb_router_wizard_opt_direct_sub": "Через интерфейс провайдера",
+	"sb_router_wizard_opt_block": "Заблокировать",
+	"sb_router_wizard_opt_block_sub": "Трафик отбрасывается",
+	"sb_router_wizard_pick_tunnels": "Выбрать туннели",
+	"sb_router_wizard_tunnels_selected": "{count} выбрано",
+	"sb_router_wizard_tunnels_hint": "Можно выбрать несколько — будет использован composite outbound",
+	"sb_router_wizard_no_tunnels": "Нет доступных туннелей.",
+	"sb_router_wizard_preview_edit_hint": "Изменения применятся к текущему правилу.",
+	"sb_router_wizard_preview_new_hint": "Правила появятся в конце списка. После создания можно перетаскивать.",
+	"sb_router_wizard_will_create": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} правило будет создано.",
+				"countPlural=few": "{count} правила будет создано.",
+				"countPlural=many": "{count} правил будет создано.",
+				"countPlural=*": "{count} правила будет создано."
+			}
+		}
+	],
+	"sb_router_wizard_add_another": "+ Добавить ещё одно",
+	"sb_router_wizard_save_changes": "Сохранить изменения",
+	"sb_router_rules_bulk_changed": "Изменено {count}",
+	"sb_router_rules_selection_reset": "Список изменился, выбор сброшен",
+	"sb_router_rules_summary_missing": "правило #{n}",
+	"sb_router_rules_summary": "правило #{n}: {title} → {target}",
+	"sb_router_rules_not_found": "Правило уже не найдено",
+	"sb_router_rules_ruleset_not_found": "Набор «{tag}» не найден в конфигурации",
+	"sb_router_rules_ruleset_updated": "Набор обновлён",
+	"sb_router_rules_deleted": "Правило удалено",
+	"sb_router_rules_addresses_updated": "Адреса обновлены",
+	"sb_router_rules_move_failed": "Ошибка перемещения: {message}",
+	"sb_router_rules_title": "Что и куда отправлять",
+	"sb_router_rules_sub": "Правила применяются сверху вниз. Срабатывает первое подходящее.",
+	"sb_router_rules_add": "+ Правило",
+	"sb_router_rules_empty_title": "Пока нет правил",
+	"sb_router_rules_empty_pre": "Создайте правило через",
+	"sb_router_rules_empty_expert": "Эксперт-режим",
+	"sb_router_rules_empty_post": "→ подвкладка «Rules». В будущих версиях здесь появится мастер создания.",
+	"sb_router_rules_delete_title": "Удалить правило",
+	"sb_router_rules_delete_message": "Удалить {summary}?",
+	"sb_router_bypass_geo_title": "Обход по geoip",
+	"sb_router_bypass_geo_loading": "Читаем теги geoip-файлов…",
+	"sb_router_bypass_geo_catalog_error": "Не удалось прочитать гео-данные: {message}",
+	"sb_router_bypass_geo_no_files_pre": "Нет подключённых файлов",
+	"sb_router_bypass_geo_no_files_post": "— добавьте их в",
+	"sb_router_bypass_geo_no_files_link": "Маршрутизация → Гео-данные",
+	"sb_router_bypass_geo_search_placeholder": "Поиск тега…",
+	"sb_router_bypass_geo_search_aria": "Поиск geoip-тега",
+	"sb_router_bypass_geo_nothing_found": "Ничего не найдено.",
+	"sb_router_bypass_geo_budget": "выбрано ~{total} из {max}",
+	"sb_router_bypass_geo_over_budget": "Выбор больше предела набора — сохранение заблокировано, снимите часть тегов.",
+	"sb_router_bypass_geo_budget_exceeded": "Не помещается в набор: {total} записей при пределе {max}. Уберите часть тегов.",
+	"sb_router_bypass_geo_full_bypass": "Обход полный, включая DNS: клиенты с DNS-серверами из выбранных диапазонов не будут обслуживаться DNS-перехватом. Изменения действуют на новые соединения.",
+	"sb_router_bypass_geo_entries": "Записей в наборе обхода",
+	"sb_router_bypass_geo_last_populate": "Последнее наполнение",
+	"sb_router_bypass_geo_populate_error": "Ошибка наполнения: {message}",
+	"sb_router_bypass_geo_missing_tags": "Теги не найдены в геоданных: {tags}",
+	"sb_router_bypass_geo_need_ipset_pre": "Требуется пакет",
+	"sb_router_bypass_geo_need_ipset_post": "— без него набор обхода не собрать.",
+	"sb_router_bypass_geo_installing": "Установка…",
+	"sb_router_bypass_geo_install_ipset": "Установить ipset",
+	"sb_router_bypass_geo_conntrack_pre": "Без",
+	"sb_router_bypass_geo_conntrack_post": "уже установленные соединения доживут по старому пути до истечения таймаута.",
+	"sb_router_bypass_geo_install_conntrack": "Установить conntrack-tools",
+	"sb_router_bypass_geo_install_failed": "Не удалось установить {pkg}: {message}",
+	"sb_router_bypass_geo_na": "н/д",
+	"sb_router_trace_outcome_blocked": "ЗАБЛОКИРОВАНО",
+	"sb_router_trace_outcome_default": "ПО DEFAULT: {final}",
+	"sb_router_trace_outcome_found": "МАРШРУТ НАЙДЕН",
+	"sb_router_trace_title": "Куда поедет запрос",
+	"sb_router_trace_sub": "Подставьте домен или IP — увидите, какое правило сработает и через какой туннель.",
+	"sb_router_trace_placeholder": "netflix.com или 192.168.1.1",
+	"sb_router_trace_checking": "Проверяем…",
+	"sb_router_trace_check": "Проверить",
+	"sb_router_trace_query_type": "Тип запроса",
+	"sb_router_trace_query_any": "любой",
+	"sb_router_trace_source": "Источник (IP клиента) · опц.",
+	"sb_router_trace_dns_inspector_error": "DNS-инспектор: {message}",
+	"sb_router_trace_fakeip_conn": "домен фейкнут → в туннель",
+	"sb_router_trace_dns_checking": "Проверяем DNS-решение…",
+	"sb_router_trace_route_step": "Маршрут (route)",
+	"sb_router_trace_from": "Откуда",
+	"sb_router_trace_input_ip": "IP",
+	"sb_router_trace_input_domain": "домен",
+	"sb_router_trace_kicker_default": "По default",
+	"sb_router_trace_kicker_rule": "Правило #{n}",
+	"sb_router_trace_no_match": "нет матча",
+	"sb_router_trace_to": "Куда",
+	"sb_router_trace_rules_checked": "Правила ({checked} из {total} проверены)",
+	"sb_router_trace_empty": "Введите домен или IP и нажмите «Проверить» — увидите подробный разбор маршрута.",
+	"sb_router_flow_source_policy": "Политика доступа",
+	"sb_router_flow_source_all": "Весь роутер",
+	"sb_router_flow_source_devices": "Устройства в политике",
+	"sb_router_flow_sub_all_lan": "весь LAN-трафик",
+	"sb_router_flow_sub_no_policy": "политика не выбрана",
+	"sb_router_flow_engine_off": "выключен",
+	"sb_router_flow_engine_down": "не работает",
+	"sb_router_flow_rest_traffic": "остальной трафик",
+	"sb_router_flow_dns_change": "Изменить выходной DNS",
+	"sb_router_flow_source_aria_policy": "Открыть настройки режима «Политики + tun»",
+	"sb_router_flow_source_aria": "Настроить источник трафика",
+	"sb_router_flow_cap_source": "Источник",
+	"sb_router_flow_engine_aria": "Настройки движка sing-box",
+	"sb_router_flow_cap_engine": "Движок sing-box",
+	"sb_router_flow_whole_router": "весь роутер",
+	"sb_router_flow_default_prefix": "По умолчанию →",
+	"sb_router_flow_tunnel_prefix": "Через туннель →",
+	"sb_router_flow_dns_wan": "{wan} · DNS: {dns}",
+	"sb_router_flow_dns": "DNS: {dns}",
+	"sb_router_flow_dns_tunnel_named": "DNS: {dns} (через туннель)",
+	"sb_router_flow_dns_tunnel": "DNS: через туннель",
+	"sb_router_flow_policy_devices": "{label} · {devices}",
+	"sb_router_flow_tunnels_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} туннель",
+				"countPlural=few": "{count} туннеля",
+				"countPlural=many": "{count} туннелей",
+				"countPlural=*": "{count} туннеля"
+			}
+		}
+	],
+	"sb_router_table_col_order": "Порядок",
+	"sb_router_table_col_action": "Действие",
+	"sb_router_table_col_conditions": "Условия",
+	"sb_router_table_col_outbound": "Выход",
+	"sb_router_table_col_actions": "Действия",
+	"sb_router_table_select_rule_aria": "Выбрать правило {n}",
+	"sb_router_table_move_up_title": "Поднять правило #{n}",
+	"sb_router_table_move_up_aria": "Поднять правило {n}",
+	"sb_router_table_move_down_title": "Опустить правило #{n}",
+	"sb_router_table_move_down_aria": "Опустить правило {n}",
+	"sb_router_table_edit_title": "Редактировать правило #{n}",
+	"sb_router_table_edit_aria": "Редактировать правило {n}",
+	"sb_router_table_delete_title": "Удалить правило #{n}",
+	"sb_router_table_delete_aria": "Удалить правило {n}",
+	"sb_router_table_empty": "Нет правил",
+	"sb_router_rs_filter_all": "Все",
+	"sb_router_rs_sort_alpha": "Сортировать наборы по алфавиту",
+	"sb_router_rs_col_tag": "Тег",
+	"sb_router_rs_col_type": "Тип",
+	"sb_router_rs_col_source": "Источник",
+	"sb_router_rs_col_via": "Через",
+	"sb_router_rs_select_aria": "Выбрать набор {tag}",
+	"sb_router_rs_detour_remote_only": "Download detour применим только к remote",
+	"sb_router_rs_edit_title": "Редактировать набор правил «{tag}»",
+	"sb_router_rs_edit_aria": "Редактировать набор правил {tag}",
+	"sb_router_rs_delete_title": "Удалить набор правил «{tag}»",
+	"sb_router_rs_delete_aria": "Удалить набор правил {tag}",
+	"sb_router_rs_empty": "Нет наборов",
+	"sb_router_empty_done": "Готово — sing-box запущен",
+	"sb_router_empty_partial": "Запущено, но часть правил с ошибкой: {done} из {total}",
+	"sb_router_empty_failed": "Не удалось создать правила ({count})",
+	"sb_router_empty_step_tunnel": "Туннель",
+	"sb_router_empty_step_services": "Что в туннель",
+	"sb_router_empty_step_enable": "Включить",
+	"sb_router_empty_pick_tunnel": "Выберите туннель",
+	"sb_router_empty_pick_tunnel_hint": "весь трафик идёт напрямую, кроме выбранных сервисов",
+	"sb_router_empty_create_tunnel": "Создайте туннель",
+	"sb_router_empty_and_return": "и вернитесь сюда.",
+	"sb_router_empty_services_title": "Что направить в туннель",
+	"sb_router_empty_services_hint": "остальное — напрямую",
+	"sb_router_empty_pick_services": "Выбрать сервисы",
+	"sb_router_empty_enable_hint": "sing-box будет настроен на весь роутер. Дополнительные настройки движка — в режиме «Эксперт».",
+	"sb_router_empty_enable_button": "Включить sing-box",
+	"sb_router_empty_presets_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} пресет",
+				"countPlural=few": "{count} пресета",
+				"countPlural=many": "{count} пресетов",
+				"countPlural=*": "{count} пресета"
+			}
+		}
+	],
+	"sb_router_trace_dns_by_default": "по default → {final}",
+	"sb_router_trace_dns_rule": "DNS-правило #{n}",
+	"sb_router_trace_dns_title": "DNS-решение",
+	"sb_router_trace_dns_server": "сервер: {server}",
+	"sb_router_trace_dns_fakeip_pre": "{input} получит",
+	"sb_router_trace_dns_fakeip_pool": "fake-ip из пула {pool}",
+	"sb_router_trace_dns_fakeip_post": "→ трафик пойдёт в туннель (конкретный адрес выделяется в рантайме). Дальше — шаг 2.",
+	"sb_router_trace_dns_local": "{input} резолвится в адрес на роутере (local) — маршрутизация по домену не применяется, route сработает только по ip_cidr / sniff.",
+	"sb_router_trace_dns_real": "{input} резолвится в реальный IP (upstream) — маршрутизация по домену не применяется, route сработает только по ip_cidr / sniff.",
+	"sb_router_trace_dns_breakdown": "разбор DNS-правил ({count})",
+	"sb_router_catalog_stale": "GitHub недоступен — показан сохранённый список",
+	"sb_router_catalog_refresh_failed": "Не удалось обновить список: {message}",
+	"sb_router_catalog_geosite_title": "Каталог SagerNet geosite",
+	"sb_router_catalog_geosite_search": "Поиск по {count} наборам…",
+	"sb_router_catalog_refresh_title": "Обновить список с GitHub",
+	"sb_router_catalog_loading": "Загружаем список наборов с GitHub…",
+	"sb_router_catalog_retry": "Повторить",
+	"sb_router_catalog_nothing_found": "Ничего не найдено по «{query}».",
+	"sb_router_catalog_added": "добавлено",
+	"sb_router_catalog_cap_hint": "Показаны первые {shown} из {total} — уточните запрос.",
+	"sb_router_catalog_geosite_hint_pre": "Набор добавляется как remote rule-set",
+	"sb_router_catalog_geosite_code": "geosite-<имя>",
+	"sb_router_catalog_geosite_hint_post": "(скачивает sing-box, обновление раз в 24 ч). Правило маршрутизации к нему создаётся отдельно.",
+	"sb_router_catalog_add_sets": "Добавить наборы",
+	"sb_router_catalog_add_sets_count": "Добавить наборы ({count})",
+	"sb_router_catalog_rulesets_title": "Каталог наборов",
+	"sb_router_templates_title": "Готовые шаблоны",
+	"sb_router_templates_sub": "Сервисы и сервисные наборы. Выбирайте несколько за раз — каждый создаст своё правило.",
+	"sb_router_templates_search_placeholder": "netflix, geoip, telegram...",
+	"sb_router_templates_filter_all": "Все",
+	"sb_router_templates_nothing_found": "По запросу ничего не нашлось.",
+	"sb_router_templates_selected": "Выбрано: {count}",
+	"sb_router_templates_done": "Готово ({count})",
+	"sb_router_templates_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} шаблон",
+				"countPlural=few": "{count} шаблона",
+				"countPlural=many": "{count} шаблонов",
+				"countPlural=*": "{count} шаблона"
+			}
+		}
+	],
+	"sb_router_card_edit_tip": "Редактировать правило #{n}: {title} → {target}",
+	"sb_router_card_delete_tip": "Удалить правило #{n}: {title} → {target}",
+	"sb_router_card_edit_set": "Редактировать набор",
+	"sb_router_card_edit_matchers": "Редактировать домены и адреса",
+	"sb_router_card_edit_ruleset": "Редактировать набор «{label}»",
+	"sb_router_card_select_aria": "Выбрать правило #{n}",
+	"sb_router_card_drag_aria": "Перетащить правило #{n}",
+	"sb_router_card_drag_busy": "Подождите, правило перемещается…",
+	"sb_router_card_more": "+{count} ещё",
+	"sb_router_card_system": "система",
+	"sb_router_matcher_domain": "домен",
+	"sb_router_matcher_ip": "IP",
+	"sb_router_matcher_port": "порт",
+	"sb_router_matcher_src": "источник",
+	"sb_router_matcher_ruleset": "набор",
+	"sb_router_matcher_protocol": "proto",
+	"sb_router_matcher_private": "тип",
+	"sb_router_bulk_selected": "{count} выбрано",
+	"sb_router_templates_via": "Через:",
+	"sb_router_templates_pick_outbound": "— выберите —",
+	"sb_router_templates_deselect_all": "Снять всё",
+	"sb_router_templates_select_all": "Выбрать всё",
+	"sb_router_templates_change": "Изменить →",
+	"sb_router_templates_remove": "Убрать",
+	"sb_router_policy_combo_create_failed": "Не удалось создать политику: {message}",
+	"sb_router_policy_combo_current": "Текущая:",
+	"sb_router_policy_combo_placeholder": "Найти или создать политику…",
+	"sb_router_policy_combo_devices": "{count} устр.",
+	"sb_router_policy_combo_creating": "Создание…",
+	"sb_router_policy_combo_create": "+ Создать «{name}»",
+	"sb_router_policy_combo_empty": "Нет политик",
+	"sb_router_outbound_not_found": "Outbound не найден в конфиге",
+	"sb_router_outbound_via_route": "DNS маршрутизируется по таблице route",
+	"sb_router_empty_hero_status": "Не настроен",
+	"sb_router_empty_hero_heading": "Направляйте трафик через VPN-туннели по вашим правилам",
+	"sb_router_empty_hero_body": "sing-box — это маршрутизатор внутри роутера. Решает для каждого запроса: пустить напрямую, через туннель или заблокировать. Настройка занимает 3 шага.",
+	"sb_router_trace_row_reject": "✕ заблокировать",
+	"sb_router_custom_form_title": "Описать вручную",
+	"sb_router_custom_form_meta": "· домены, IP, CIDR, порты, geosite:/geoip:",
+	"sb_router_chips_subnet_invalid": "неверный IP/CIDR: {value}",
+	"sb_router_chips_subnet_remove": "удалить подсеть",
+	"sb_router_chips_subnet_placeholder": "IP или подсеть, напр. 203.0.113.0/24",
+	"sb_router_chips_port_remove": "удалить порт",
+	"sb_router_chips_port_placeholder": "443 TCP или 5000-5500 UDP",
+	"sb_router_templates_create": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Создать {count} правило",
+				"countPlural=few": "Создать {count} правила",
+				"countPlural=many": "Создать {count} правил",
+				"countPlural=*": "Создать {count} правила"
+			}
+		}
+	],
+	"sb_router_outbound_overflow_aria": [
+		{
+			"declarations": [
+				"input count",
+				"input title",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{title}, ещё {count} туннель",
+				"countPlural=few": "{title}, ещё {count} туннеля",
+				"countPlural=many": "{title}, ещё {count} туннелей",
+				"countPlural=*": "{title}, ещё {count} туннеля"
+			}
+		}
+	],
+	"sb_router_outbound_overflow_title": "{label} (ещё {count})",
+	"sb_router_wizard_edit_bar_label": "Изменить настройки",
+	"sb_router_wizard_edit_bar_hint": "Разблокирует шаги конфигурации для правок (импорт ссылки, пароль, NAT и т.д.)"
 }

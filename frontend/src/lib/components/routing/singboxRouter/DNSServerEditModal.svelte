@@ -8,7 +8,7 @@
 		SingboxRouterDNSType,
 		SingboxRouterDNSStrategy,
 	} from '$lib/types';
-	import type { OutboundGroup } from './outboundOptions';
+	import { outboundGroupLabel, type OutboundGroup } from './outboundOptions';
 	import {
 		DNS_DIRECT_SERVER_TAG,
 		getDnsDirectLegacyDetour,
@@ -56,7 +56,7 @@
 		...outboundOptions.flatMap((g) =>
 			g.items
 				.filter((i) => i.value !== 'direct')
-				.map((i) => ({ value: i.value, label: i.label, group: g.group })),
+				.map((i) => ({ value: i.value, label: i.label, group: outboundGroupLabel(g.id) })),
 		),
 	]);
 

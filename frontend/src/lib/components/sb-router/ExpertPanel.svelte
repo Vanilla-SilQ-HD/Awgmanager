@@ -54,7 +54,7 @@
   import RuleSetsTable from './RuleSetsTable.svelte';
   import BulkSelectBar from './BulkSelectBar.svelte';
   import { isSystemRule, mapRuleAction } from './adapters';
-  import { buildDownloadDetourOptions } from '$lib/components/routing/singboxRouter/outboundOptions';
+  import { buildDownloadDetourOptions, outboundGroupLabel } from '$lib/components/routing/singboxRouter/outboundOptions';
   import SbRouterRuleSetCatalogModal from './SbRouterRuleSetCatalogModal.svelte';
   import SbRouterGeositeCatalogModal from './SbRouterGeositeCatalogModal.svelte';
   import { addGeositeRuleSets, applyCatalogPresetsAsRuleSets } from './rulesetCatalogActions';
@@ -115,12 +115,12 @@
   );
 
   // ── Globals (route-final + DNS final/strategy) ──────────────────────
-  // route-final: direct + все outbounds, кроме группы «Специальные»
+  // route-final: direct + все outbounds, кроме группы 'special'
   const routeFinalOptions = $derived<DropdownOption[]>([
     { value: 'direct', label: m.sb_router_expert_route_final_direct() },
     ...$storeOptions
-      .filter((g) => g.group !== 'Специальные')
-      .flatMap((g) => g.items.map((i) => ({ value: i.value, label: i.label, group: g.group }))),
+      .filter((g) => g.id !== 'special')
+      .flatMap((g) => g.items.map((i) => ({ value: i.value, label: i.label, group: outboundGroupLabel(g.id) }))),
   ]);
 
   let draftRouteFinal = $state('direct');
@@ -536,7 +536,7 @@
   // Тот же каталог outbound'ов, что у RuleEditModal ($storeOptions), сплющенный
   // в плоский список для BulkSelectBar.
   const bulkOutboundOptions = $derived(
-    $storeOptions.flatMap((g) => g.items.map((i) => ({ value: i.value, label: i.label, group: g.group }))),
+    $storeOptions.flatMap((g) => g.items.map((i) => ({ value: i.value, label: i.label, group: outboundGroupLabel(g.id) }))),
   );
 
   function toggleRulesSelectMode(): void {

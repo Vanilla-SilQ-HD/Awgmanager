@@ -6,7 +6,7 @@
 	import SingboxSettingsModal from './SingboxSettingsModal.svelte';
 	import ForeignIfacePanel from './ForeignIfacePanel.svelte';
 	import type { SingboxRouterOutbound, SingboxRouterWANInterface } from '$lib/types';
-	import type { OutboundGroup } from './outboundOptions';
+	import { outboundGroupLabel, type OutboundGroup } from './outboundOptions';
 	import { isSubscriptionOutbound } from '$lib/components/sb-router/outboundLabel';
 	import { subscriptionsStore } from '$lib/stores/subscriptions';
 	import { resolveMemberLabel } from '$lib/utils/memberLabel';
@@ -152,7 +152,7 @@
 		outboundOptions.flatMap((g) =>
 			g.items
 				.filter((i) => !members.includes(i.value) && i.value !== tag.trim())
-				.map((i) => ({ value: i.value, label: i.label, group: g.group }))
+				.map((i) => ({ value: i.value, label: i.label, group: outboundGroupLabel(g.id) }))
 		)
 	);
 

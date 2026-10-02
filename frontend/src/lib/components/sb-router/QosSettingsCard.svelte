@@ -9,6 +9,7 @@
   DSCP N уходит в outbound класса, минуя остальные правила маршрутизации.
 -->
 <script lang="ts">
+  import { outboundGroupLabel } from '$lib/components/routing/singboxRouter/outboundOptions';
   import { m } from '$lib/i18n';
   import { Plus, Trash2, TriangleAlert } from 'lucide-svelte';
   import { Toggle, Button, Dropdown, IconButton, type DropdownOption } from '$lib/components/ui';
@@ -62,7 +63,7 @@
   // singboxRouter.options (buildOutboundOptions) → плоский DropdownOption[].
   const outboundDropdownOptions = $derived<DropdownOption[]>(
     outboundOptions.flatMap((g) =>
-      g.items.map((i) => ({ value: i.value, label: i.label, group: g.group })),
+      g.items.map((i) => ({ value: i.value, label: i.label, group: outboundGroupLabel(g.id) })),
     ),
   );
   // Новый класс по умолчанию направляем в первый туннель (не direct):
