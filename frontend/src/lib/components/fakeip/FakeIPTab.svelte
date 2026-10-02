@@ -24,7 +24,7 @@
 	import { LogsTerminal } from '$lib/components/diagnostics';
 	import { modeSwitch, modeSwitchBusy } from '$lib/stores/modeSwitch';
 	import { systemInfo } from '$lib/stores/system';
-	import { OPKGTUN_UNSUPPORTED_REASON, opkgTunSupported } from '$lib/utils/opkgTunSupport';
+	import { opkgTunUnsupportedReason, opkgTunSupported } from '$lib/utils/opkgTunSupport';
 	import { notifications } from '$lib/stores/notifications';
 	import { api } from '$lib/api/client';
 
@@ -131,7 +131,7 @@
 	{#if engineState === 'not-fakeip'}
 		<NotEnabledScreen
 			onEnableRequested={handleEnableRequested}
-			unavailableReason={tunSupported ? undefined : OPKGTUN_UNSUPPORTED_REASON}
+			unavailableReason={tunSupported ? undefined : opkgTunUnsupportedReason()}
 		/>
 	{:else}
 		<!--

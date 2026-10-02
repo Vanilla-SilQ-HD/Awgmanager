@@ -316,7 +316,7 @@
 	{#each targets as target (target.id)}
 		<div class="divider"></div>
 		<ChecksGroup
-			name={target.name}
+			name={target.isGlobal ? m.diag_checks_global_group() : target.name}
 			kind={target.kind}
 			isGlobal={target.isGlobal}
 			led={targetLed(target, running)}

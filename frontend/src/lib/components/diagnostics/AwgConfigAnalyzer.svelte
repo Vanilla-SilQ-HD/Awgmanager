@@ -4,7 +4,7 @@
 	import { api } from '$lib/api/client';
 	import { notifications } from '$lib/stores/notifications';
 	import { tunnels as tunnelsStore } from '$lib/stores/tunnels';
-	import type { AWGTunnel, TunnelListItem } from '$lib/types';
+	import type { AWGTunnel, TunnelListItem, AwgAnalyzeData } from '$lib/types';
 	import { buildManagedTunnelListDropdownOptions } from '$lib/utils/routingTunnelOptions';
 	import { get } from 'svelte/store';
 	import { servers } from '$lib/stores/servers';
@@ -38,8 +38,10 @@
 	let loadedTunnelRaw = $state('');
 	let error = $state('');
 	let parsed: AwgParsed | null = $state(null);
-	let result: ScoreResult | null = $state(null);
-	let fixes: string[] = $state([]);
+	// Результат считается из ответа бэкенда: тексты следуют за языком интерфейса.
+	let analysis: AwgAnalyzeData | null = $state(null);
+	const result: ScoreResult | null = $derived(analysis ? scoreConfig(analysis) : null);
+	const fixes: string[] = $derived(result ? buildFixes(result.checks) : []);
 	let analyzing = $state(false);
 	let fileInput: HTMLInputElement | undefined = $state();
 
@@ -82,8 +84,7 @@
 	async function analyze() {
 		error = '';
 		parsed = null;
-		result = null;
-		fixes = [];
+		analysis = null;
 		tunnelLoadError = '';
 
 		const t = raw.trim();
@@ -97,10 +98,8 @@
 			// Локальный разбор нужен только пути записи в туннель (parsedToTunnelUpdate).
 			const p = parseAWG(t);
 			const data = await api.analyzeAwgConf(t, selectedTunnelId || undefined);
-			const r = scoreConfig(data);
 			parsed = p;
-			result = r;
-			fixes = buildFixes(r.checks);
+			analysis = data;
 			lastAnalyzedRaw = t;
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
@@ -117,8 +116,7 @@
 		}
 		error = '';
 		parsed = null;
-		result = null;
-		fixes = [];
+		analysis = null;
 		selectedTunnelId = isEmbeddedLocked() ? initialTunnelId : '';
 		selectedPeerValue = '';
 		peerLoadError = '';

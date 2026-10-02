@@ -14,7 +14,7 @@
   import { singboxTrafficLive } from '$lib/stores/singboxEngineStats';
   import { formatBytes, formatByteRate } from '$lib/utils/format';
   import { systemInfo } from '$lib/stores/system';
-  import { OPKGTUN_UNSUPPORTED_REASON, opkgTunSupported } from '$lib/utils/opkgTunSupport';
+  import { opkgTunUnsupportedReason, opkgTunSupported } from '$lib/utils/opkgTunSupport';
   import { notifications } from '$lib/stores/notifications';
   import { drawerOpen, closeDrawer } from './drawerStore';
   import { openSourceDrawer } from './sourceDrawerStore';
@@ -299,13 +299,13 @@
           tone="accent"
           selected={targetMode === 'policy-tun'}
           disabled={!tunSupported}
-          title={tunSupported ? undefined : OPKGTUN_UNSUPPORTED_REASON}
+          title={tunSupported ? undefined : opkgTunUnsupportedReason()}
           onclick={() => selectMode('policy-tun')}
         />
       </div>
       <p class="hint">{m.sb_router_status_fakeip_hint()}</p>
       {#if !tunSupported}
-        <p class="hint">{OPKGTUN_UNSUPPORTED_REASON}</p>
+        <p class="hint">{opkgTunUnsupportedReason()}</p>
       {/if}
 
       {#if showCrashInfo}

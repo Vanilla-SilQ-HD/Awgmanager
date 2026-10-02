@@ -22,7 +22,7 @@
 
 	let tone = $derived(toneVar[result.verdict.tone]);
 	let categories = $derived([...new Set(result.checks.map((c) => c.cat))]);
-	let compatFirst = $derived(result.checks.some((c) => c.cat === 'Совместимость' && c.status === 'fail'));
+	let compatFirst = $derived(result.checks.some((c) => c.catId === 'compat' && c.status === 'fail'));
 
 	function deltaLabel(c: ScoreCheck): string {
 		if (c.delta > 0) return `+${c.delta}`;
@@ -84,7 +84,7 @@
 	<section class="card compat-block" role="alert">
 		<h3 class="block-h">{m.diag_awg_result_wont_start()}</h3>
 		<ul class="fix-list">
-			{#each result.checks.filter((c) => c.cat === 'Совместимость' && c.status === 'fail') as c (c.title + c.detail)}
+			{#each result.checks.filter((c) => c.catId === 'compat' && c.status === 'fail') as c (c.title + c.detail)}
 				<li class="fix-item">
 					<span class="fix-bullet" aria-hidden="true">✗</span>
 					<span class="fix-text">{c.detail}</span>
