@@ -54,8 +54,6 @@
 		[
 			label,
 			lastError ? m.save_led_last_error({ error: lastError }) : '',
-			// formatRelativeTime пока отдаёт русский текст («5 мин назад») — общая
-			// утилита, переводится отдельно.
 			lastSaveAt ? m.save_led_last_save({ time: formatRelativeTime(lastSaveAt) }) : '',
 		]
 			.filter(Boolean)

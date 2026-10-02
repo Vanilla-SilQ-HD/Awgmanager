@@ -225,7 +225,8 @@ export function browserSnapshotRows(s: BrowserSnapshot): AboutInfoRow[] {
 		{ id: 'secureContext', label: 'Secure context', value: s.secureContext },
 		{ id: 'touchPoints', label: 'Touch points', value: s.maxTouchPoints },
 		{ id: 'page', label: m.about_device_label_page(), value: s.pageUrl, title: s.pageUrl },
-	];}
+	];
+}
 
 export function routerStaticRows(info: SystemInfo, level: UsageLevel): AboutInfoRow[] {
 	const d = info.routerDetails;
