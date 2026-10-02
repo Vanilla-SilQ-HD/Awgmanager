@@ -5,7 +5,7 @@
 	"common_in_progress": "Выполнение…",
 	"confirm_modal_file_on_disk": "Файл на диске",
 	"settings_language_label": "Язык интерфейса",
-	"settings_language_description": "Применяется сразу и сохраняется локально в этом браузере. Английский перевод пока частичный.",
+	"settings_language_description": "Применяется сразу и сохраняется локально в этом браузере.",
 	"login_subtitle_router": "Введите данные для входа в админ-панель роутера",
 	"login_subtitle_entware": "Введите данные учётной записи Entware",
 	"login_method_aria": "Способ входа",
@@ -7586,5 +7586,8 @@
 	"common_copied": "Скопировано",
 	"common_select": "Выбрать",
 	"common_refresh": "Обновить",
-	"subscriptions_wizard_config_whole_only": "JSON/YAML-конфиг импортируется только целиком: очистите поле перед загрузкой файла или создайте отдельную подписку"
+	"subscriptions_wizard_config_whole_only": "JSON/YAML-конфиг импортируется только целиком: очистите поле перед загрузкой файла или создайте отдельную подписку",
+	"settings_date_format_label": "Формат даты и времени",
+	"settings_date_format_description": "«Авто» — по языку интерфейса, для английского — по языку браузера. Сохраняется локально в этом браузере.",
+	"settings_date_format_auto": "Авто ({example})"
 }

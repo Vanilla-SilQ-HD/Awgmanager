@@ -88,3 +88,36 @@ describe('locale', () => {
 		}
 	});
 });
+
+describe('формат даты и времени', () => {
+	beforeEach(() => {
+		localStorage.clear();
+	});
+
+	it('«авто»: ru-RU в русском интерфейсе, по браузеру — в английском', async () => {
+		setBrowserLanguages(['en-US', 'en']);
+		const { locale, formatLocale } = await loadI18n();
+		expect(formatLocale()).toBe('ru-RU');
+		locale.set('en');
+		expect(formatLocale()).toBe('en-US');
+		setBrowserLanguages(['ru-RU', 'en-GB']);
+		expect(formatLocale()).toBe('en-GB');
+		setBrowserLanguages(['de-DE']);
+		expect(formatLocale()).toBe('en-GB');
+	});
+
+	it('явный выбор важнее авто и запоминается', async () => {
+		const { dateFormat, formatLocale } = await loadI18n();
+		dateFormat.set('en-US');
+		expect(formatLocale()).toBe('en-US');
+		expect(localStorage.getItem('awg-manager-date-format')).toBe('en-US');
+		const again = await loadI18n();
+		expect(again.dateFormat.current).toBe('en-US');
+	});
+
+	it('мусор в хранилище — «авто»', async () => {
+		localStorage.setItem('awg-manager-date-format', 'xx-YY');
+		const { dateFormat } = await loadI18n();
+		expect(dateFormat.current).toBe('auto');
+	});
+});

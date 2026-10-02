@@ -2,6 +2,7 @@
 	import { Button, SegmentedControl, Toggle } from '$lib/components/ui';
 	import SettingsSectionLabel from './SettingsSectionLabel.svelte';
 	import LanguageSettingRow from './LanguageSettingRow.svelte';
+	import DateFormatSettingRow from './DateFormatSettingRow.svelte';
 	import { compactLayout } from '$lib/stores/compactLayout';
 	import {
 		settingsSectionIconMode,
@@ -207,6 +208,7 @@
 	{/if}
 
 	<LanguageSettingRow />
+	<DateFormatSettingRow />
 
 	<div class="setting-row icon-mode-row">
 		<div class="flex flex-col gap-1">

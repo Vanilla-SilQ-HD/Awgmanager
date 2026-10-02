@@ -43,14 +43,62 @@ let current = $state<Locale>(detectLocale());
 // на смену языка и перерисовывается без перезагрузки страницы.
 overwriteGetLocale(() => current);
 
+/** Формат дат и чисел: «авто» или явная локаль Intl. */
+export type DateFormat = 'auto' | 'ru-RU' | 'en-GB' | 'en-US';
+export const DATE_FORMATS: readonly DateFormat[] = ['auto', 'ru-RU', 'en-GB', 'en-US'];
+const DATE_FORMAT_KEY = 'awg-manager-date-format';
+
+function readDateFormat(): DateFormat {
+	if (typeof window === 'undefined') return 'auto';
+	try {
+		const raw = localStorage.getItem(DATE_FORMAT_KEY);
+		return DATE_FORMATS.find((f) => f === raw) ?? 'auto';
+	} catch {
+		return 'auto';
+	}
+}
+
+let dateFormatPref = $state<DateFormat>(readDateFormat());
+
 /**
- * Локаль Intl для форматов дат и чисел на языке интерфейса. Для английского —
- * en-GB: 24-часовое время и день перед месяцем, как и в русском интерфейсе.
- * Вызов внутри шаблона или $derived подписывается на смену языка.
+ * «Авто»: русский интерфейс — ru-RU; английский — en-US, если первый
+ * английский язык браузера американский, иначе en-GB (24 часа, день перед
+ * месяцем, как в русском).
+ */
+export function autoFormatLocale(): string {
+	if (current !== 'en') return 'ru-RU';
+	try {
+		const langs = navigator.languages?.length ? navigator.languages : [navigator.language];
+		const english = langs.find((l) => l.toLowerCase().startsWith('en'));
+		return english?.toLowerCase() === 'en-us' ? 'en-US' : 'en-GB';
+	} catch {
+		return 'en-GB';
+	}
+}
+
+/**
+ * Локаль Intl для форматов дат и чисел: выбор пользователя или «авто».
+ * Вызов внутри шаблона или $derived подписывается на смену языка и формата.
  */
 export function formatLocale(): string {
-	return current === 'en' ? 'en-GB' : 'ru-RU';
+	return dateFormatPref === 'auto' ? autoFormatLocale() : dateFormatPref;
 }
+
+export const dateFormat = {
+	get current(): DateFormat {
+		return dateFormatPref;
+	},
+	/** Ручной выбор формата: применяется сразу и запоминается в этом браузере. */
+	set(next: DateFormat): void {
+		if (!DATE_FORMATS.includes(next)) return;
+		try {
+			localStorage.setItem(DATE_FORMAT_KEY, next);
+		} catch {
+			/* quota / private mode: формат сменится до перезагрузки */
+		}
+		dateFormatPref = next;
+	},
+};
 
 export const locale = {
 	get current(): Locale {
