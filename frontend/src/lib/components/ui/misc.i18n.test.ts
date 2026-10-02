@@ -71,7 +71,7 @@ describe('ui / connections i18n', () => {
 		locale.set('en');
 		flushSync();
 
-		expect(screen.getByText('Group:')).toBeTruthy();
+		expect(screen.getByText('Group by:')).toBeTruthy();
 		expect(screen.getByRole('button', { name: 'By client' })).toBeTruthy();
 		expect(screen.getByText(/Visible:/)).toBeTruthy();
 	});

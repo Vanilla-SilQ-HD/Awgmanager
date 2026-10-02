@@ -143,7 +143,7 @@ const emptyStateText = $derived(
 		{#if filteredConns.length !== snapshot.connectionsTotal}
 			<span class="muted">{m.routing_singbox_conn_total_of()} <span class="num">{snapshot.connectionsTotal}</span></span>
 		{/if}
-		{m.routing_singbox_conn_total_suffix()}
+		{m.routing_singbox_conn_total_suffix({ count: snapshot.connectionsTotal })}
 	</span>
 
 	<span class="totals-bytes">

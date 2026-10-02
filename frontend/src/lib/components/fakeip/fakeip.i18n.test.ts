@@ -75,7 +75,7 @@ describe('fakeip i18n', () => {
 
 		expect(screen.getByLabelText(/lan-1/)).toBeTruthy();
 		expect(screen.getByText('on')).toBeTruthy();
-		expect(screen.getByText('authorization')).toBeTruthy();
+		expect(screen.getByText('authentication')).toBeTruthy();
 	});
 
 	it('функции без компонента следуют за локалью при вызове', () => {

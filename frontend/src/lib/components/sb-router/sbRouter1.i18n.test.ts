@@ -34,7 +34,7 @@ describe('sb-router i18n (статус и настройки движка)', () 
 		locale.set('en');
 		flushSync();
 
-		expect(screen.getByText('Output DNS')).toBeTruthy();
+		expect(screen.getByText('Upstream DNS')).toBeTruthy();
 		expect(screen.getByRole('radio', { name: /Yandex/ })).toBeTruthy();
 		expect(screen.getByText('Custom address')).toBeTruthy();
 		expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy();

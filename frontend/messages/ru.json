@@ -2940,7 +2940,23 @@
 	"routing_singbox_conn_closed_of": "Закрыто {ok} из {total}",
 	"routing_singbox_conn_total": "Всего:",
 	"routing_singbox_conn_total_of": "из",
-	"routing_singbox_conn_total_suffix": "соединений",
+	"routing_singbox_conn_total_suffix": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "соединение",
+				"countPlural=few": "соединения",
+				"countPlural=many": "соединений",
+				"countPlural=*": "соединения"
+			}
+		}
+	],
 	"routing_singbox_conn_now": "сейчас",
 	"routing_singbox_conn_col_proto": "Прот",
 	"routing_singbox_conn_col_source": "Источник",
