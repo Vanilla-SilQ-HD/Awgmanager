@@ -11,12 +11,14 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 export const paraglideOptions = {
 	project: `${root}project.inlang`,
 	outdir: `${root}src/lib/paraglide`,
-	// Ручной выбор пользователя → русский. Язык браузера пока не учитываем:
-	// перевод частичный, и авто-английский дал бы смесь языков. Без префиксов в
-	// URL и без cookie.
+	// Ручной выбор пользователя → русский. Язык браузера не учитываем: по
+	// умолчанию интерфейс русский, как и раньше. Без префиксов в URL и без cookie.
 	strategy: ['localStorage', 'baseLocale'],
 	localStorageKey: 'awg-manager-locale',
 	emitReadme: false,
+	// По модулю на язык, а не на сообщение: с тысячами сообщений модуль на
+	// каждое не укладывает прод-сборку в стандартный предел памяти Node.
+	outputStructure: 'locale-modules',
 };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
