@@ -43,6 +43,20 @@ export class ApiGatewayError extends Error {
 	}
 }
 
+/**
+ * Сервер недоступен: fetch не дошёл до ответа. Отдельный класс с кодом, чтобы
+ * классификаторы (utils/downloadError) узнавали сетевой сбой по коду, а не по
+ * тексту — текст переводится и зависит от языка интерфейса.
+ */
+export class ApiNetworkError extends Error {
+	readonly code = 'NETWORK_ERROR';
+
+	constructor() {
+		super(m.api_network_error());
+		this.name = 'ApiNetworkError';
+	}
+}
+
 /** Текст gateway-ошибки по статусу; undefined — статус не gateway-ский. */
 function gatewayMessage(status: number): string | undefined {
 	switch (status) {
@@ -99,7 +113,7 @@ export class CoreClient {
 				throw e;
 			}
 			this.onConnectionLost?.();
-			throw new Error(m.api_network_error());
+			throw new ApiNetworkError();
 		}
 
 		// Handle 401 Unauthorized

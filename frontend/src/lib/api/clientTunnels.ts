@@ -23,7 +23,7 @@ import type {
 	TunnelReferencedError
 } from '$lib/types';
 import type { TrafficPeriod } from './clientCore';
-import { CoreClient } from './clientCore';
+import { ApiNetworkError, CoreClient } from './clientCore';
 import type { ApiResponse } from './clientCore';
 import { validateApiResponse } from './validate';
 
@@ -102,7 +102,7 @@ export class TunnelsClient extends CoreClient {
 		} catch (e) {
 			if (e instanceof DOMException && e.name === 'AbortError') throw e;
 			this.onConnectionLost?.();
-			throw new Error(m.api_network_error());
+			throw new ApiNetworkError();
 		}
 		if (res.status === 409) {
 			// Тело "null" — валидный JSON, catch не сработает, поэтому ?.

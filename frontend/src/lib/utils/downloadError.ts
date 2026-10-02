@@ -101,7 +101,7 @@ function classify(raw: string, code: string): DownloadErrorKind {
 		text.includes('connection refused') ||
 		text.includes('broken pipe') ||
 		text.includes('malformed http response') ||
-		text.includes('ошибка сети')
+		code === 'NETWORK_ERROR' // ApiNetworkError клиента: по коду, текст переведён
 	) {
 		return 'network';
 	}
