@@ -10,7 +10,7 @@
 	let modalOpen = $state(false);
 	const showFab = $derived($developFeedbackFabVisible && !isMockDevMode());
 
-	const suggestionIssueUrl = buildSuggestionIssueUrl();
+	const suggestionIssueUrl = $derived(buildSuggestionIssueUrl());
 
 	function openModal() {
 		modalOpen = true;

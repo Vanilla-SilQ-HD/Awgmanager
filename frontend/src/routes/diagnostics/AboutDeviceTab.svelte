@@ -147,7 +147,7 @@
 	async function loadRemoteContext() {
 		const level = get(usageLevel);
 
-		// Клиент в сети — приоритет, без ожидания HydraRoute и тяжёлых счётчиков.
+		// Client on the router network — priority, without waiting for HydraRoute and heavy counters.
 		const [dns, policies, devices] = await Promise.all([
 			fetchClientContext(),
 			fetchAccessPolicies(),
@@ -158,7 +158,7 @@
 
 		routerClient = buildRouterClientContext(dns, devices, buildPolicyNameLookup(policies));
 
-		// AWGM: счётчики и интеграции подтягиваем по мере готовности.
+		// AWGM: counters and integrations are pulled in as they become ready.
 		void api
 			.getTunnelsAll()
 			.then((snap) => {
@@ -268,9 +268,9 @@
 
 	function buildAboutReportText(): string {
 		const sections = [
-			{ title: 'Роутер', rows: routerRows },
-			{ title: 'Браузер', rows: browserRows },
-			{ title: 'Клиент в сети роутера', rows: clientRows },
+			{ title: m.diag_about_section_router(), rows: routerRows },
+			{ title: m.diag_about_section_browser(), rows: browserRows },
+			{ title: m.diag_about_section_client(), rows: clientRows },
 			{ title: 'AWGM', rows: servicesRows },
 		];
 		return formatAboutReport(sections);
@@ -297,17 +297,15 @@
 
 <div class="about-grid">
 	{#if sysInfo}
-		<AboutInfoSection title={m.diag_about_section_router()} reportTitle="Роутер" rows={routerRows} loading={refreshing && !sysInfo} />
+		<AboutInfoSection title={m.diag_about_section_router()} rows={routerRows} loading={refreshing && !sysInfo} />
 	{/if}
 	<AboutInfoSection
 		title={m.diag_about_section_client()}
-		reportTitle="Клиент в сети роутера"
 		rows={clientRows}
 		loading={refreshing && routerClient === null}
 	/>
 	<AboutInfoSection
 		title={m.diag_about_section_browser()}
-		reportTitle="Браузер"
 		rows={browserRows}
 		loading={refreshing && !browserSnap}
 	/>

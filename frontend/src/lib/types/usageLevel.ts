@@ -19,16 +19,6 @@ export function usageLevelLabel(level: UsageLevel): string {
 	return USAGE_LEVEL_MESSAGES[level]();
 }
 
-/**
- * Названия уровней всегда по-русски — для отчёта «Об устройстве»
- * (utils/about-device.ts), который целиком на русском. В UI — usageLevelLabel().
- */
-export const USAGE_LEVEL_LABELS: Record<UsageLevel, string> = {
-	basic: m.usage_level_basic({}, { locale: 'ru' }),
-	advanced: m.usage_level_advanced({}, { locale: 'ru' }),
-	expert: m.usage_level_expert({}, { locale: 'ru' }),
-};
-
 export type Section =
 	| 'tunnels'
 	| 'systemTunnels'

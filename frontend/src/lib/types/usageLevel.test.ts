@@ -5,7 +5,6 @@ import {
 	pathToSection,
 	sectionLabel,
 	usageLevelLabel,
-	USAGE_LEVEL_LABELS,
 } from './usageLevel';
 import { locale } from '$lib/i18n';
 
@@ -48,14 +47,5 @@ describe('подписи уровней и разделов (i18n)', () => {
 		expect(usageLevelLabel('advanced')).toBe('Advanced');
 		expect(sectionLabel('diagnostics')).toBe('Tools');
 		expect(sectionLabel('singboxTunnels')).toBe('Sing-box');
-	});
-
-	it('USAGE_LEVEL_LABELS остаются русскими — для отчёта «Об устройстве»', () => {
-		locale.set('en');
-		expect(USAGE_LEVEL_LABELS).toEqual({
-			basic: 'Базовый',
-			advanced: 'Расширенный',
-			expert: 'Продвинутый',
-		});
 	});
 });

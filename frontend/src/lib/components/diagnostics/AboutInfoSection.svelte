@@ -7,17 +7,15 @@
 
 	interface Props {
 		title: string;
-		/** Заголовок блока в скопированном отчёте (отчёт всегда на русском). */
-		reportTitle?: string;
 		rows: AboutInfoRow[];
 		loading?: boolean;
 	}
 
-	let { title, reportTitle, rows, loading = false }: Props = $props();
+	let { title, rows, loading = false }: Props = $props();
 
 	async function copyBlock() {
 		if (rows.length === 0) return;
-		const ok = await copyToClipboard(formatAboutSection(reportTitle ?? title, rows));
+		const ok = await copyToClipboard(formatAboutSection(title, rows));
 		if (ok) {
 			notifications.success(m.diag_about_block_copied({ title }));
 		} else {
@@ -47,10 +45,10 @@
 	</div>
 
 	<div class="about-rows">
-		{#each rows as row (row.label)}
+		{#each rows as row (row.id)}
 			<div class="setting-row about-row">
 				<span class="about-key">{row.label}</span>
-				<span class="about-val" class:about-val-mono={row.label !== 'User-Agent'} title={row.title}>{row.value}</span>
+				<span class="about-val" class:about-val-mono={row.id !== 'userAgent'} title={row.title}>{row.value}</span>
 			</div>
 		{/each}
 	</div>

@@ -215,23 +215,23 @@
 			? `${window.location.pathname}${window.location.search}${window.location.hash}`
 			: '/diagnostics';
 		return [
-			'## Что произошло',
+			m.diag_issue_heading_what(),
 			'',
-			'<!-- Опишите проблему своими словами -->',
+			m.diag_issue_comment_what(),
 			'',
-			'## Что ожидалось',
+			m.diag_issue_heading_expected(),
 			'',
-			'<!-- Что должно было произойти -->',
+			m.diag_issue_comment_expected(),
 			'',
-			'## Контекст',
+			m.diag_issue_heading_context(),
 			'',
-			`- Страница: \`${pagePath}\``,
-			`- Создано: \`${new Date().toISOString()}\``,
-			`- Отчёт диагностики: прикрепите скачанный файл \`${DIAGNOSTICS_REPORT_FILENAME}\``,
+			m.diag_issue_context_page({ path: pagePath }),
+			m.diag_issue_context_created({ timestamp: new Date().toISOString() }),
+			m.diag_issue_context_report({ filename: DIAGNOSTICS_REPORT_FILENAME }),
 			'',
-			'## Важно',
+			m.diag_issue_heading_important(),
 			'',
-			'Это публичный issue. Не прикладывайте приватные ключи, пароли, токены, реальные адреса и домены, если не хотите их раскрывать.',
+			m.diag_issue_important(),
 		].join('\n');
 	}
 
