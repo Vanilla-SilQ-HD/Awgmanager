@@ -10,6 +10,7 @@
 	import { resolveSubscriptionMemberTag } from '$lib/utils/subscriptionMember';
 	import type { TunnelPageModalsContext } from './tunnelPageModalsContext';
 	import { m } from '$lib/i18n';
+	import RichText from '$lib/components/ui/RichText.svelte';
 
 	let { ctx }: { ctx: TunnelPageModalsContext } = $props();
 </script>
@@ -112,8 +113,7 @@
 	}}
 >
 	<p>
-		{m.tunnels_modals_delete_sub_lead()} <strong>{ctx.pendingSubscriptionLabel}</strong>
-		{m.tunnels_modals_delete_sub_tail()}
+		<RichText text={m.tunnels_modals_delete_sub_message({ label: ctx.pendingSubscriptionLabel })} />
 	</p>
 	{#snippet actions()}
 		<Button

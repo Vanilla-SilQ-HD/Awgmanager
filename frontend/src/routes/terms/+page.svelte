@@ -1,30 +1,9 @@
 <script lang="ts">
 	import { m } from '$lib/i18n';
+	import RichText from '$lib/components/ui/RichText.svelte';
 
-	interface Seg {
-		tag: 'text' | 'strong' | 'code' | 'muted' | 'a';
-		text: string;
-	}
-
-	// Сообщения несут простую разметку (<strong>, <code>, <a>, <span class="muted">);
-	// она выводится элементами, а не сырым HTML.
-	const MARKUP = /<(strong|code|a|span class="muted")>(.*?)<\/(?:strong|code|a|span)>/gs;
-
-	function segments(text: string): Seg[] {
-		const out: Seg[] = [];
-		let last = 0;
-		for (const hit of text.matchAll(MARKUP)) {
-			const at = hit.index ?? 0;
-			if (at > last) out.push({ tag: 'text', text: text.slice(last, at) });
-			out.push({ tag: hit[1] === 'span class="muted"' ? 'muted' : (hit[1] as Seg['tag']), text: hit[2] });
-			last = at + hit[0].length;
-		}
-		if (last < text.length) out.push({ tag: 'text', text: text.slice(last) });
-		return out;
-	}
 </script>
 
-{#snippet rich(text: string)}{#each segments(text) as seg, i (i)}{#if seg.tag === 'strong'}<strong>{seg.text}</strong>{:else if seg.tag === 'code'}<code>{seg.text}</code>{:else if seg.tag === 'muted'}<span class="muted">{seg.text}</span>{:else if seg.tag === 'a'}<a href="https://aviasales.ru" target="_blank" rel="noopener noreferrer">{seg.text}</a>{:else}{seg.text}{/if}{/each}{/snippet}
 
 <svelte:head>
 	<title>{m.terms_page_title()}</title>
@@ -33,17 +12,17 @@
 <div class="terms-page">
 	<div class="terms-card">
 		<h1>{m.terms_title()}</h1>
-		<p class="intro">{@render rich(m.terms_intro())}</p>
+		<p class="intro"><RichText text={m.terms_intro()} /></p>
 
 		<section>
 			<h2>{m.terms_s1_title()}</h2>
-			<p>{@render rich(m.terms_s1_p1())}</p>
-			<p>{@render rich(m.terms_s1_p2())}</p>
+			<p><RichText text={m.terms_s1_p1()} /></p>
+			<p><RichText text={m.terms_s1_p2()} /></p>
 		</section>
 
 		<section>
 			<h2>{m.terms_s2_title()}</h2>
-			<p>{@render rich(m.terms_s2_p1())}</p>
+			<p><RichText text={m.terms_s2_p1()} /></p>
 			<ul>
 				<li>{m.terms_s2_li1()}</li>
 				<li>{m.terms_s2_li2()}</li>
@@ -66,25 +45,25 @@
 		<section>
 			<h2>{m.terms_s4_title()}</h2>
 			<p>{m.terms_s4_p1()}</p>
-			<p>{@render rich(m.terms_s4_p2())}</p>
+			<p><RichText text={m.terms_s4_p2()} /></p>
 			<p>{m.terms_s4_p3()}</p>
 		</section>
 
 		<section>
 			<h2>{m.terms_s5_title()}</h2>
-			<p>{@render rich(m.terms_s5_p1())}</p>
+			<p><RichText text={m.terms_s5_p1()} /></p>
 			<p>{m.terms_s5_p2()}</p>
-			<p>{@render rich(m.terms_s5_p3())}</p>
-			<p>{@render rich(m.terms_s5_p4())}</p>
+			<p><RichText text={m.terms_s5_p3()} /></p>
+			<p><RichText text={m.terms_s5_p4()} /></p>
 		</section>
 
 		<section>
 			<h2>{m.terms_s6_title()}</h2>
-			<p>{@render rich(m.terms_s6_p1())}</p>
-			<p>{@render rich(m.terms_s6_p2())}</p>
-			<p>{@render rich(m.terms_s6_p3())}</p>
+			<p><RichText text={m.terms_s6_p1()} /></p>
+			<p><RichText text={m.terms_s6_p2()} /></p>
+			<p><RichText text={m.terms_s6_p3()} /></p>
 			<p>{m.terms_s6_p4()}</p>
-			<p>{@render rich(m.terms_s6_p5())}</p>
+			<p><RichText text={m.terms_s6_p5()} /></p>
 		</section>
 
 		<section>
@@ -92,7 +71,7 @@
 			<p class="no-support">{m.terms_s7_no_support()}</p>
 			<p>{m.terms_s7_p1()}</p>
 			<pre><code>opkg remove awg-manager</code></pre>
-			<p>{@render rich(m.terms_s7_p2())}</p>
+			<p><RichText text={m.terms_s7_p2()} /></p>
 			<ol>
 				<li>{m.terms_s7_li1()}</li>
 				<li>{m.terms_s7_li2()}</li>
@@ -106,7 +85,7 @@
 			<div class="faq">
 				<div class="faq-item">
 					<p class="faq-q">{m.terms_faq_q1()}</p>
-					<p class="faq-a">{@render rich(m.terms_faq_a1({ link: '<a>aviasales.ru</a>' }))}</p>
+					<p class="faq-a"><RichText text={m.terms_faq_a1({ link: '<a>aviasales.ru</a>' })} href="https://aviasales.ru" /></p>
 				</div>
 				<div class="faq-item">
 					<p class="faq-q">{m.terms_faq_q2()}</p>
@@ -116,7 +95,7 @@
 		</section>
 
 		<div class="acceptance-banner" role="note">
-			<p>{@render rich(m.terms_acceptance())}</p>
+			<p><RichText text={m.terms_acceptance()} /></p>
 		</div>
 
 		<footer class="terms-footer">
@@ -211,7 +190,8 @@
 		overflow-x: auto;
 	}
 
-	code {
+	code,
+	.terms-card :global(code) {
 		font-family: var(--font-mono, ui-monospace, monospace);
 		font-size: 0.85rem;
 		color: var(--color-text);
@@ -222,7 +202,7 @@
 		color: var(--color-text) !important;
 	}
 
-	.muted {
+	.terms-card :global(.muted) {
 		color: var(--color-text-muted);
 		font-size: 0.85em;
 	}
@@ -250,12 +230,12 @@
 		margin: 0 !important;
 	}
 
-	.faq-a a {
+	.faq-a :global(a) {
 		color: var(--color-accent);
 		text-decoration: none;
 	}
 
-	.faq-a a:hover {
+	.faq-a :global(a:hover) {
 		text-decoration: underline;
 	}
 
@@ -275,7 +255,7 @@
 		line-height: 1.65;
 	}
 
-	.acceptance-banner code {
+	.acceptance-banner :global(code) {
 		font-size: 0.85em;
 	}
 

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { m } from '$lib/i18n';
+	import RichText from '$lib/components/ui/RichText.svelte';
 	import type { Subscription, SubscriptionGroup } from '$lib/types';
 	import { api } from '$lib/api/client';
 	import { notifications } from '$lib/stores/notifications';
@@ -169,7 +170,7 @@
 >
 	{#if pendingDelete}
 		<p>
-			{m.subscriptions_groups_delete_before()} <strong>{pendingDelete.label}</strong> {m.subscriptions_groups_delete_after()}
+			<RichText text={m.subscriptions_groups_delete_message({ label: pendingDelete.label })} />
 		</p>
 	{/if}
 	{#snippet actions()}

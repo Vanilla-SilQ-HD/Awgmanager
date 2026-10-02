@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { m } from '$lib/i18n';
+	import RichText from '$lib/components/ui/RichText.svelte';
 	import { Modal, Button, ConfirmModal } from '$lib/components/ui';
 	import { isMockDevMode } from '$lib/env';
 	import { openDonateModal } from '$lib/stores/donateModal';
@@ -370,7 +371,7 @@
 			</p>
 		{:else if phase === 'disclaimer'}
 			<p class="gate-lead">
-				{@html m.settings_develop_gate_disclaimer_lead({ branch: '<b>develop</b>' })}
+				<RichText text={m.settings_develop_gate_disclaimer_lead()} />
 			</p>
 			<ul class="disclaimer-list">
 				{#each disclaimerItems as item}

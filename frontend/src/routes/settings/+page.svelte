@@ -59,6 +59,7 @@
 	} from "$lib/types/usageLevel";
 	import { usageLevel } from "$lib/stores/settings";
 	import { m } from "$lib/i18n";
+	import RichText from "$lib/components/ui/RichText.svelte";
 	import { waitForBackendRestart } from "$lib/restartRecovery";
 	import { hasDevelopChannelQuizPassed } from "$lib/utils/developChannelGate";
 	import { developFeedbackFabVisible } from "$lib/stores/developFeedbackFab";
@@ -93,15 +94,6 @@
 	let loading = $state(true);
 	let saving = $state(false);
 	const origin = $derived(typeof window !== "undefined" ? window.location.origin : "");
-	const escapeHtml = (s: string) =>
-		s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-	// Static markup with an escaped origin; the translated sentence keeps the <code> styling.
-	const apiKeyDescriptionHtml = $derived(
-		m.settings_page_apikey_description({
-			endpoint: `<code>${escapeHtml(origin)}/api/</code>`,
-			header: `<code>Authorization: Bearer &lt;${escapeHtml(m.settings_page_apikey_token())}&gt;</code>`,
-		}),
-	);
 	const showSingboxIntegration = $derived(isSectionVisible($usageLevel, "singboxTunnels"));
 	const showHydraIntegration = $derived(isRoutingSubTabVisible($usageLevel, "hrNeo"));
 	const showDnsRouteCard = $derived(isRoutingSubTabVisible($usageLevel, "dnsRoutes"));
@@ -1130,7 +1122,12 @@ $effect(() => {
 						<div class="flex flex-col gap-1">
 							<span class="font-medium">API Key</span>
 							<span class="setting-description">
-								{@html apiKeyDescriptionHtml}
+								<RichText
+									text={m.settings_page_apikey_description({
+										endpoint: `${origin}/api/`,
+										token: m.settings_page_apikey_token(),
+									})}
+								/>
 							</span>
 						</div>
 						<div class="api-key-controls">

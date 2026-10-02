@@ -1,5 +1,6 @@
 <script lang="ts">
     import { m } from '$lib/i18n';
+    import RichText from '$lib/components/ui/RichText.svelte';
     import { untrack } from 'svelte';
     import { Eye, EyeOff } from 'lucide-svelte';
     import { goto } from '$app/navigation';
@@ -727,9 +728,13 @@
         confirmDeleteOpen = false;
     }}
 >
-    <p>
-        {m.tunnels_modals_delete_sub_lead()} <strong>{subscription.label || subscription.url || subscription.path}</strong> {m.subscriptions_delete_confirm_after()}
-        <code class="mono">Proxy{subscription.proxyIndex}</code>.
+    <p class="delete-confirm-text">
+        <RichText
+            text={m.subscriptions_delete_confirm_message({
+                label: subscription.label || subscription.url || subscription.path,
+                index: subscription.proxyIndex,
+            })}
+        />
     </p>
     {#snippet actions()}
         <Button variant="ghost" disabled={deleting} onclick={() => (confirmDeleteOpen = false)}>
@@ -1223,7 +1228,8 @@
         font-size: var(--sbx-card-meta);
         color: #f85149;
     }
-    .mono {
+    .mono,
+    .delete-confirm-text :global(.mono) {
         font-family: var(--font-mono, ui-monospace, monospace);
     }
 

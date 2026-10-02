@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { m } from '$lib/i18n';
+	import RichText from '$lib/components/ui/RichText.svelte';
 	import {
 		DEFAULT_SUBSCRIPTION_URLTEST,
 		type Subscription,
@@ -421,8 +422,12 @@
 	}}
 >
 	<p>
-		{m.tunnels_modals_delete_sub_lead()} <strong>{subscription.label || subscription.url}</strong> {m.subscriptions_delete_confirm_after()}
-		<code class="mono">Proxy{subscription.proxyIndex}</code>.
+		<RichText
+			text={m.subscriptions_delete_confirm_message({
+				label: subscription.label || subscription.url,
+				index: subscription.proxyIndex,
+			})}
+		/>
 	</p>
 	{#snippet actions()}
 		<Button variant="ghost" disabled={deleting} onclick={() => (confirmDelete = false)}>
