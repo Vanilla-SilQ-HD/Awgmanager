@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { m } from '$lib/i18n';
+	import { m, formatLocale } from '$lib/i18n';
 	import type { SystemFileEntry, FileSystemScriptStatus } from '$lib/api/client';
 	import { Folder, FileText } from 'lucide-svelte';
 	import { getFileTypeInfo } from './fileIcons';
@@ -51,7 +51,7 @@
 	function formatTime(iso: string): string {
 		if (!iso) return '—';
 		const d = new Date(iso);
-		return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+		return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(formatLocale()) + ' ' + d.toLocaleTimeString(formatLocale(), { hour: '2-digit', minute: '2-digit' });
 	}
 </script>
 

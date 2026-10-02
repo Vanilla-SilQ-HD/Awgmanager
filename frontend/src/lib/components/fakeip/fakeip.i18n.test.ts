@@ -90,6 +90,6 @@ describe('fakeip i18n', () => {
 		expect(humanLabel('off')).toBe('Off');
 		expect(formatDelay(0)).toBe('timeout');
 		expect(stepDefsFor('off', 'tproxy')[0].title).toBe('Previous mode removed');
-		expect(switchConsequences('off', 'off')).toEqual(['Routing is turned off.']);
+		expect(switchConsequences('off', 'off')).toEqual(['Routing is disabled.']);
 	});
 });

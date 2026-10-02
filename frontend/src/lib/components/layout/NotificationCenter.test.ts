@@ -29,7 +29,7 @@ describe('NotificationCenter i18n', () => {
 		expect(screen.getByRole('button', { name: 'Notifications, unread: 1' })).toBeTruthy();
 		expect(screen.getByText('Today')).toBeTruthy();
 		expect(screen.getByText('Mark all as read')).toBeTruthy();
-		expect(screen.getByRole('button', { name: 'Remove notification' })).toBeTruthy();
+		expect(screen.getByRole('button', { name: 'Delete notification' })).toBeTruthy();
 		expect(screen.getByText('Kept for 7 days · up to 100')).toBeTruthy();
 		expect(screen.getByText('Open log →')).toBeTruthy();
 		// Текст самого уведомления приходит готовым и не переводится.

@@ -17,7 +17,7 @@
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { m } from '$lib/i18n';
+	import { m, formatLocale } from '$lib/i18n';
 	import { api } from '$lib/api/client';
 	import { notifications } from '$lib/stores/notifications';
 	import { Button, ConfirmModal, ChipMultiSelect, type ChipOption } from '$lib/components/ui';
@@ -197,7 +197,7 @@
 	{#if listen}
 		{#if listen.pendingConfirm}
 			<div class="pending">
-				{m.settings_http_pending_confirm({ time: new Date(listen.confirmDeadline ?? '').toLocaleTimeString() })}
+				{m.settings_http_pending_confirm({ time: new Date(listen.confirmDeadline ?? '').toLocaleTimeString(formatLocale()) })}
 			</div>
 		{/if}
 

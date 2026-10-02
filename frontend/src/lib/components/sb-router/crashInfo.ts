@@ -4,15 +4,16 @@
  * тестируются vitest'ом без DOM.
  */
 
+import { formatLocale } from '$lib/i18n';
+
 /**
- * «HH:MM» (локальное время) из RFC3339-строки restartSuppressedUntil.
+ * Время (часы и минуты, локальное) из RFC3339-строки restartSuppressedUntil
+ * в формате из настройки formatLocale().
  * null для пустой/битой даты — вызывающий скрывает блок подавления.
  */
 export function formatSuppressedUntil(iso: string | null | undefined): string | null {
 	if (!iso) return null;
 	const d = new Date(iso);
 	if (Number.isNaN(d.getTime())) return null;
-	const hh = String(d.getHours()).padStart(2, '0');
-	const mm = String(d.getMinutes()).padStart(2, '0');
-	return `${hh}:${mm}`;
+	return d.toLocaleTimeString(formatLocale(), { hour: '2-digit', minute: '2-digit' });
 }

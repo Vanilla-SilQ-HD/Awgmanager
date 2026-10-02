@@ -3,7 +3,7 @@
 	import { formatBitRate, formatBytes } from '$lib/utils/format';
 	import { fetchTrafficDetail, subscribeTraffic, getTrafficRates } from '$lib/stores/traffic';
 	import Modal from './Modal.svelte';
-	import { m } from '$lib/i18n';
+	import { m, formatLocale } from '$lib/i18n';
 
 	interface Props {
 		open: boolean;
@@ -308,12 +308,9 @@
 
 	function fmtTime(t: number, withDate = false): string {
 		const d = new Date(t * 1000);
-		const dd = d.getDate().toString().padStart(2, '0');
-		const mon = (d.getMonth() + 1).toString().padStart(2, '0');
-		const hh = d.getHours().toString().padStart(2, '0');
-		const mm = d.getMinutes().toString().padStart(2, '0');
-		const ss = d.getSeconds().toString().padStart(2, '0');
-		return withDate ? `${dd}.${mon} ${hh}:${mm}` : `${hh}:${mm}:${ss}`;
+		return withDate
+			? d.toLocaleString(formatLocale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+			: d.toLocaleTimeString(formatLocale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 	}
 
 	let showDateInLabels = $derived(selectedPeriod === '12h' || selectedPeriod === '24h');

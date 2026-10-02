@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { m } from '$lib/i18n';
+	import { m, formatLocale } from '$lib/i18n';
 	import { api, type SystemFileEntry } from '$lib/api/client';
 	import { Modal, Button } from '$lib/components/ui';
 	import { formatBytes } from '$lib/utils/format';
@@ -67,7 +67,7 @@
 				</div>
 				<div class="info-row">
 					<span class="info-label">{m.system_files_props_modified()}</span>
-					<span class="info-val">{new Date(entry.modTime).toLocaleString()}</span>
+					<span class="info-val">{new Date(entry.modTime).toLocaleString(formatLocale())}</span>
 				</div>
 			</div>
 

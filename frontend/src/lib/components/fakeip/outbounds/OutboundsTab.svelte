@@ -36,7 +36,7 @@
   рендер делегирован под-карточкам.
 -->
 <script lang="ts">
-	import { m } from '$lib/i18n';
+	import { m, formatLocale } from '$lib/i18n';
 	import { fakeipConfig } from '$lib/stores/fakeipConfig';
 	import { singboxProxies } from '$lib/stores/singboxProxies';
 	import { singboxDelayHistory, triggerDelayCheck } from '$lib/stores/singbox';
@@ -137,7 +137,7 @@
 	let lastTestAtAny = $state<string | null>(null);
 
 	function nowHHMM(): string {
-		return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+		return new Date().toLocaleTimeString(formatLocale(), { hour: '2-digit', minute: '2-digit' });
 	}
 
 	async function handleTest(tag: string): Promise<void> {

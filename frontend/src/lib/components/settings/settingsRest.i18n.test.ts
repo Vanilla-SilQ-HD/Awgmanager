@@ -60,7 +60,7 @@ describe('ObfuscatorRelayCard i18n', () => {
 
 		expect(screen.getByText('Obfuscator relay')).toBeTruthy();
 		expect(screen.getByText('Phobos in kernel')).toBeTruthy();
-		expect(screen.getByText('Turned off automatically: oom')).toBeTruthy();
+		expect(screen.getByText('Disabled automatically: oom')).toBeTruthy();
 	});
 });
 
