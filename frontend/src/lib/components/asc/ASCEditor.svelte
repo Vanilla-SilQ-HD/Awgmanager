@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { protocols, MAX_SIGNATURE_CHARS, type ProtocolKey, type SignaturePackets } from '$lib/utils/protocols';
 	import { api } from '$lib/api/client';
+	import { m } from '$lib/i18n';
 	import type { ASCParams, ASCParamsExtended } from '$lib/types';
 	import { isExtendedASCParams } from '$lib/utils/asc-validation';
 	import { awgParamHints } from '$lib/utils/awgParamHints';
@@ -53,16 +54,14 @@
 
 	// AWG 3.1 device flags. Read-only: they arrive with an imported .conf and
 	// switching RandomTrailers off on one end alone kills the tunnel.
-	const AWG31_FLAGS: { key: 'randomTrailers' | 'disableCookies'; label: string; note: string }[] = [
+	const AWG31_FLAGS: { key: 'randomTrailers' | 'disableCookies'; label: string }[] = [
 		{
 			key: 'randomTrailers',
 			label: 'RandomTrailers',
-			note: 'Добивает пакеты случайным числом лишних байт. Согласования по проводу нет: параметр обязан стоять на обоих концах, иначе туннель молча не поднимется.',
 		},
 		{
 			key: 'disableCookies',
 			label: 'DisableCookies',
-			note: 'Не отвечать служебным пакетом-подтверждением под нагрузкой. Односторонний, совместимость не ломает.',
 		},
 	];
 	const ext31Flags = $derived(
@@ -74,7 +73,10 @@
 	let domainInput = $state('');
 	let capturing = $state(false);
 	let generating = $state(false);
+	/** Предупреждение/текст ошибки от бэкенда; общий текст сбоя выводится из `captureFailed`. */
 	let captureError = $state('');
+	let captureFailed = $state(false);
+	const captureErrorText = $derived(captureError || (captureFailed ? m.asc_capture_failed() : ''));
 	let captureSource = $state('');
 
 	let totalChars = $derived.by(() => {
@@ -112,9 +114,9 @@
 		try {
 			const res = await api.generateSignature(selectedProtocol);
 			applySignaturePackets(res.packets);
-			notifications.success(`Сигнатура сгенерирована (${protocols[selectedProtocol].name})`);
+			notifications.success(m.asc_signature_generated({ name: protocols[selectedProtocol].name }));
 		} catch (e) {
-			notifications.error(e instanceof Error ? e.message : 'Ошибка генерации');
+			notifications.error(e instanceof Error ? e.message : m.asc_generate_failed());
 		} finally {
 			generating = false;
 		}
@@ -122,13 +124,14 @@
 
 	async function handleCapture() {
 		if (!showExtended) {
-			notifications.error('Signature-пакеты (I1–I5) недоступны на этом устройстве');
+			notifications.error(m.asc_signature_unavailable());
 			return;
 		}
 		if (!domainInput.trim()) return;
 
 		capturing = true;
 		captureError = '';
+		captureFailed = false;
 		captureSource = '';
 		try {
 			const result = await api.captureSignature(domainInput.trim());
@@ -143,11 +146,12 @@
 			if (result.warning) {
 				captureError = result.warning;
 			} else {
-				notifications.success('Signature-пакеты захвачены');
+				notifications.success(m.asc_capture_done());
 			}
 		} catch (e: unknown) {
-			captureError = e instanceof Error ? e.message : 'Ошибка захвата';
-			notifications.error(captureError);
+			captureError = e instanceof Error ? e.message : '';
+			captureFailed = true;
+			notifications.error(captureErrorText);
 		} finally {
 			capturing = false;
 		}
@@ -158,15 +162,15 @@
 	<label class="field-label param-field-label" for={fieldId(id)}>
 		{name}
 		{#if hintMap[id]}
-			<FieldHint text={hintMap[id]} ariaLabel={`Подсказка: ${name}`} />
+			<FieldHint text={hintMap[id]} ariaLabel={m.proxy_detail_hint_aria({ title: name })} />
 		{/if}
 	</label>
 {/snippet}
 
 <div class="asc-editor" class:compact>
 	<section class="card param-section">
-		<SettingsSectionLabel label="Junk пакеты" icon={Shredder} tone="orange" header />
-		<p class="group-desc">Фейковые пакеты перед handshake — ломают анализ трафика DPI</p>
+		<SettingsSectionLabel label={m.asc_junk_title()} icon={Shredder} tone="orange" header />
+		<p class="group-desc">{m.asc_junk_desc()}</p>
 		<div class="inline-row inline-row-3">
 			{@render paramLabel('jc', 'Jc')}
 			<input type="number" id={fieldId('jc')} class="field-input" bind:value={params.jc} />
@@ -184,7 +188,7 @@
 			tone="teal"
 			header
 		/>
-		<p class="group-desc">Дополнительные байты в handshake — меняют размер пакетов WireGuard</p>
+		<p class="group-desc">{m.asc_padding_desc()}</p>
 		<div class="inline-row inline-row-2">
 			{@render paramLabel('s1', 'S1')}
 			<input type="number" id={fieldId('s1')} class="field-input" bind:value={params.s1} />
@@ -201,8 +205,8 @@
 	</section>
 
 	<section class="card param-section">
-		<SettingsSectionLabel label="Заголовки (H1-H4)" icon={Hash} tone="indigo" header />
-		<p class="group-desc">Подмена типов пакетов WireGuard на произвольные значения</p>
+		<SettingsSectionLabel label={m.asc_headers_title()} icon={Hash} tone="indigo" header />
+		<p class="group-desc">{m.asc_headers_desc()}</p>
 		<div class="inline-row inline-row-2">
 			{@render paramLabel('h1', 'H1')}
 			<input type="text" id={fieldId('h1')} class="field-input" bind:value={params.h1} />
@@ -218,26 +222,26 @@
 	{#if showExtended && signatureModes !== 'none'}
 		{@const ext = params as ASCParamsExtended}
 		<section class="card param-section">
-			<SettingsSectionLabel label="Signature пакеты (I1-I5)" icon={Fingerprint} tone="green" header />
-			<p class="group-desc">Имитация протоколов — DPI видит знакомый трафик вместо WireGuard</p>
+			<SettingsSectionLabel label={m.asc_signature_title()} icon={Fingerprint} tone="green" header />
+			<p class="group-desc">{m.asc_signature_desc()}</p>
 
 			{#if signatureModes === 'both'}
 				<div class="mode-options">
 					<div class="mode-options-radios">
 						<label class="mode-option">
 							<input type="radio" value="protocol" bind:group={generateMode} />
-							<span>Протокол</span>
+							<span>{m.asc_mode_protocol()}</span>
 						</label>
 						<label class="mode-option">
 							<input type="radio" value="domain" bind:group={generateMode} />
-							<span>По домену</span>
+							<span>{m.asc_mode_domain()}</span>
 						</label>
 					</div>
-					{#if captureSource && !captureError}
+					{#if captureSource && !captureErrorText}
 						<span class="capture-badge">{captureSource.toUpperCase()}</span>
 					{/if}
 				</div>
-			{:else if captureSource && !captureError}
+			{:else if captureSource && !captureErrorText}
 				<div class="mode-options mode-options-badge-only">
 					<span class="capture-badge">{captureSource.toUpperCase()}</span>
 				</div>
@@ -265,11 +269,11 @@
 						disabled={capturing || !domainInput.trim()}
 						loading={capturing}
 					>
-						{capturing ? 'Захват...' : 'Захватить'}
+						{capturing ? m.asc_capturing() : m.asc_capture()}
 					</Button>
 				</div>
-				{#if captureError}
-					<p class="capture-info" class:capture-warning={!!captureSource}>{captureError}</p>
+				{#if captureErrorText}
+					<p class="capture-info" class:capture-warning={!!captureSource}>{captureErrorText}</p>
 				{/if}
 			{:else}
 				{@const protocolOpts: DropdownOption<ProtocolKey>[] = Object.entries(protocols).map(
@@ -290,7 +294,7 @@
 						disabled={generating || capturing}
 						loading={generating}
 					>
-						{generating ? 'Генерация...' : 'Сгенерировать'}
+						{generating ? m.asc_generating() : m.asc_generate()}
 					</Button>
 				</div>
 			{/if}
@@ -304,7 +308,7 @@
 							id={fieldId(field)}
 							class="field-input"
 							bind:value={ext[field as keyof ASCParamsExtended]}
-							placeholder={field.toUpperCase() + (idx === 0 ? ' (обязательный)' : '')}
+							placeholder={idx === 0 ? m.asc_signature_required({ field: field.toUpperCase() }) : field.toUpperCase()}
 						/>
 						{#if errors[field as keyof ASCParamsExtended]}
 							<p class="field-error">{errors[field as keyof ASCParamsExtended]}</p>
@@ -314,9 +318,9 @@
 			</div>
 
 			<div class="size-indicator" class:over-limit={overLimit}>
-				{totalChars} / {MAX_SIGNATURE_CHARS} символов
+				{m.asc_size_chars({ total: totalChars, max: MAX_SIGNATURE_CHARS })}
 				{#if overLimit}
-					<span class="size-error">— превышен лимит!</span>
+					<span class="size-error">{m.asc_size_over_limit()}</span>
 				{/if}
 			</div>
 		</section>
@@ -328,11 +332,10 @@
 			<SettingsSectionLabel label="AmneziaWG 3.0" icon={ShieldCheck} tone="purple" header />
 			<p class="group-desc">
 				{#if awg3Limited}
-					Через NativeWG (awg_proxy) работает защита заголовков — её ключ задаётся здесь.
-					Таймеры и content-padding доступны лишь в режиме kernel.
+					{m.asc_awg3_limited_note()}
 				{:else}
-					Параметры AWG 3.0. Таймеры — число или диапазон
-					<code>min-max</code> в секундах; пусто = значение по умолчанию.
+					{m.asc_awg3_full_note_before()}
+					<code>min-max</code> {m.asc_awg3_full_note_after()}
 				{/if}
 			</p>
 
@@ -343,7 +346,7 @@
 					id={fieldId('headerProtectionKey')}
 					class="field-input"
 					bind:value={ext.headerProtectionKey}
-					placeholder="base64-ключ шифрования заголовков (необязательно)"
+					placeholder={m.asc_header_key_placeholder()}
 				/>
 				{#if errors['headerProtectionKey' as keyof ASCParamsExtended]}
 					<p class="field-error">{errors['headerProtectionKey' as keyof ASCParamsExtended]}</p>
@@ -359,7 +362,7 @@
 							id={fieldId(f.key)}
 							class="field-input"
 							bind:value={ext[f.key]}
-							placeholder="напр. 120 или 120-150"
+							placeholder={m.asc_timer_placeholder()}
 						/>
 					{/each}
 				</div>
@@ -376,9 +379,7 @@
 		<section class="card param-section">
 			<SettingsSectionLabel label="AmneziaWG 3.1" icon={Shuffle} tone="purple" header />
 			<p class="group-desc">
-				Параметры версии 3.1 включены в конфигурационном файле туннеля. Отсюда их не
-				поменять: они требуют поддержки 3.1 и на этом роутере, и на стороне сервера,
-				а снятие RandomTrailers на одной стороне рвёт туннель.
+				{m.asc_awg31_note()}
 			</p>
 
 			<div class="toggle-stack">
@@ -386,9 +387,9 @@
 					<div>
 						<div class="flag-row">
 							<Badge variant="purple" size="xs" mono>{f.label}</Badge>
-							<span class="flag-state">включён</span>
+							<span class="flag-state">{m.asc_flag_enabled()}</span>
 						</div>
-						<p class="toggle-note">{f.note}</p>
+						<p class="toggle-note">{f.key === 'randomTrailers' ? m.asc_note_random_trailers() : m.asc_note_disable_cookies()}</p>
 					</div>
 				{/each}
 			</div>

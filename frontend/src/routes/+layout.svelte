@@ -206,11 +206,11 @@
 			// DNS-route failover — user-visible notification, not a state stream
 			onDnsRouteFailover: (data) => {
 				if (data.action === 'switched') {
-					notifications.warning(`DNS-маршрут "${data.listName}" переключён: ${data.fromTunnel || '—'} → ${data.toTunnel || 'нет резерва'}`);
+					notifications.warning(m.app_dns_failover_switched({ list: data.listName, from: data.fromTunnel || '—', to: data.toTunnel || m.app_dns_failover_no_reserve() }));
 				} else if (data.action === 'restored') {
-					notifications.success(`DNS-маршрут "${data.listName}" восстановлен: → ${data.toTunnel || '—'}`);
+					notifications.success(m.app_dns_failover_restored({ list: data.listName, to: data.toTunnel || '—' }));
 				} else if (data.action === 'error') {
-					notifications.error(`Ошибка переключения DNS-маршрута "${data.listName}": ${data.error || 'неизвестная ошибка'}`);
+					notifications.error(m.app_dns_failover_error({ list: data.listName, error: data.error || m.app_unknown_error() }));
 				}
 			},
 
@@ -412,15 +412,15 @@
 {#if backendOffline}
 	<div class="offline-screen">
 		<TriangleAlert class="offline-icon" size={48} aria-hidden="true" />
-		<h2 class="offline-title">Сервер недоступен</h2>
-		<p class="offline-status">Не удалось подключиться к AWG Manager</p>
+		<h2 class="offline-title">{m.app_offline_title()}</h2>
+		<p class="offline-status">{m.app_offline_status()}</p>
 		<div class="offline-spinner"></div>
-		<p class="offline-hint">Переподключение...</p>
+		<p class="offline-hint">{m.app_offline_reconnecting()}</p>
 	</div>
 {:else if booting}
 	<div class="loading-screen">
 		<div class="loading-spinner"></div>
-		<p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 1rem;">Роутер загружается...</p>
+		<p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 1rem;">{m.app_router_booting()}</p>
 	</div>
 {:else if $isLoading}
 	<div class="loading-screen">
@@ -452,7 +452,7 @@
 		<div class="toast-container">
 			{#if $notifications.length > 1}
 				<button class="toast-dismiss-all" onclick={() => notifications.clearAll()}>
-					Закрыть все ({$notifications.length})
+					{m.app_toast_dismiss_all({ count: $notifications.length })}
 				</button>
 			{/if}
 			{#each $notifications as notification (notification.id)}
@@ -461,7 +461,7 @@
 						type="button"
 						class="toast-message"
 						onclick={() => notifications.remove(notification.id)}
-						aria-label="Закрыть уведомление"
+						aria-label={m.app_toast_dismiss_aria()}
 					>{notification.message}</button>
 					{#if notification.action}
 						<a
@@ -478,17 +478,15 @@
 
 	<Modal
 		open={$donateModalOpen}
-		title="Поддержать проект"
+		title={m.header_donate()}
 		size="sm"
 		onclose={closeDonateModal}
 	>
 		<p class="donate-intro">
-			Если у вас есть лишние шекели, вам понравилось как вам не отвечают на вопросы и вы готовы
-			самостоятельно решать проблемы, а еще вы оценили подход — «ни дня без нового бага», то:
+			{m.app_donate_intro_1()}
 		</p>
 		<p class="donate-intro">
-			Вы можете поделиться богатством и дать возможность родить новые проблемы там, где еще вчера
-			все было хорошо:
+			{m.app_donate_intro_2()}
 		</p>
 		<div class="donate-wallets">
 			<div class="donate-wallet">
@@ -504,11 +502,11 @@
 				<a class="donate-wallet-link" href="https://boosty.to/awgm_hoaxisr/donate" target="_blank" rel="noopener">boosty.to/awgm_hoaxisr/donate</a>
 			</div>
 			<div class="donate-wallet">
-				<span class="donate-wallet-label">ЮMoney</span>
+				<span class="donate-wallet-label">{m.app_donate_yoomoney()}</span>
 				<a class="donate-wallet-link" href="https://yoomoney.ru/fundraise/1GF36UHR07L.260312" target="_blank" rel="noopener">yoomoney.ru/fundraise</a>
 			</div>
 			<div class="donate-wallet">
-				<span class="donate-wallet-label">Или любая сумма</span>
+				<span class="donate-wallet-label">{m.app_donate_any_amount()}</span>
 				<a class="donate-wallet-link" href="https://yoomoney.ru/to/4100119477098112/0" target="_blank" rel="noopener">yoomoney.ru/to/4100119477098112</a>
 			</div>
 		</div>
