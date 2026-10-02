@@ -115,7 +115,8 @@ function sanitizeRouterClientContext(ctx: RouterClientContext | null): RouterCli
 	};
 }
 
-function sanitizeClientRows(rows: AboutInfoRow[]): AboutInfoRow[] {
+/** Экспорт — для теста маскирования (diagnostics-environment.test.ts). */
+export function sanitizeClientRows(rows: AboutInfoRow[]): AboutInfoRow[] {
 	return rows.map((row) => {
 		if (row.id === 'mac') {
 			return { ...row, value: CLIENT_MAC_PLACEHOLDER, title: undefined };
@@ -125,6 +126,14 @@ function sanitizeClientRows(rows: AboutInfoRow[]): AboutInfoRow[] {
 		}
 		return row;
 	});
+}
+
+/**
+ * Строки «Клиент в сети роутера» для сохраняемого отчёта: MAC и имена
+ * маскируются и в контексте, и в готовых строках (по id строки).
+ */
+export function reportClientRows(ctx: RouterClientContext | null): AboutInfoRow[] {
+	return sanitizeClientRows(routerClientRows(sanitizeRouterClientContext(ctx)));
 }
 
 async function capture<T>(
@@ -320,7 +329,7 @@ export async function collectDiagnosticsEnvironmentSnapshot(): Promise<Diagnosti
 	const routerRows = sys ? routerStaticRows(sys, level) : notLoadedRows();
 	const browserRows = browserSnapshotRows(browser);
 	const sanitizedRouterClient = sanitizeRouterClientContext(routerClient);
-	const clientRows = sanitizeClientRows(routerClientRows(sanitizedRouterClient));
+	const clientRows = reportClientRows(routerClient);
 	const awgmRows = awgm ? awgmServicesRows(awgm) : notLoadedRows();
 
 	return {
