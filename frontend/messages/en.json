@@ -2227,7 +2227,7 @@
 	"proxy_page_tab_exit": "Exit",
 	"proxy_page_tab_share": "Sharing",
 	"proxy_page_title": "Proxy",
-	"proxy_page_description": "Route the router’s traffic out and share it with others",
+	"proxy_page_description": "Router traffic exit and sharing with others",
 	"proxy_page_ack": "Got it",
 	"proxy_page_list_exit": "Exit instances",
 	"proxy_page_list_share": "Sharing instances",
@@ -4625,8 +4625,8 @@
 				"countPlural"
 			],
 			"match": {
-				"countPlural=one": "NAT is kept on the {count} internet connection listed on the right.",
-				"countPlural=*": "NAT is kept on the {count} internet connections listed on the right."
+				"countPlural=one": "NAT is kept on {count} internet connection listed on the right.",
+				"countPlural=*": "NAT is kept on {count} internet connections listed on the right."
 			}
 		}
 	],
@@ -6258,7 +6258,7 @@
 	"connections_col_state": "State",
 	"connections_col_traffic": "Traffic",
 	"connections_ttl_seconds": "{ttl} s",
-	"connections_kill": "Close",
+	"connections_kill": "Close connection",
 	"connections_kill_connection": "Close connection",
 	"connections_filter_client": "Filter by client",
 	"connections_by_tunnels": "By tunnel",
@@ -6270,11 +6270,11 @@
 	"connections_filter_tunnel": "Tunnel",
 	"connections_filter_protocol": "Protocol",
 	"connections_filter_state": "State",
-	"connections_clear_all": "Close all",
+	"connections_clear_all": "Clear all",
 	"connections_group_none": "None",
 	"connections_group_client": "By client",
 	"connections_group_host": "By host",
-	"connections_group_label": "Group by:",
+	"connections_group_label": "Group:",
 	"connections_visible": "Visible:",
 	"connections_visible_of": "of",
 	"connections_empty": "No connections match the current filters",
@@ -6707,7 +6707,7 @@
 	"link_import_flow_unsupported": "only the xtls-rprx-vision flow is supported, not “{flow}”",
 	"link_import_flow_requires_tls": "the “{flow}” flow works only with TLS or Reality",
 	"link_import_flow_plain_tcp": "the “{flow}” flow works only over plain TCP, not “{transport}”",
-	"link_import_must_start_above_zero": "{field} = {value} must be greater than zero",
+	"link_import_must_start_above_zero": "{field} = {value}: the value must start above zero",
 	"link_import_plugin_unsupported": "sing-box doesn't support the “{plugin}” plugin — of the Shadowsocks plugins it supports only obfs-local and v2ray-plugin",
 	"link_import_transport_unsupported": "sing-box doesn't support the “{transport}” transport",
 	"link_import_xhttp_mode": "xhttp mode “{mode}” is not supported",

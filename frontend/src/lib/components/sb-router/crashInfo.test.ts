@@ -1,8 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { formatSuppressedUntil } from './crashInfo';
-import { m } from '$lib/i18n';
+import { m, dateFormat } from '$lib/i18n';
 
 describe('formatSuppressedUntil', () => {
+	beforeEach(() => dateFormat.set('ru-RU'));
+	afterEach(() => dateFormat.set('auto'));
+
 	it('пустое/absent значение — null (блок подавления скрыт)', () => {
 		expect(formatSuppressedUntil(undefined)).toBeNull();
 		expect(formatSuppressedUntil(null)).toBeNull();
@@ -13,7 +16,7 @@ describe('formatSuppressedUntil', () => {
 		expect(formatSuppressedUntil('not-a-date')).toBeNull();
 	});
 
-	it('RFC3339 → «HH:MM» в локальном времени', () => {
+	it('RFC3339 → «HH:MM» в локальном времени (ru-RU)', () => {
 		const d = new Date(2026, 6, 6, 9, 5, 0); // локальные 09:05
 		expect(formatSuppressedUntil(d.toISOString())).toBe('09:05');
 	});
@@ -21,6 +24,12 @@ describe('formatSuppressedUntil', () => {
 	it('часы/минуты дополняются нулями', () => {
 		const d = new Date(2026, 0, 1, 0, 0, 0);
 		expect(formatSuppressedUntil(d.toISOString())).toBe('00:00');
+	});
+
+	it('следует настройке формата: en-US — 12-часовое время', () => {
+		dateFormat.set('en-US');
+		const d = new Date(2026, 6, 6, 9, 5, 0);
+		expect(formatSuppressedUntil(d.toISOString())).toMatch(/^09:05\sAM$/);
 	});
 });
 
