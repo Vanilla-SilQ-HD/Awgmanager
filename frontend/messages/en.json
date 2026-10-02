@@ -2621,5 +2621,1291 @@
 	"proxy_exit_detail_awg_aria": "Hint: AWG tunnel",
 	"proxy_exit_detail_policy": "Access policy:",
 	"proxy_exit_detail_no_policy": "not added to a policy",
-	"proxy_exit_detail_drawer_title": "Exit parameters"
+	"proxy_exit_detail_drawer_title": "Exit parameters",
+	"access_policy_all_devices": "All devices",
+	"access_policy_show_offline": "Show offline devices",
+	"access_policy_device_search_placeholder": "Search by name, host, IP...",
+	"access_policy_no_ip": "No IP address",
+	"access_policy_assign": "Assign to policy",
+	"access_policy_no_devices": "No devices",
+	"access_policy_interfaces_title": "Interfaces (priority)",
+	"access_policy_add": "Add",
+	"access_policy_no_allowed_interfaces": "No allowed interfaces",
+	"access_policy_denied": "denied",
+	"access_policy_iface_turn_off": "Turn off interface",
+	"access_policy_iface_turn_on": "Turn on interface",
+	"access_policy_up": "Up",
+	"access_policy_down": "Down",
+	"access_policy_allow_use": "Allow use",
+	"access_policy_deny_use": "Deny use",
+	"access_policy_confirm_off_title": "Turning off the interface",
+	"access_policy_confirm_on_title": "Turning on the interface",
+	"access_policy_confirm_off_message": "This will turn off the “{label}” interface on the router.",
+	"access_policy_confirm_on_message": "This will turn on the “{label}” interface on the router.",
+	"access_policy_confirm_off_secondary": "The interface will stop working for all services, not just this policy. All connections through this interface will be dropped.",
+	"access_policy_confirm_on_secondary": "The interface will become available to all services, not just this policy.",
+	"access_policy_confirm_off": "Turn off",
+	"access_policy_confirm_on": "Turn on",
+	"access_policy_desc_required": "Enter a policy description",
+	"access_policy_desc_pattern": "Only Latin letters, digits, hyphens and underscores",
+	"access_policy_desc_max": "Maximum 256 characters",
+	"access_policy_create_title": "Create policy",
+	"access_policy_description": "Description",
+	"access_policy_description_hint": "Latin letters, digits, hyphens, underscores",
+	"access_policy_create": "Create",
+	"access_policy_standalone_on": "The policy works on its own, without being tied to global rules. Static routes from the router settings are not copied (routes from the \"IP addresses\" tab will not work).",
+	"access_policy_standalone_off": "If standalone is off, global rules apply in the policy and static routes from the router settings are copied.",
+	"access_policy_desc_error": "Description: only Latin letters, digits, hyphens and underscores",
+	"access_policy_back": "Back to list",
+	"access_policy_devices_in_policy": "Devices in the policy",
+	"access_policy_drop_here": "drag a device here",
+	"access_policy_remove_from_policy": "Remove from policy",
+	"access_policy_hr_banner": "This is a HydraRoute Neo policy. You do not need to add devices to it: HydraRoute routing applies only to the default policy. Interfaces are configured the same way as on the HR Neo tab.",
+	"access_policy_bound_devices": "Bound devices",
+	"access_policy_open_hr": "Open HydraRoute policy “{name}”",
+	"access_policy_edit_policy": "Edit policy “{name}”",
+	"access_policy_delete_policy": "Delete policy “{name}”",
+	"routing_devices_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} device",
+				"countPlural=*": "{count} devices"
+			}
+		}
+	],
+	"routing_badges_more_tunnels": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} more tunnel",
+				"countPlural=*": "{count} more tunnels"
+			}
+		}
+	],
+	"routing_badges_more_interfaces": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} more interface",
+				"countPlural=*": "{count} more interfaces"
+			}
+		}
+	],
+	"routing_badges_more_targets": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} more target",
+				"countPlural=*": "{count} more targets"
+			}
+		}
+	],
+	"routing_badges_more": "{count} more",
+	"client_route_fallback_drop": "Fallback: block",
+	"client_route_fallback_direct": "Fallback: direct",
+	"client_route_edit_title": "Edit VPN route for device “{name}”",
+	"client_route_delete_title": "Delete VPN route for device “{name}”",
+	"client_route_modal_edit_title": "Edit rule",
+	"client_route_modal_create_title": "VPN for device",
+	"client_route_device": "Device",
+	"client_route_device_search_placeholder": "Search by name or IP...",
+	"client_route_no_devices_found": "No devices found",
+	"client_route_use_manual": "Use: {ip}",
+	"client_route_select_device": "Select a device",
+	"client_route_tunnel": "Tunnel",
+	"client_route_if_tunnel_down": "If the tunnel is unavailable",
+	"client_route_block": "Block",
+	"client_route_direct": "Direct",
+	"client_route_static_ip_warning": "For reliable operation, assign a static IP address to the device in the router settings",
+	"client_route_save": "Save",
+	"client_route_create": "Create",
+	"routing_create": "Create",
+	"routing_add": "Add",
+	"routing_load_config": "Upload configuration",
+	"routing_from_catalog": "From catalog",
+	"routing_create_manual": "Create manually",
+	"routing_drop_title": "Drop a .json file here",
+	"routing_drop_description_prefix": "File",
+	"routing_drop_description_suffix": "with {subject} previously exported from AWG Manager.",
+	"routing_drop_hint": "or click to choose",
+	"routing_search_placeholder": "Search for a domain or IP across all rules...",
+	"routing_search_clear": "Clear",
+	"routing_search_button": "Search",
+	"routing_search_resolve_error": "Resolve error",
+	"routing_search_close": "Close (Esc)",
+	"routing_search_close_aria": "Close results",
+	"routing_search_dns_rules": "DNS rules",
+	"routing_search_ip_rules": "IP rules",
+	"routing_search_domains": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} domain",
+				"countPlural=*": "{count} domains"
+			}
+		}
+	],
+	"routing_more_count": "+{count} more",
+	"routing_search_resolving": "Resolving domain...",
+	"routing_search_resolve_result": "Resolved: {domain}",
+	"routing_search_matches_in": "matches {matches}",
+	"routing_search_no_subnet": "Does not match any subnet",
+	"routing_search_not_found": "Not found in any rule",
+	"routing_search_lists": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} list",
+				"countPlural=*": "{count} lists"
+			}
+		}
+	],
+	"routing_search_lists_manual": [
+		{
+			"declarations": [
+				"input lists",
+				"input manual",
+				"local listsPlural = lists: plural"
+			],
+			"selectors": [
+				"listsPlural"
+			],
+			"match": {
+				"listsPlural=one": "{lists} list + {manual} manual",
+				"listsPlural=*": "{lists} lists + {manual} manual"
+			}
+		}
+	],
+	"routing_search_all_manual": "all manual",
+	"routing_subnets_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} subnet",
+				"countPlural=*": "{count} subnets"
+			}
+		}
+	],
+	"routing_group_user": "User",
+	"routing_group_system": "System",
+	"routing_ip_card_change_icon": "Change icon",
+	"routing_ip_card_orphan_title": "The tunnel this list was bound to has been deleted. Click “Edit” and choose a new tunnel.",
+	"routing_ip_card_no_tunnel": "No tunnel",
+	"routing_ip_card_edit_title": "Edit IP route “{name}”",
+	"routing_ip_card_delete_title": "Delete IP route “{name}”",
+	"routing_ip_edit_title": "Editing: {name}",
+	"routing_ip_new_title": "New IP route",
+	"routing_ip_name": "Name",
+	"routing_ip_name_placeholder": "Blocked subnets",
+	"routing_ip_name_required": "Enter a name",
+	"routing_ip_icon": "Icon",
+	"routing_ip_icon_custom": "Custom icon",
+	"routing_ip_icon_auto": "Auto-detected by name",
+	"routing_ip_icon_auto_for": "Matched by “{name}”",
+	"routing_ip_icon_auto_empty": "Enter a name — the icon will be picked automatically",
+	"routing_ip_icon_choose": "Choose icon",
+	"routing_ip_tunnel": "Tunnel",
+	"routing_ip_tunnel_required": "Select a tunnel",
+	"routing_ip_fallback_bypass": "Bypass — traffic will use the normal route",
+	"routing_ip_fallback_kill": "Kill Switch — traffic will be blocked",
+	"routing_ip_fallback_label": "When the interface is unavailable",
+	"routing_ip_subnets_title": "Subnets (one per line, CIDR)",
+	"routing_ip_from_bat": "From .bat file",
+	"routing_ip_subnets_required": "Add at least one subnet",
+	"routing_save": "Save",
+	"routing_import_title": "Upload a route set",
+	"routing_import_subject": "IP routes",
+	"routing_import_no_routes": "No valid routes found in the file",
+	"routing_import_read_error": "File read error",
+	"routing_import_tunnel_for_all": "Tunnel for all:",
+	"routing_import_no_tunnels": "Create at least one tunnel before importing",
+	"routing_import_found_routes": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} route found",
+				"countPlural=*": "{count} routes found"
+			}
+		}
+	],
+	"routing_import_duplicate": "Duplicate",
+	"routing_import_submit": "Import ({count})",
+	"routing_singbox_all": "All",
+	"routing_singbox_conn_search_placeholder": "Search host / IP / client",
+	"routing_singbox_no_data": "No data",
+	"routing_singbox_conn_visible": "Visible:",
+	"routing_singbox_conn_visible_of": "of {total}",
+	"routing_singbox_conn_close_visible": "Close visible",
+	"routing_singbox_conn_confirm_title": "Confirmation",
+	"routing_singbox_conn_confirm_message": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Close {count} connection?",
+				"countPlural=*": "Close {count} connections?"
+			}
+		}
+	],
+	"routing_singbox_conn_confirm_secondary": "Affected outbounds: {outbounds}. This action cannot be undone — clients will reconnect.",
+	"routing_singbox_conn_close_all": "Close all",
+	"routing_singbox_geo_picker_aria": "Select {kind} tags",
+	"routing_singbox_geo_search_placeholder": "Search {kind}:TAG…",
+	"routing_singbox_geo_no_files_prefix": "No uploaded files",
+	"routing_singbox_geo_no_files_suffix": ". Add them on the “Routing → Geo data” tab.",
+	"routing_singbox_geo_loading": "Loading tags…",
+	"routing_singbox_geo_nothing_found": "Nothing found",
+	"routing_singbox_geo_tags_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} tag",
+				"countPlural=*": "{count} tags"
+			}
+		}
+	],
+	"routing_singbox_geo_too_big": "Exceeds the ipset limit: {count} ≥ {max}",
+	"routing_singbox_foreign_toggle": "Not in the list? An interface from another program…",
+	"routing_singbox_foreign_hint": "The selected interface will be marked as foreign: the panel will not delete it or take its number. For OpkgTun, first create the entry in NDMS, then start the program.",
+	"routing_singbox_loading": "Loading…",
+	"routing_singbox_foreign_kernel": "kernel",
+	"routing_singbox_foreign_mark_label": "Mark and select “{label}”",
+	"routing_singbox_foreign_iface_label": "Kernel interface name",
+	"routing_singbox_foreign_iface_placeholder": "kernel interface name",
+	"routing_singbox_foreign_mark": "Mark and select",
+	"routing_singbox_conn_empty_open": "No active connections right now",
+	"routing_singbox_conn_empty_waiting": "Waiting for the Clash API stream…",
+	"routing_singbox_conn_status_connecting": "Connecting…",
+	"routing_singbox_conn_status_reconnecting": "Reconnecting…",
+	"routing_singbox_conn_status_error": "Error",
+	"routing_singbox_conn_closed": "Connection closed",
+	"routing_singbox_conn_close_failed": "Failed to close the connection",
+	"routing_singbox_conn_closed_of": "Closed {ok} of {total}",
+	"routing_singbox_conn_total": "Total:",
+	"routing_singbox_conn_total_of": "of",
+	"routing_singbox_conn_total_suffix": "connections",
+	"routing_singbox_conn_now": "now",
+	"routing_singbox_conn_col_proto": "Proto",
+	"routing_singbox_conn_col_source": "Source",
+	"routing_singbox_conn_col_destination": "Destination",
+	"routing_singbox_conn_col_time": "Time",
+	"routing_singbox_conn_close_one": "Close connection",
+	"routing_singbox_conn_empty_filtered": "No connections match the filter",
+	"routing_singbox_conn_page": "Page {page} / {total}",
+	"routing_singbox_rewrite_pattern_required": "Pattern is required",
+	"routing_singbox_rewrite_ip_required": "Specify at least one IP",
+	"routing_singbox_rewrite_edit_title": "Edit rewrite",
+	"routing_singbox_rewrite_new_title": "New rewrite",
+	"routing_singbox_rewrite_pattern_label": "Domain pattern",
+	"routing_singbox_rewrite_hint_without": "Without",
+	"routing_singbox_rewrite_hint_exact": "— exact domain.",
+	"routing_singbox_rewrite_hint_subdomains": "— all subdomains.",
+	"routing_singbox_rewrite_hint_wildcard_pre": "— wildcard inside the first label (a domain tail is required after",
+	"routing_singbox_rewrite_hint_wildcard_post": ").",
+	"routing_singbox_rewrite_ips_label": "IP addresses (comma-separated)",
+	"routing_singbox_save": "Save",
+	"routing_singbox_rewrite_managed_notice": "This rewrite is managed by the KeenDNS preset — remove the preset in the engine settings",
+	"routing_singbox_rewrites_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} rewrite",
+				"countPlural=*": "{count} rewrites"
+			}
+		}
+	],
+	"routing_singbox_add": "Add",
+	"routing_singbox_rewrites_empty": "No rewrites. A “rewrite” returns the given IP for a domain/pattern.",
+	"routing_singbox_rewrite_col_pattern": "Pattern",
+	"routing_singbox_rewrite_col_ips": "IP addresses",
+	"routing_singbox_rewrite_col_actions": "Actions",
+	"routing_singbox_rewrite_edit_aria": "Edit DNS rewrite {pattern}",
+	"routing_singbox_rewrite_edit_row_title": "Edit DNS rewrite “{pattern}”",
+	"routing_singbox_rewrite_managed_by_preset": "Managed by a preset",
+	"routing_singbox_rewrite_delete_aria": "Delete DNS rewrite {pattern}",
+	"routing_singbox_rewrite_delete_row_title": "Delete DNS rewrite “{pattern}”",
+	"routing_singbox_rewrite_delete_title": "Delete rewrite",
+	"routing_singbox_rewrite_delete_message": "Delete rewrite “{pattern}”?",
+	"routing_singbox_timeout_seconds": "{count} s",
+	"routing_singbox_timeout_default": "— default (10 s) —",
+	"routing_singbox_dns_final_unset": "— not set —",
+	"routing_singbox_dns_globals_title": "Default DNS",
+	"routing_singbox_dns_final_label": "Final server",
+	"routing_singbox_dns_final_hint": "The default server for queries that match no rule — a simple fallback path (recommended). A separate catch-all rule (without conditions) does the same but as an explicit last rule; if both exist, the rule takes precedence (it is checked before final).",
+	"routing_singbox_dns_strategy": "Strategy",
+	"routing_singbox_dns_strategy_hint": "For a router without IPv6, prefer_ipv4 or ipv4_only is usually the right choice.",
+	"routing_singbox_dns_timeout": "Query timeout",
+	"routing_singbox_dns_timeout_hint": "How long to wait for a reply from a single DNS server. Shorter means a faster switch to the next one in the chain, but more false failures on a slow link.",
+	"routing_singbox_list_ph_domains": "Domains and all subdomains",
+	"routing_singbox_list_ph_subdomains": "Subdomains only",
+	"routing_singbox_list_ph_domain": "Domain only",
+	"routing_singbox_list_ph_extra": "Extra",
+	"routing_singbox_list_expanding": "Expanding geosite:/geoip: tags…",
+	"routing_singbox_list_label": "Rule list",
+	"routing_singbox_list_help_summary": "List format help",
+	"routing_singbox_list_help_intro_1": "One line — one value. Empty lines are ignored.",
+	"routing_singbox_list_help_intro_2_pre": "You can write comments in the list:",
+	"routing_singbox_list_help_intro_2_post": "(a whole line or at the end — after a space).",
+	"routing_singbox_list_help_intro_3": "When you save or switch to the JSON tab, comments are removed and are not kept in the JSON. The order of lines in the list does not matter and may change on save.",
+	"routing_singbox_list_help_domains_label": "Domains and subdomains",
+	"routing_singbox_list_help_host_and_subs": "→ the host and its subdomains (in JSON:",
+	"routing_singbox_list_help_no_dot": "without a dot)",
+	"routing_singbox_list_help_url": "— the hostname is taken from the URL and stored the same way",
+	"routing_singbox_list_help_zone": "— a domain zone; Cyrillic will be converted to punycode",
+	"routing_singbox_list_help_no_leading_dot": "without a leading dot",
+	"routing_singbox_list_help_sub_only_label": "Subdomains only (without a separate",
+	"routing_singbox_list_help_suffix": "— suffix",
+	"routing_singbox_list_help_with": "with",
+	"routing_singbox_list_help_dot_in_json": "a dot in JSON:",
+	"routing_singbox_list_help_apex": "(the apex does not match)",
+	"routing_singbox_list_help_dotted": "— explicit dotted form, in JSON it will be",
+	"routing_singbox_list_help_exact_label": "Exact host only",
+	"routing_singbox_list_help_only": "— only",
+	"routing_singbox_list_help_no_subdomains": "without subdomains",
+	"routing_singbox_list_help_ip_label": "IP and subnets (IPv4 only)",
+	"routing_singbox_list_help_in_json_as": "— in JSON as",
+	"routing_singbox_list_help_reverse_bare_ip": "when converted back, a bare IP again",
+	"routing_singbox_list_help_cidr_as_is": "— CIDR as is; masks other than",
+	"routing_singbox_list_help_not_compressed": "are not compressed",
+	"routing_singbox_list_help_prefixes": "prefixes",
+	"routing_singbox_list_help_same_rule": "— same rule",
+	"routing_singbox_list_help_ipv6_unsupported": "IPv6 is not supported in “List” mode — set IPv6 addresses and prefixes in JSON",
+	"routing_singbox_list_help_geo_label": "Geo and other matchers",
+	"routing_singbox_list_help_geosite_pre": "— expands into domains; suffixes from .dat are",
+	"routing_singbox_list_help_without": "without",
+	"routing_singbox_list_help_leading_dot_as": "a leading dot (as",
+	"routing_singbox_list_help_geoip": "— expands into CIDR; single hosts from geo appear in the list without",
+	"routing_singbox_list_help_keyword_regex": "— separate fields in JSON",
+	"routing_singbox_list_help_advanced_label": "Advanced matchers",
+	"routing_singbox_list_help_advanced_group": "each type is a separate rule group in JSON (not mixed with domains in one entry)",
+	"routing_singbox_list_help_careful_label": "Careful",
+	"routing_singbox_list_help_port": "— a separate rule for all HTTPS traffic",
+	"routing_singbox_list_help_process": "on Keenetic/Entware — only the router’s local processes, not LAN clients",
+	"routing_singbox_list_help_not_yet_label": "Not yet available in “List” mode",
+	"routing_singbox_list_help_ipv6_exceptions": "IPv6, exceptions",
+	"routing_singbox_list_help_logic": "logic",
+	"routing_singbox_list_help_extra_fields": "and any extra sing-box fields — only the mode",
+	"routing_singbox_list_empty_hint": "The list is empty — add domains, IPs or a geosite:/geoip: tag.",
+	"routing_singbox_list_parse_errors": "Parse errors",
+	"routing_singbox_list_parse_warnings": "Warnings",
+	"routing_singbox_list_rules_to_create": "Rule groups to be created: {count}",
+	"routing_singbox_list_json_preview": "JSON preview",
+	"routing_singbox_chain_off": "Off",
+	"routing_singbox_chain_resilient": "Resilient",
+	"routing_singbox_chain_antipoison": "Anti-spoofing",
+	"routing_singbox_chain_via": "via {detour}",
+	"routing_singbox_chain_fakeip_unavailable_rules": "Unavailable in FakeIP mode. The chain rules in the list belong to TPROXY mode and are currently inactive.",
+	"routing_singbox_chain_fakeip_unavailable": "Unavailable in FakeIP mode",
+	"routing_singbox_chain_title": "DNS chain preset",
+	"routing_singbox_chain_mode_aria": "DNS preset mode",
+	"routing_singbox_chain_direct_dns": "Direct DNS",
+	"routing_singbox_chain_choose": "— choose —",
+	"routing_singbox_chain_tunnel_dns": "DNS via tunnel",
+	"routing_singbox_chain_suspicious_ips": "Suspicious IPs (CIDR, one per line)",
+	"routing_singbox_chain_order_hint": "Preset rules run after yours: the chain is automatically kept at the end of the list",
+	"routing_singbox_chain_shadowed": "The preset has no effect: a catch-all rule above the chain intercepts all queries",
+	"routing_singbox_chain_final_hint": "If both resolvers are unavailable, the query goes to the final server: {server}",
+	"routing_singbox_apply": "Apply",
+	"routing_singbox_outbound_foreign_group": "Foreign",
+	"routing_singbox_outbound_err_foreign_missing": "The interface was marked but did not appear in the list — refresh the dialog",
+	"routing_singbox_outbound_err_tag": "Tag is required",
+	"routing_singbox_outbound_err_iface": "Select an interface",
+	"routing_singbox_outbound_err_members": "At least 2 members are required",
+	"routing_singbox_outbound_type_interface": "Interface",
+	"routing_singbox_outbound_desc_direct": "A direct connection through the selected interface (IPSec/IKEv2/other VPN). The rule’s traffic will go through this interface.",
+	"routing_singbox_outbound_desc_urltest": "Periodically pings each member and automatically routes through the fastest one.",
+	"routing_singbox_outbound_desc_selector": "Manual switching via the Clash API. New connections go through the selected default.",
+	"routing_singbox_outbound_edit_title": "Edit outbound",
+	"routing_singbox_outbound_new_title": "New outbound",
+	"routing_singbox_outbound_type": "Type",
+	"routing_singbox_outbound_type_aria": "Outbound type",
+	"routing_singbox_outbound_tag_label": "Tag (name)",
+	"routing_singbox_outbound_tag_collision": "⚠ The name matches the name of an existing tunnel — they are easy to mix up in the member list. It is better to give the group a different name.",
+	"routing_singbox_outbound_members_sub": "Members",
+	"routing_singbox_outbound_members_min": "Members (minimum 2)",
+	"routing_singbox_outbound_members_none": "No members selected",
+	"routing_singbox_outbound_remove_aria": "Remove {name}",
+	"routing_singbox_outbound_remove": "Remove",
+	"routing_singbox_outbound_sub_hint": "The list is edited in the “Tunnels” -> “Sing-box subscriptions” section",
+	"routing_singbox_outbound_add_member": "Add a member",
+	"routing_singbox_outbound_default_label": "Default (one of the members)",
+	"routing_singbox_outbound_add_members_first": "Add members first",
+	"routing_singbox_outbound_choose": "— choose —",
+	"routing_singbox_outbound_loading_ifaces": "Loading interfaces…",
+	"routing_singbox_outbound_no_ifaces": "No interfaces available",
+	"routing_singbox_outbound_choose_iface": "— choose an interface —",
+	"routing_singbox_dns_type_udp": "UDP (plain DNS)",
+	"routing_singbox_dns_type_local": "Local (the router’s system resolver)",
+	"routing_singbox_direct": "Direct",
+	"routing_singbox_dns_choose": "— select —",
+	"routing_singbox_dns_err_lookup_domain": "Specify the DNS server domain",
+	"routing_singbox_dns_err_server": "Server is required",
+	"routing_singbox_dns_err_resolver": "Specify domain_resolver",
+	"routing_singbox_dns_err_tls_range": "The minimum TLS version cannot be higher than the maximum",
+	"routing_singbox_dns_edit_title": "Edit DNS server",
+	"routing_singbox_dns_new_title": "New DNS server",
+	"routing_singbox_dns_local_hint": "The Local server resolves through the router’s system resolver (NDMS/AdGuard/Pi-hole). Address and port are not required.",
+	"routing_singbox_dns_routing": "Routing",
+	"routing_singbox_dns_detour_invalid": "The config currently has an invalid detour. It should be “Direct” — it will be fixed on save.",
+	"routing_singbox_dns_final_direct_pre": "Final DNS — requests to the resolver go",
+	"routing_singbox_dns_final_direct_strong": "directly",
+	"routing_singbox_dns_final_direct_post": "(WAN). The",
+	"routing_singbox_dns_detour_not_written": "key is not written to the config.",
+	"routing_singbox_dns_detour_hint": "Which outbound the DNS server uses to reach the resolver’s IP. “Direct” — from the router (WAN), the",
+	"routing_singbox_dns_strategy_label": "Strategy (IPv4/IPv6)",
+	"routing_singbox_dns_bootstrap": "Bootstrap resolver (for the server domain)",
+	"routing_singbox_dns_bootstrap_toggle": "Use a different DNS to resolve this server’s domain",
+	"routing_singbox_dns_bootstrap_warn_pre": "The",
+	"routing_singbox_dns_bootstrap_warn_post": "server’s address is a domain name. Without a bootstrap resolver sing-box will not be able to resolve it.",
+	"routing_singbox_dns_lookup": "Get IP and certificates",
+	"routing_singbox_dns_lookup_hint": "Fills in the first IP and the SHA-256 pins; the domain is kept as the SNI.",
+	"routing_singbox_dns_found_ips": "Found IPs: {ips}",
+	"routing_singbox_dns_cert_item": "{subject} · until {notAfter}",
+	"routing_singbox_dns_certificates": "Certificates: {certificates}",
+	"routing_singbox_dns_accept_any_cert": "Accept any certificate",
+	"routing_singbox_dns_alpn_hint": "Values separated by commas or newlines.",
+	"routing_singbox_dns_tls_min": "Minimum TLS version",
+	"routing_singbox_dns_tls_max": "Maximum TLS version",
+	"routing_singbox_dns_pin_label": "SHA-256 of the certificate public key",
+	"routing_singbox_dns_pin_hint": "Several values — separated by commas or newlines.",
+	"routing_singbox_dnsrule_nxdomain": "NXDOMAIN (no such domain)",
+	"routing_singbox_dnsrule_drop": "Drop (no reply)",
+	"routing_singbox_dnsrule_rcode_unset": "— not set —",
+	"routing_singbox_dnsrule_action_route": "Route",
+	"routing_singbox_dnsrule_action_block": "Block",
+	"routing_singbox_dnsrule_mode_matchers": "By conditions",
+	"routing_singbox_dnsrule_mode_catchall": "Catch-all (everything else)",
+	"routing_singbox_dnsrule_mr_off": "off",
+	"routing_singbox_dnsrule_mr_anon": "last anonymous evaluate",
+	"routing_singbox_dnsrule_err_matcher": "At least one matcher is required",
+	"routing_singbox_dnsrule_err_server": "Select a DNS server",
+	"routing_singbox_dnsrule_err_race": "race and speculative are incompatible",
+	"routing_singbox_dnsrule_response_tag": "Response tag",
+	"routing_singbox_dnsrule_speculative": "Speculative query",
+	"routing_singbox_dnsrule_block_method": "Block method",
+	"routing_singbox_dnsrule_edit_title": "Edit DNS rule",
+	"routing_singbox_dnsrule_new_title": "New DNS rule",
+	"routing_singbox_dnsrule_rule_type": "Rule type",
+	"routing_singbox_dnsrule_type_aria": "DNS rule type",
+	"routing_singbox_dnsrule_catchall_warn_pre": "A rule without conditions matches",
+	"routing_singbox_dnsrule_catchall_warn_all": "all",
+	"routing_singbox_dnsrule_catchall_warn_mid": "queries. Any rules",
+	"routing_singbox_dnsrule_catchall_warn_below": "below",
+	"routing_singbox_dnsrule_catchall_warn_post": "it in the list are ignored — keep it last.",
+	"routing_singbox_dnsrule_action": "Action",
+	"routing_singbox_dnsrule_action_aria": "DNS rule action",
+	"routing_singbox_dnsrule_server_all": "DNS server (for all queries)",
+	"routing_singbox_dnsrule_server": "DNS server",
+	"routing_singbox_dnsrule_catchall_hint": "For a simple fallback server, the “Final server” in “Default DNS” is usually enough. If you set both it and a catch-all rule, the rule takes precedence (it is checked before final).",
+	"routing_singbox_dnsrule_matchers_min": "Matchers (at least one)",
+	"routing_singbox_dnsrule_not_selected": "not selected",
+	"routing_singbox_dnsrule_suffix_placeholder": "one per line: .youtube.com",
+	"routing_singbox_dnsrule_domain_exact": "Domain (exact match)",
+	"routing_singbox_dnsrule_keyword": "Domain keyword (comma-separated)",
+	"routing_singbox_dnsrule_regex": "Domain regex (one per line)",
+	"routing_singbox_dnsrule_qtype": "Query type (comma-separated)",
+	"routing_singbox_dnsrule_by_response": "By DNS response",
+	"routing_singbox_dnsrule_evaluate_response": "Evaluate response",
+	"routing_singbox_dnsrule_no_evaluate_above": "There are no evaluate rules above — first create a rule with the Evaluate action",
+	"routing_singbox_dnsrule_ip_cidr": "Response IP (CIDR, one per line)",
+	"routing_singbox_dnsrule_rr": "RR records",
+	"routing_singbox_dnsrule_answer": "Answer (one per line)",
+	"routing_singbox_dnsrule_ns": "NS (one per line)",
+	"routing_singbox_dnsrule_extra": "Extra (one per line)",
+	"routing_singbox_rule_already_added": "{label} (already added)",
+	"routing_singbox_rule_action_route": "Route",
+	"routing_singbox_rule_action_reject": "Block",
+	"routing_singbox_rule_network_any": "Any",
+	"routing_singbox_rule_hidden_domains": "exact domains: {domains}",
+	"routing_singbox_rule_hidden_protocol": "application protocol: {protocol}",
+	"routing_singbox_rule_hidden_private": "local destination addresses only",
+	"routing_singbox_rule_hidden_inbound": "inbound: {inbounds}",
+	"routing_singbox_rule_err_outbound": "Select an outbound for the “Route” action",
+	"routing_singbox_rule_title_matchers_only": "Domains and addresses",
+	"routing_singbox_rule_title_edit": "Edit rule",
+	"routing_singbox_rule_title_new": "New rule",
+	"routing_singbox_rule_logical_warn_pre": "This rule has a nested logical structure that the form does not show. Saving",
+	"routing_singbox_rule_logical_warn_bold": "will replace",
+	"routing_singbox_rule_logical_warn_post": "it with what is entered here. To change the rule without losing the structure, edit it in the config editor.",
+	"routing_singbox_rule_hidden_warn_pre": "The rule has conditions that are not in this form — they will be kept unchanged:",
+	"routing_singbox_rule_hidden_warn_post": "You can change them in the expert config editor.",
+	"routing_singbox_rule_domain_placeholder": "one per line, for example youtube.com",
+	"routing_singbox_rule_sources_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} source",
+				"countPlural=*": "{count} sources"
+			}
+		}
+	],
+	"routing_singbox_rule_mac_label": "Device MAC",
+	"routing_singbox_rule_mac_hint": "One MAC per line. The device is identified by the router’s neighbor table; it does not work for devices behind another router.",
+	"routing_singbox_rule_add_device": "Add a device…",
+	"routing_singbox_rule_rulesets_hint_pre": "Ready-made sets (geosite/geoip). For your own domains and subnets use the fields above — the rule will match the set",
+	"routing_singbox_rule_rulesets_hint_or": "or",
+	"routing_singbox_rule_rulesets_hint_post": "your addresses.",
+	"routing_singbox_rule_ports_label": "Ports (comma-separated)",
+	"routing_singbox_rule_ports_hint": "Optional. Additionally limits the rule to specific ports.",
+	"routing_singbox_rule_network_label": "Network (L4)",
+	"routing_singbox_rule_network_aria": "Network protocol TCP or UDP",
+	"routing_singbox_rule_network_hint": "Limit the rule to TCP only or UDP only. “Any” means no filter (as before).",
+	"routing_singbox_rule_action_aria": "Routing rule action",
+	"routing_singbox_rule_route_to": "Where to route",
+	"routing_singbox_ruleset_interval_24h": "24h (recommended)",
+	"routing_singbox_ruleset_interval_168h": "168h (week)",
+	"routing_singbox_ruleset_mode_list": "List",
+	"routing_singbox_ruleset_download_auto": "automatic (direct)",
+	"routing_singbox_ruleset_err_json_invalid": "Invalid JSON: {message}",
+	"routing_singbox_ruleset_err_json_array": "Rules must be a JSON array",
+	"routing_singbox_ruleset_err_geo_tag": "Select at least one tag from the dat file",
+	"routing_singbox_ruleset_err_url": "URL is required for type=remote",
+	"routing_singbox_ruleset_err_path": "Path is required for type=local",
+	"routing_singbox_ruleset_err_lossy": "This JSON contains fields that List mode cannot save without loss. Edit it in JSON.",
+	"routing_singbox_ruleset_err_inline_empty": "An inline rule set needs a non-empty JSON array of rules",
+	"routing_singbox_ruleset_err_list_empty": "The list is empty",
+	"routing_singbox_ruleset_err_no_lines": "No valid lines for the inline rule set",
+	"routing_singbox_ruleset_edit_title": "Edit rule set",
+	"routing_singbox_ruleset_new_title": "New rule set",
+	"routing_singbox_ruleset_type_readonly_aria": "Rule set type (cannot be changed)",
+	"routing_singbox_ruleset_type_aria": "Rule set type",
+	"routing_singbox_ruleset_rename_hint": "When renamed, references in routing and DNS rules are updated automatically.",
+	"routing_singbox_ruleset_srs_hint": "Do not use the -srs suffix — it is added automatically for the compiled set.",
+	"routing_singbox_ruleset_format": "Format",
+	"routing_singbox_ruleset_format_readonly_aria": "Rule set format (cannot be changed)",
+	"routing_singbox_ruleset_format_aria": "Rule set format",
+	"routing_singbox_ruleset_url_label": "File URL",
+	"routing_singbox_ruleset_update_interval": "Update interval",
+	"routing_singbox_ruleset_detour_label": "Download via (download detour)",
+	"routing_singbox_ruleset_detour_hint": "Which outbound to download this file through. Useful if the URL is blocked by your ISP — use a VPN tunnel.",
+	"routing_singbox_ruleset_dat_tags": "{type}.dat tags",
+	"routing_singbox_ruleset_dat_hint": "After saving, a remote rule-set with a local URL for conversion to .srs will be created.",
+	"routing_singbox_ruleset_dat_selected_aria": "Selected {type} tags",
+	"routing_singbox_ruleset_dat_loading": "Loading dat files…",
+	"routing_singbox_ruleset_dat_none": "No known {type}.dat files. Add them on the “Routing → Geo data” tab.",
+	"routing_singbox_ruleset_path_label": "File path",
+	"routing_singbox_ruleset_path_hint": "An absolute path. The file must exist on the router.",
+	"routing_singbox_ruleset_input_format": "Input format",
+	"routing_singbox_ruleset_input_format_aria": "Inline rule set input format",
+	"routing_singbox_ruleset_mode_switch": "When switching mode",
+	"routing_singbox_ruleset_lossy_title": "Data loss in “List” mode",
+	"routing_singbox_ruleset_rules_json": "Rules (JSON array)",
+	"routing_singbox_ruleset_advanced_hint": "Advanced mode: an array of objects with sing-box matchers.",
+	"routing_page_refreshed": "Data received",
+	"routing_page_missing": "Failed to load: {items}",
+	"routing_page_refresh_error": "Update error: {message}",
+	"routing_page_tab_ip": "IP addresses",
+	"routing_page_tab_clientvpn": "VPN for devices",
+	"routing_page_tab_policy": "Access policies",
+	"routing_page_tab_geodata": "Geo data",
+	"routing_page_search": "Search",
+	"routing_page_load_missing": "Load missing ({count})",
+	"routing_page_refresh": "Refresh",
+	"routing_page_unsaved_title": "Unsaved routing changes",
+	"routing_page_unsaved_pre": "The sing-box changes are saved as a draft but",
+	"routing_page_unsaved_strong": "have not been applied yet",
+	"routing_page_unsaved_post": "If you leave the tab, routing will not change until you click “Apply”.",
+	"routing_page_stay": "Stay",
+	"routing_page_leave": "Leave anyway",
+	"routing_page_search_title": "Search NDMS routing rules",
+	"routing_geo_autorefresh_on": "Geo file auto-update enabled",
+	"routing_geo_autorefresh_off": "Geo file auto-update disabled",
+	"routing_geo_save_error": "Failed to save settings",
+	"routing_geo_settings_saved": "Auto-update settings saved",
+	"routing_geo_updated": "Geo files updated",
+	"routing_geo_update_error": "Update error",
+	"routing_geo_update_now": "Run update now",
+	"routing_select": "Select",
+	"routing_select_all": "Select all",
+	"routing_selected_count": "{count} selected",
+	"routing_enable": "Enable",
+	"routing_disable": "Disable",
+	"routing_export": "Export",
+	"routing_bulk_tunnel": "Tunnel",
+	"routing_bulk_tunnel_label": "Tunnel:",
+	"routing_bulk_apply": "Apply ({count})",
+	"routing_delete_title": "Deletion",
+	"routing_orphan_title": "No tunnel — {count}",
+	"routing_orphan_hint_ip": "The tunnel was deleted, the rules are kept. Click “Edit” to bind the list to another tunnel.",
+	"routing_orphan_hint_dns": "The tunnel was deleted, the domain lists are kept. Click “Edit” to bind the list to another tunnel.",
+	"routing_unknown_error": "unknown error",
+	"routing_error_create": "Creation error",
+	"routing_error_update": "Update error",
+	"routing_error_save": "Save error",
+	"routing_error_delete": "Deletion error",
+	"routing_error_toggle": "Switch error",
+	"routing_error": "Error",
+	"routing_icon_changed": "Icon changed",
+	"routing_icon_reset": "Icon reset",
+	"routing_icon_update_failed": "Failed to update the icon",
+	"routing_import_error": "Import error \"{name}\": {message}",
+	"routing_bulk_enabled_rules": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Enabled {count} rule",
+				"countPlural=*": "Enabled {count} rules"
+			}
+		}
+	],
+	"routing_bulk_enabled_rules_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Enabled {ok} of {total} rule ({fail} error)",
+				"totalPlural=one, failPlural=*": "Enabled {ok} of {total} rule ({fail} errors)",
+				"totalPlural=*, failPlural=one": "Enabled {ok} of {total} rules ({fail} error)",
+				"totalPlural=*, failPlural=*": "Enabled {ok} of {total} rules ({fail} errors)"
+			}
+		}
+	],
+	"routing_bulk_disabled_rules": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Disabled {count} rule",
+				"countPlural=*": "Disabled {count} rules"
+			}
+		}
+	],
+	"routing_bulk_disabled_rules_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Disabled {ok} of {total} rule ({fail} error)",
+				"totalPlural=one, failPlural=*": "Disabled {ok} of {total} rule ({fail} errors)",
+				"totalPlural=*, failPlural=one": "Disabled {ok} of {total} rules ({fail} error)",
+				"totalPlural=*, failPlural=*": "Disabled {ok} of {total} rules ({fail} errors)"
+			}
+		}
+	],
+	"routing_bulk_deleted_rules": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Deleted {count} rule",
+				"countPlural=*": "Deleted {count} rules"
+			}
+		}
+	],
+	"routing_bulk_deleted_rules_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Deleted {ok} of {total} rule ({fail} error)",
+				"totalPlural=one, failPlural=*": "Deleted {ok} of {total} rule ({fail} errors)",
+				"totalPlural=*, failPlural=one": "Deleted {ok} of {total} rules ({fail} error)",
+				"totalPlural=*, failPlural=*": "Deleted {ok} of {total} rules ({fail} errors)"
+			}
+		}
+	],
+	"routing_bulk_tunnel_rules": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Tunnel changed for {count} rule",
+				"countPlural=*": "Tunnel changed for {count} rules"
+			}
+		}
+	],
+	"routing_bulk_tunnel_rules_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Tunnel changed for {ok} of {total} rule ({fail} error)",
+				"totalPlural=one, failPlural=*": "Tunnel changed for {ok} of {total} rule ({fail} errors)",
+				"totalPlural=*, failPlural=one": "Tunnel changed for {ok} of {total} rules ({fail} error)",
+				"totalPlural=*, failPlural=*": "Tunnel changed for {ok} of {total} rules ({fail} errors)"
+			}
+		}
+	],
+	"routing_bulk_enabled_routes": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Enabled {count} route",
+				"countPlural=*": "Enabled {count} routes"
+			}
+		}
+	],
+	"routing_bulk_enabled_routes_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Enabled {ok} of {total} route ({fail} error)",
+				"totalPlural=one, failPlural=*": "Enabled {ok} of {total} route ({fail} errors)",
+				"totalPlural=*, failPlural=one": "Enabled {ok} of {total} routes ({fail} error)",
+				"totalPlural=*, failPlural=*": "Enabled {ok} of {total} routes ({fail} errors)"
+			}
+		}
+	],
+	"routing_bulk_disabled_routes": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Disabled {count} route",
+				"countPlural=*": "Disabled {count} routes"
+			}
+		}
+	],
+	"routing_bulk_disabled_routes_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Disabled {ok} of {total} route ({fail} error)",
+				"totalPlural=one, failPlural=*": "Disabled {ok} of {total} route ({fail} errors)",
+				"totalPlural=*, failPlural=one": "Disabled {ok} of {total} routes ({fail} error)",
+				"totalPlural=*, failPlural=*": "Disabled {ok} of {total} routes ({fail} errors)"
+			}
+		}
+	],
+	"routing_bulk_deleted_routes": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Deleted {count} route",
+				"countPlural=*": "Deleted {count} routes"
+			}
+		}
+	],
+	"routing_bulk_deleted_routes_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Deleted {ok} of {total} route ({fail} error)",
+				"totalPlural=one, failPlural=*": "Deleted {ok} of {total} route ({fail} errors)",
+				"totalPlural=*, failPlural=one": "Deleted {ok} of {total} routes ({fail} error)",
+				"totalPlural=*, failPlural=*": "Deleted {ok} of {total} routes ({fail} errors)"
+			}
+		}
+	],
+	"routing_bulk_tunnel_routes": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Tunnel changed for {count} route",
+				"countPlural=*": "Tunnel changed for {count} routes"
+			}
+		}
+	],
+	"routing_bulk_tunnel_routes_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Tunnel changed for {ok} of {total} route ({fail} error)",
+				"totalPlural=one, failPlural=*": "Tunnel changed for {ok} of {total} route ({fail} errors)",
+				"totalPlural=*, failPlural=one": "Tunnel changed for {ok} of {total} routes ({fail} error)",
+				"totalPlural=*, failPlural=*": "Tunnel changed for {ok} of {total} routes ({fail} errors)"
+			}
+		}
+	],
+	"routing_bulk_deleted_policies": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Deleted {count} policy",
+				"countPlural=*": "Deleted {count} policies"
+			}
+		}
+	],
+	"routing_bulk_deleted_policies_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Deleted {ok} of {total} policy ({fail} error)",
+				"totalPlural=one, failPlural=*": "Deleted {ok} of {total} policy ({fail} errors)",
+				"totalPlural=*, failPlural=one": "Deleted {ok} of {total} policies ({fail} error)",
+				"totalPlural=*, failPlural=*": "Deleted {ok} of {total} policies ({fail} errors)"
+			}
+		}
+	],
+	"routing_exported_routes": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Exported {count} route",
+				"countPlural=*": "Exported {count} routes"
+			}
+		}
+	],
+	"routing_exported_rules": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Exported {count} rule",
+				"countPlural=*": "Exported {count} rules"
+			}
+		}
+	],
+	"routing_imported_routes": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Imported {count} route",
+				"countPlural=*": "Imported {count} routes"
+			}
+		}
+	],
+	"routing_imported_rules": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Imported {count} rule",
+				"countPlural=*": "Imported {count} rules"
+			}
+		}
+	],
+	"routing_rules_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} rule",
+				"countPlural=*": "{count} rules"
+			}
+		}
+	],
+	"routing_routes_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} route",
+				"countPlural=*": "{count} routes"
+			}
+		}
+	],
+	"routing_rules_active_summary": [
+		{
+			"declarations": [
+				"input count",
+				"input active",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} rule, {active} active",
+				"countPlural=*": "{count} rules, {active} active"
+			}
+		}
+	],
+	"routing_ip_orphan_count": "unlinked: {count}",
+	"routing_policies_devices_summary": [
+		{
+			"declarations": [
+				"input policies",
+				"input devices",
+				"local policiesPlural = policies: plural",
+				"local devicesPlural = devices: plural"
+			],
+			"selectors": [
+				"policiesPlural",
+				"devicesPlural"
+			],
+			"match": {
+				"policiesPlural=one, devicesPlural=one": "{policies} policy, {devices} device",
+				"policiesPlural=one, devicesPlural=*": "{policies} policy, {devices} devices",
+				"policiesPlural=*, devicesPlural=one": "{policies} policies, {devices} device",
+				"policiesPlural=*, devicesPlural=*": "{policies} policies, {devices} devices"
+			}
+		}
+	],
+	"routing_client_bulk_delete_message": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Delete {count} VPN rule?",
+				"countPlural=*": "Delete {count} VPN rules?"
+			}
+		}
+	],
+	"routing_ip_bulk_delete_message": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Delete {count} IP route?",
+				"countPlural=*": "Delete {count} IP routes?"
+			}
+		}
+	],
+	"routing_dns_bulk_delete_message": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Delete {count} DNS route?",
+				"countPlural=*": "Delete {count} DNS routes?"
+			}
+		}
+	],
+	"routing_policy_bulk_delete_message": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Delete {count} policy? All devices will be unbound.",
+				"countPlural=*": "Delete {count} policies? All devices will be unbound."
+			}
+		}
+	],
+	"routing_dns_created_from_catalog": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Created {count} rule from the catalog",
+				"countPlural=*": "Created {count} rules from the catalog"
+			}
+		}
+	],
+	"routing_dns_created_dedupe": [
+		{
+			"declarations": [
+				"input total",
+				"input exact",
+				"input wildcard",
+				"local totalPlural = total: plural"
+			],
+			"selectors": [
+				"totalPlural"
+			],
+			"match": {
+				"totalPlural=one": "DNS route created. Removed {total} duplicate ({exact} exact, {wildcard} wildcard).",
+				"totalPlural=*": "DNS route created. Removed {total} duplicates ({exact} exact, {wildcard} wildcard)."
+			}
+		}
+	],
+	"routing_dns_created": "DNS route created",
+	"routing_dns_updated_dedupe": [
+		{
+			"declarations": [
+				"input total",
+				"input exact",
+				"input wildcard",
+				"local totalPlural = total: plural"
+			],
+			"selectors": [
+				"totalPlural"
+			],
+			"match": {
+				"totalPlural=one": "DNS route updated. Removed {total} duplicate ({exact} exact, {wildcard} wildcard).",
+				"totalPlural=*": "DNS route updated. Removed {total} duplicates ({exact} exact, {wildcard} wildcard)."
+			}
+		}
+	],
+	"routing_dns_updated": "DNS route updated",
+	"routing_dns_deleted": "DNS route deleted",
+	"routing_dns_subs_updated": "Subscriptions updated",
+	"routing_dns_subs_error": "Subscription update: {message}",
+	"routing_dns_no_records": "The selected presets have no DNS records",
+	"routing_dns_none_created": "Could not create any rules",
+	"routing_dns_requires_pre": "DNS routing requires OS5 firmware or",
+	"routing_dns_empty_title": "No DNS routes yet",
+	"routing_dns_empty_desc": "Choose services from the catalog or create a rule manually",
+	"routing_dns_create_manual": "+ Create manually",
+	"routing_dns_delete_title": "Delete DNS route",
+	"routing_dns_delete_message": "Delete DNS route “{name}”?",
+	"routing_ip_updated": "IP route updated",
+	"routing_ip_created": "IP route created",
+	"routing_ip_deleted": "IP route deleted",
+	"routing_ip_import_set": "Upload a rule set",
+	"routing_ip_empty": "No IP routes",
+	"routing_ip_delete_message": "Delete the route list “{name}”?",
+	"routing_client_created": "Rule created",
+	"routing_client_updated": "Rule updated",
+	"routing_client_deleted": "Rule deleted",
+	"routing_client_vpn_on": "VPN enabled",
+	"routing_client_vpn_off": "VPN disabled",
+	"routing_client_empty": "No VPN rules for devices. Create a rule to route a device’s traffic through a VPN tunnel.",
+	"routing_client_delete_title": "Delete rule",
+	"routing_client_delete_message": "Delete the VPN rule for “{name}”?",
+	"access_policy_created": "Policy created",
+	"access_policy_deleted": "Policy deleted",
+	"access_policy_refresh_failed": "Failed to update access policies",
+	"access_policy_refreshed": "Policies updated",
+	"access_policy_refresh_error": "Policy update error: {message}",
+	"access_policy_no_data": "Policy data was not received from the router. Click “Load missing” in the page header to retry.",
+	"access_policy_empty": "No access policies. Create a policy to route devices’ traffic through the selected interfaces.",
+	"access_policy_delete_title": "Delete policy",
+	"access_policy_delete_message": "Delete policy “{name}”?",
+	"access_policy_delete_secondary": "All devices will be unbound from this policy."
 }

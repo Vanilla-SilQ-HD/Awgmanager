@@ -2685,5 +2685,1483 @@
 	"proxy_exit_detail_awg_aria": "Подсказка: AWG-туннель",
 	"proxy_exit_detail_policy": "Политика доступа:",
 	"proxy_exit_detail_no_policy": "не заведён в политику",
-	"proxy_exit_detail_drawer_title": "Параметры выхода"
+	"proxy_exit_detail_drawer_title": "Параметры выхода",
+	"access_policy_all_devices": "Все устройства",
+	"access_policy_show_offline": "Отобразить offline устройства",
+	"access_policy_device_search_placeholder": "Поиск по имени, хосту, IP...",
+	"access_policy_no_ip": "IP адрес отсутствует",
+	"access_policy_assign": "Назначить в политику",
+	"access_policy_no_devices": "Нет устройств",
+	"access_policy_interfaces_title": "Интерфейсы (приоритет)",
+	"access_policy_add": "Добавить",
+	"access_policy_no_allowed_interfaces": "Нет разрешённых интерфейсов",
+	"access_policy_denied": "запрещён",
+	"access_policy_iface_turn_off": "Выключить интерфейс",
+	"access_policy_iface_turn_on": "Включить интерфейс",
+	"access_policy_up": "Вверх",
+	"access_policy_down": "Вниз",
+	"access_policy_allow_use": "Разрешить использование",
+	"access_policy_deny_use": "Запретить использование",
+	"access_policy_confirm_off_title": "Выключение интерфейса",
+	"access_policy_confirm_on_title": "Включение интерфейса",
+	"access_policy_confirm_off_message": "Это действие выключит интерфейс «{label}» на роутере.",
+	"access_policy_confirm_on_message": "Это действие включит интерфейс «{label}» на роутере.",
+	"access_policy_confirm_off_secondary": "Интерфейс перестанет работать для всех сервисов, не только для этой политики. Все подключения через этот интерфейс будут разорваны.",
+	"access_policy_confirm_on_secondary": "Интерфейс станет доступен для всех сервисов, не только для этой политики.",
+	"access_policy_confirm_off": "Выключить",
+	"access_policy_confirm_on": "Включить",
+	"access_policy_desc_required": "Введите описание политики",
+	"access_policy_desc_pattern": "Только латинские буквы, цифры, дефисы и подчёркивания",
+	"access_policy_desc_max": "Максимум 256 символов",
+	"access_policy_create_title": "Создать политику",
+	"access_policy_description": "Описание",
+	"access_policy_description_hint": "Латинские буквы, цифры, дефисы, подчёркивания",
+	"access_policy_create": "Создать",
+	"access_policy_standalone_on": "Политика действует самостоятельно, без привязки к глобальным правилам. Статические маршруты из настроек роутера не копируются (маршруты из вкладки \"IP-адреса\" работать не будут).",
+	"access_policy_standalone_off": "Если standalone отключено - в политике действуют глобальные правила, статические маршруты из настроек роутера копируются.",
+	"access_policy_desc_error": "Описание: только латинские буквы, цифры, дефисы и подчёркивания",
+	"access_policy_back": "Назад к списку",
+	"access_policy_devices_in_policy": "Устройства в политике",
+	"access_policy_drop_here": "перетащите устройство сюда",
+	"access_policy_remove_from_policy": "Убрать из политики",
+	"access_policy_hr_banner": "Это политика HydraRoute Neo. Добавлять в неё устройства не требуется — маршрутизация HydraRoute распространяется только на политику по умолчанию. Интерфейсы настраиваются тем же способом, что и на вкладке HR Neo.",
+	"access_policy_bound_devices": "Привязанные устройства",
+	"access_policy_open_hr": "Открыть HydraRoute-политику «{name}»",
+	"access_policy_edit_policy": "Изменить политику «{name}»",
+	"access_policy_delete_policy": "Удалить политику «{name}»",
+	"routing_devices_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} устройство",
+				"countPlural=few": "{count} устройства",
+				"countPlural=many": "{count} устройств",
+				"countPlural=*": "{count} устройства"
+			}
+		}
+	],
+	"routing_badges_more_tunnels": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Ещё {count} туннель",
+				"countPlural=few": "Ещё {count} туннеля",
+				"countPlural=many": "Ещё {count} туннелей",
+				"countPlural=*": "Ещё {count} туннеля"
+			}
+		}
+	],
+	"routing_badges_more_interfaces": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Ещё {count} интерфейс",
+				"countPlural=few": "Ещё {count} интерфейса",
+				"countPlural=many": "Ещё {count} интерфейсов",
+				"countPlural=*": "Ещё {count} интерфейса"
+			}
+		}
+	],
+	"routing_badges_more_targets": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Ещё {count} цель",
+				"countPlural=few": "Ещё {count} цели",
+				"countPlural=many": "Ещё {count} целей",
+				"countPlural=*": "Ещё {count} цели"
+			}
+		}
+	],
+	"routing_badges_more": "Ещё {count}",
+	"client_route_fallback_drop": "Fallback: блокировать",
+	"client_route_fallback_direct": "Fallback: напрямую",
+	"client_route_edit_title": "Изменить VPN-маршрут устройства «{name}»",
+	"client_route_delete_title": "Удалить VPN-маршрут устройства «{name}»",
+	"client_route_modal_edit_title": "Редактирование правила",
+	"client_route_modal_create_title": "VPN для устройства",
+	"client_route_device": "Устройство",
+	"client_route_device_search_placeholder": "Поиск по имени или IP...",
+	"client_route_no_devices_found": "Устройства не найдены",
+	"client_route_use_manual": "Использовать: {ip}",
+	"client_route_select_device": "Выберите устройство",
+	"client_route_tunnel": "Туннель",
+	"client_route_if_tunnel_down": "Если туннель недоступен",
+	"client_route_block": "Блокировать",
+	"client_route_direct": "Напрямую",
+	"client_route_static_ip_warning": "Для гарантированной работы назначьте устройству статический IP-адрес в настройках роутера",
+	"client_route_save": "Сохранить",
+	"client_route_create": "Создать",
+	"routing_create": "Создать",
+	"routing_add": "Добавить",
+	"routing_load_config": "Загрузить конфигурацию",
+	"routing_from_catalog": "Из каталога",
+	"routing_create_manual": "Создать вручную",
+	"routing_drop_title": "Перетащите .json файл сюда",
+	"routing_drop_description_prefix": "Файл",
+	"routing_drop_description_suffix": "с {subject}, экспортированными ранее из AWG Manager.",
+	"routing_drop_hint": "или нажмите для выбора",
+	"routing_search_placeholder": "Поиск домена или IP по всем правилам...",
+	"routing_search_clear": "Очистить",
+	"routing_search_button": "Поиск",
+	"routing_search_resolve_error": "Ошибка резолва",
+	"routing_search_close": "Закрыть (Esc)",
+	"routing_search_close_aria": "Закрыть результаты",
+	"routing_search_dns_rules": "DNS-правила",
+	"routing_search_ip_rules": "IP-правила",
+	"routing_search_domains": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} домен",
+				"countPlural=few": "{count} домена",
+				"countPlural=many": "{count} доменов",
+				"countPlural=*": "{count} домена"
+			}
+		}
+	],
+	"routing_more_count": "+{count} ещё",
+	"routing_search_resolving": "Резолв домена...",
+	"routing_search_resolve_result": "Резолв: {domain}",
+	"routing_search_matches_in": "попадает в {matches}",
+	"routing_search_no_subnet": "Не попадает ни в одну подсеть",
+	"routing_search_not_found": "Не найдено ни в одном правиле",
+	"routing_search_lists": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} лист",
+				"countPlural=few": "{count} листа",
+				"countPlural=many": "{count} листов",
+				"countPlural=*": "{count} листа"
+			}
+		}
+	],
+	"routing_search_lists_manual": [
+		{
+			"declarations": [
+				"input lists",
+				"input manual",
+				"local listsPlural = lists: plural"
+			],
+			"selectors": [
+				"listsPlural"
+			],
+			"match": {
+				"listsPlural=one": "{lists} лист + {manual} вручную",
+				"listsPlural=few": "{lists} листа + {manual} вручную",
+				"listsPlural=many": "{lists} листов + {manual} вручную",
+				"listsPlural=*": "{lists} листа + {manual} вручную"
+			}
+		}
+	],
+	"routing_search_all_manual": "все вручную",
+	"routing_subnets_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} подсеть",
+				"countPlural=few": "{count} подсети",
+				"countPlural=many": "{count} подсетей",
+				"countPlural=*": "{count} подсети"
+			}
+		}
+	],
+	"routing_group_user": "Пользовательские",
+	"routing_group_system": "Системные",
+	"routing_ip_card_change_icon": "Сменить иконку",
+	"routing_ip_card_orphan_title": "Туннель, к которому был привязан этот список, удалён. Нажмите «Изменить» и выберите новый туннель.",
+	"routing_ip_card_no_tunnel": "Без туннеля",
+	"routing_ip_card_edit_title": "Изменить IP-маршрут «{name}»",
+	"routing_ip_card_delete_title": "Удалить IP-маршрут «{name}»",
+	"routing_ip_edit_title": "Редактирование: {name}",
+	"routing_ip_new_title": "Новый IP-маршрут",
+	"routing_ip_name": "Название",
+	"routing_ip_name_placeholder": "Заблокированные подсети",
+	"routing_ip_name_required": "Введите название",
+	"routing_ip_icon": "Иконка",
+	"routing_ip_icon_custom": "Кастомная иконка",
+	"routing_ip_icon_auto": "Авто-определение по имени",
+	"routing_ip_icon_auto_for": "Подбирается по «{name}»",
+	"routing_ip_icon_auto_empty": "Введите имя — иконка подберётся автоматически",
+	"routing_ip_icon_choose": "Выбрать иконку",
+	"routing_ip_tunnel": "Туннель",
+	"routing_ip_tunnel_required": "Выберите туннель",
+	"routing_ip_fallback_bypass": "Bypass — трафик пойдёт обычным маршрутом",
+	"routing_ip_fallback_kill": "Kill Switch — трафик будет заблокирован",
+	"routing_ip_fallback_label": "При недоступности интерфейса",
+	"routing_ip_subnets_title": "Подсети (по одной на строку, CIDR)",
+	"routing_ip_from_bat": "Из .bat файла",
+	"routing_ip_subnets_required": "Добавьте хотя бы одну подсеть",
+	"routing_save": "Сохранить",
+	"routing_import_title": "Загрузить набор маршрутов",
+	"routing_import_subject": "IP-маршрутами",
+	"routing_import_no_routes": "Не найдено валидных маршрутов в файле",
+	"routing_import_read_error": "Ошибка чтения файла",
+	"routing_import_tunnel_for_all": "Туннель для всех:",
+	"routing_import_no_tunnels": "Создайте хотя бы один туннель перед импортом",
+	"routing_import_found_routes": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Найдено {count} маршрут",
+				"countPlural=few": "Найдено {count} маршрута",
+				"countPlural=many": "Найдено {count} маршрутов",
+				"countPlural=*": "Найдено {count} маршрута"
+			}
+		}
+	],
+	"routing_import_duplicate": "Дубликат",
+	"routing_import_submit": "Импортировать ({count})",
+	"routing_singbox_all": "Все",
+	"routing_singbox_conn_search_placeholder": "Поиск host / IP / клиент",
+	"routing_singbox_no_data": "Нет данных",
+	"routing_singbox_conn_visible": "Видимо:",
+	"routing_singbox_conn_visible_of": "из {total}",
+	"routing_singbox_conn_close_visible": "Закрыть видимые",
+	"routing_singbox_conn_confirm_title": "Подтверждение",
+	"routing_singbox_conn_confirm_message": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Закрыть {count} соединение?",
+				"countPlural=few": "Закрыть {count} соединения?",
+				"countPlural=many": "Закрыть {count} соединений?",
+				"countPlural=*": "Закрыть {count} соединения?"
+			}
+		}
+	],
+	"routing_singbox_conn_confirm_secondary": "Затронутые outbound'ы: {outbounds}. Это действие необратимо — клиенты переподключатся.",
+	"routing_singbox_conn_close_all": "Закрыть всё",
+	"routing_singbox_geo_picker_aria": "Выбор {kind} тегов",
+	"routing_singbox_geo_search_placeholder": "Поиск {kind}:TAG…",
+	"routing_singbox_geo_no_files_prefix": "Нет загруженных файлов",
+	"routing_singbox_geo_no_files_suffix": ". Добавьте их на вкладке «Маршрутизация → Гео-данные».",
+	"routing_singbox_geo_loading": "Загрузка тегов…",
+	"routing_singbox_geo_nothing_found": "Ничего не найдено",
+	"routing_singbox_geo_tags_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} тег",
+				"countPlural=few": "{count} тега",
+				"countPlural=many": "{count} тегов",
+				"countPlural=*": "{count} тега"
+			}
+		}
+	],
+	"routing_singbox_geo_too_big": "Превышает лимит ipset: {count} ≥ {max}",
+	"routing_singbox_foreign_toggle": "Нужного нет? Интерфейс другой программы…",
+	"routing_singbox_foreign_hint": "Выбранный интерфейс будет отмечен как сторонний: панель не станет его удалять и занимать его номер. Для OpkgTun сначала создайте запись в NDMS, потом запускайте программу.",
+	"routing_singbox_loading": "Загрузка…",
+	"routing_singbox_foreign_kernel": "ядро",
+	"routing_singbox_foreign_mark_label": "Отметить и выбрать «{label}»",
+	"routing_singbox_foreign_iface_label": "Имя интерфейса ядра",
+	"routing_singbox_foreign_iface_placeholder": "имя интерфейса ядра",
+	"routing_singbox_foreign_mark": "Отметить и выбрать",
+	"routing_singbox_conn_empty_open": "Активных соединений сейчас нет",
+	"routing_singbox_conn_empty_waiting": "Ожидаем поток Clash API…",
+	"routing_singbox_conn_status_connecting": "Подключение…",
+	"routing_singbox_conn_status_reconnecting": "Переподключение…",
+	"routing_singbox_conn_status_error": "Ошибка",
+	"routing_singbox_conn_closed": "Соединение закрыто",
+	"routing_singbox_conn_close_failed": "Не удалось закрыть соединение",
+	"routing_singbox_conn_closed_of": "Закрыто {ok} из {total}",
+	"routing_singbox_conn_total": "Всего:",
+	"routing_singbox_conn_total_of": "из",
+	"routing_singbox_conn_total_suffix": "соединений",
+	"routing_singbox_conn_now": "сейчас",
+	"routing_singbox_conn_col_proto": "Прот",
+	"routing_singbox_conn_col_source": "Источник",
+	"routing_singbox_conn_col_destination": "Назначение",
+	"routing_singbox_conn_col_time": "Время",
+	"routing_singbox_conn_close_one": "Закрыть соединение",
+	"routing_singbox_conn_empty_filtered": "Нет соединений по фильтру",
+	"routing_singbox_conn_page": "Стр. {page} / {total}",
+	"routing_singbox_rewrite_pattern_required": "Шаблон обязателен",
+	"routing_singbox_rewrite_ip_required": "Укажите хотя бы один IP",
+	"routing_singbox_rewrite_edit_title": "Редактировать перезапись",
+	"routing_singbox_rewrite_new_title": "Новая перезапись",
+	"routing_singbox_rewrite_pattern_label": "Шаблон домена",
+	"routing_singbox_rewrite_hint_without": "Без",
+	"routing_singbox_rewrite_hint_exact": "— точный домен.",
+	"routing_singbox_rewrite_hint_subdomains": "— все поддомены.",
+	"routing_singbox_rewrite_hint_wildcard_pre": "— wildcard внутри первой метки (нужен доменный хвост после",
+	"routing_singbox_rewrite_hint_wildcard_post": ").",
+	"routing_singbox_rewrite_ips_label": "IP-адреса (через запятую)",
+	"routing_singbox_save": "Сохранить",
+	"routing_singbox_rewrite_managed_notice": "Эта перезапись управляется пресетом KeenDNS — снимите пресет в настройках движка",
+	"routing_singbox_rewrites_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} перезапись",
+				"countPlural=few": "{count} перезаписи",
+				"countPlural=many": "{count} перезаписей",
+				"countPlural=*": "{count} перезаписи"
+			}
+		}
+	],
+	"routing_singbox_add": "Добавить",
+	"routing_singbox_rewrites_empty": "Нет перезаписей. «Перезапись» возвращает заданный IP для домена/паттерна.",
+	"routing_singbox_rewrite_col_pattern": "Шаблон",
+	"routing_singbox_rewrite_col_ips": "IP-адреса",
+	"routing_singbox_rewrite_col_actions": "Действия",
+	"routing_singbox_rewrite_edit_aria": "Редактировать DNS-перезапись {pattern}",
+	"routing_singbox_rewrite_edit_row_title": "Редактировать DNS-перезапись «{pattern}»",
+	"routing_singbox_rewrite_managed_by_preset": "Управляется пресетом",
+	"routing_singbox_rewrite_delete_aria": "Удалить DNS-перезапись {pattern}",
+	"routing_singbox_rewrite_delete_row_title": "Удалить DNS-перезапись «{pattern}»",
+	"routing_singbox_rewrite_delete_title": "Удалить перезапись",
+	"routing_singbox_rewrite_delete_message": "Удалить перезапись «{pattern}»?",
+	"routing_singbox_timeout_seconds": "{count} с",
+	"routing_singbox_timeout_default": "— по умолчанию (10 с) —",
+	"routing_singbox_dns_final_unset": "— не задан —",
+	"routing_singbox_dns_globals_title": "DNS по умолчанию",
+	"routing_singbox_dns_final_label": "Final-сервер",
+	"routing_singbox_dns_final_hint": "Сервер по умолчанию для запросов, не попавших ни под одно правило — простой запасной путь (рекомендуется). Отдельное catch-all правило (без условий) делает то же, но как явное последнее правило; если есть и то и другое, правило важнее (проверяется раньше final).",
+	"routing_singbox_dns_strategy": "Стратегия",
+	"routing_singbox_dns_strategy_hint": "Для роутера без IPv6 обычно prefer_ipv4 или ipv4_only.",
+	"routing_singbox_dns_timeout": "Таймаут запроса",
+	"routing_singbox_dns_timeout_hint": "Сколько ждать ответ одного DNS-сервера. Короче — быстрее переход к следующему в цепочке, но чаще ложные отказы на медленном канале.",
+	"routing_singbox_list_ph_domains": "Домены и все поддомены",
+	"routing_singbox_list_ph_subdomains": "Только поддомены",
+	"routing_singbox_list_ph_domain": "Только домен",
+	"routing_singbox_list_ph_extra": "Дополнительно",
+	"routing_singbox_list_expanding": "Разворачиваем geosite:/geoip: теги…",
+	"routing_singbox_list_label": "Список правил",
+	"routing_singbox_list_help_summary": "Подсказка по формату списка",
+	"routing_singbox_list_help_intro_1": "Одна строка — одно значение. Пустые строки игнорируются.",
+	"routing_singbox_list_help_intro_2_pre": "В списке можно писать комментарии:",
+	"routing_singbox_list_help_intro_2_post": "(целая строка или в конце — после пробела).",
+	"routing_singbox_list_help_intro_3": "При сохранении или переходе на вкладку JSON комментарии удаляются и в JSON не сохраняются. Порядок строк в списке не имеет значения и может меняться при сохранении.",
+	"routing_singbox_list_help_domains_label": "Домены и поддомены",
+	"routing_singbox_list_help_host_and_subs": "→ хост и его поддомены (в JSON:",
+	"routing_singbox_list_help_no_dot": "без точки)",
+	"routing_singbox_list_help_url": "— из URL берётся hostname и хранится так же",
+	"routing_singbox_list_help_zone": "— доменная зона; кириллица будет конвертирована в punycode",
+	"routing_singbox_list_help_no_leading_dot": "без ведущей точки",
+	"routing_singbox_list_help_sub_only_label": "Только поддомены (без отдельного",
+	"routing_singbox_list_help_suffix": "— суффикс",
+	"routing_singbox_list_help_with": "с",
+	"routing_singbox_list_help_dot_in_json": "точкой в JSON:",
+	"routing_singbox_list_help_apex": "(apex не матчится)",
+	"routing_singbox_list_help_dotted": "— явная dotted-форма, в JSON будет",
+	"routing_singbox_list_help_exact_label": "Только точный хост",
+	"routing_singbox_list_help_only": "— только",
+	"routing_singbox_list_help_no_subdomains": "без поддоменов",
+	"routing_singbox_list_help_ip_label": "IP и подсети (только IPv4)",
+	"routing_singbox_list_help_in_json_as": "— в JSON как",
+	"routing_singbox_list_help_reverse_bare_ip": "при обратном переводе снова голый IP",
+	"routing_singbox_list_help_cidr_as_is": "— CIDR как есть; маски кроме",
+	"routing_singbox_list_help_not_compressed": "не сжимаются",
+	"routing_singbox_list_help_prefixes": "префиксы",
+	"routing_singbox_list_help_same_rule": "— то же правило",
+	"routing_singbox_list_help_ipv6_unsupported": "IPv6 в режиме «Список» не поддерживается — адреса и префиксы IPv6 задавайте в JSON",
+	"routing_singbox_list_help_geo_label": "Geo и прочие matchers",
+	"routing_singbox_list_help_geosite_pre": "— разворачивается в домены; суффиксы из .dat —",
+	"routing_singbox_list_help_without": "без",
+	"routing_singbox_list_help_leading_dot_as": "ведущей точки (как",
+	"routing_singbox_list_help_geoip": "— разворачивается в CIDR; одиночные хосты из geo — в списке без",
+	"routing_singbox_list_help_keyword_regex": "— отдельные поля в JSON",
+	"routing_singbox_list_help_advanced_label": "Расширенные matchers",
+	"routing_singbox_list_help_advanced_group": "каждый тип — отдельная группа правил в JSON (не смешивается с доменами в одной записи)",
+	"routing_singbox_list_help_careful_label": "Осторожно",
+	"routing_singbox_list_help_port": "— отдельное правило на весь HTTPS-трафик",
+	"routing_singbox_list_help_process": "на Keenetic/Entware — только локальные процессы роутера, не LAN-клиенты",
+	"routing_singbox_list_help_not_yet_label": "Пока не в режиме «Список»",
+	"routing_singbox_list_help_ipv6_exceptions": "IPv6, исключения",
+	"routing_singbox_list_help_logic": "логика",
+	"routing_singbox_list_help_extra_fields": "и любые лишние поля sing-box — только режим",
+	"routing_singbox_list_empty_hint": "Список пуст — добавьте домены, IP или geosite:/geoip: тег.",
+	"routing_singbox_list_parse_errors": "Ошибки разбора",
+	"routing_singbox_list_parse_warnings": "Предупреждения",
+	"routing_singbox_list_rules_to_create": "Будет создано групп правил: {count}",
+	"routing_singbox_list_json_preview": "Предпросмотр JSON",
+	"routing_singbox_chain_off": "Выкл",
+	"routing_singbox_chain_resilient": "Отказоустойчивый",
+	"routing_singbox_chain_antipoison": "Анти-подмена",
+	"routing_singbox_chain_via": "через {detour}",
+	"routing_singbox_chain_fakeip_unavailable_rules": "Недоступно в режиме FakeIP. Правила цепочки в списке относятся к режиму TPROXY и сейчас неактивны.",
+	"routing_singbox_chain_fakeip_unavailable": "Недоступно в режиме FakeIP",
+	"routing_singbox_chain_title": "Пресет DNS-цепочки",
+	"routing_singbox_chain_mode_aria": "Режим DNS-пресета",
+	"routing_singbox_chain_direct_dns": "Прямой DNS",
+	"routing_singbox_chain_choose": "— выбрать —",
+	"routing_singbox_chain_tunnel_dns": "DNS через туннель",
+	"routing_singbox_chain_suspicious_ips": "Подозрительные IP (CIDR, по строке)",
+	"routing_singbox_chain_order_hint": "Правила пресета выполняются после ваших: цепочка автоматически держится в конце списка",
+	"routing_singbox_chain_shadowed": "Пресет не действует: выше цепочки стоит catch-all-правило, перехватывающее все запросы",
+	"routing_singbox_chain_final_hint": "Если оба резолвера недоступны, запрос уходит на финальный сервер: {server}",
+	"routing_singbox_apply": "Применить",
+	"routing_singbox_outbound_foreign_group": "Сторонние",
+	"routing_singbox_outbound_err_foreign_missing": "Интерфейс отмечен, но не появился в списке — обновите диалог",
+	"routing_singbox_outbound_err_tag": "Tag обязателен",
+	"routing_singbox_outbound_err_iface": "Выберите интерфейс",
+	"routing_singbox_outbound_err_members": "Нужно минимум 2 члена",
+	"routing_singbox_outbound_type_interface": "Интерфейс",
+	"routing_singbox_outbound_desc_direct": "Прямое соединение через выбранный интерфейс (IPSec/IKEv2/др. VPN). Трафик правила пойдёт через этот интерфейс.",
+	"routing_singbox_outbound_desc_urltest": "Периодически пингует каждого члена и автоматически направляет через самого быстрого.",
+	"routing_singbox_outbound_desc_selector": "Ручное переключение через Clash API. Новые подключения идут через выбранный default.",
+	"routing_singbox_outbound_edit_title": "Редактировать outbound",
+	"routing_singbox_outbound_new_title": "Новый outbound",
+	"routing_singbox_outbound_type": "Тип",
+	"routing_singbox_outbound_type_aria": "Тип outbound",
+	"routing_singbox_outbound_tag_label": "Tag (имя)",
+	"routing_singbox_outbound_tag_collision": "⚠ Имя совпадает с именем существующего туннеля — их легко перепутать в списке участников. Лучше дать группе отличающееся имя.",
+	"routing_singbox_outbound_members_sub": "Участники",
+	"routing_singbox_outbound_members_min": "Members (минимум 2)",
+	"routing_singbox_outbound_members_none": "Участники не выбраны",
+	"routing_singbox_outbound_remove_aria": "Удалить {name}",
+	"routing_singbox_outbound_remove": "Удалить",
+	"routing_singbox_outbound_sub_hint": "Список редактируется в разделе «Туннели» -> «Sing-box подписки»",
+	"routing_singbox_outbound_add_member": "Добавить участника",
+	"routing_singbox_outbound_default_label": "Default (один из members)",
+	"routing_singbox_outbound_add_members_first": "Сначала добавьте участников",
+	"routing_singbox_outbound_choose": "— выбрать —",
+	"routing_singbox_outbound_loading_ifaces": "Загрузка интерфейсов…",
+	"routing_singbox_outbound_no_ifaces": "Нет доступных интерфейсов",
+	"routing_singbox_outbound_choose_iface": "— выбрать интерфейс —",
+	"routing_singbox_dns_type_udp": "UDP (обычный DNS)",
+	"routing_singbox_dns_type_local": "Local (системный resolver роутера)",
+	"routing_singbox_direct": "Напрямую",
+	"routing_singbox_dns_choose": "— выберите —",
+	"routing_singbox_dns_err_lookup_domain": "Укажите домен DNS-сервера",
+	"routing_singbox_dns_err_server": "Server обязателен",
+	"routing_singbox_dns_err_resolver": "Укажите domain_resolver",
+	"routing_singbox_dns_err_tls_range": "Минимальная версия TLS не может быть выше максимальной",
+	"routing_singbox_dns_edit_title": "Редактировать DNS сервер",
+	"routing_singbox_dns_new_title": "Новый DNS сервер",
+	"routing_singbox_dns_local_hint": "Local-сервер резолвит через системный resolver роутера (NDMS/AdGuard/Pi-hole). Адрес и порт не требуются.",
+	"routing_singbox_dns_routing": "Маршрутизация",
+	"routing_singbox_dns_detour_invalid": "Сейчас в конфиге указан недопустимый detour. Должно быть «Напрямую» — будет исправлено при сохранении.",
+	"routing_singbox_dns_final_direct_pre": "Final DNS — запросы к резолверу идут",
+	"routing_singbox_dns_final_direct_strong": "напрямую",
+	"routing_singbox_dns_final_direct_post": "(WAN). Ключ",
+	"routing_singbox_dns_detour_not_written": "в конфиг не пишется.",
+	"routing_singbox_dns_detour_hint": "Через какой outbound DNS-сервер достучится до IP резолвера. «Напрямую» — с роутера (WAN), ключ",
+	"routing_singbox_dns_strategy_label": "Стратегия (IPv4/IPv6)",
+	"routing_singbox_dns_bootstrap": "Bootstrap resolver (для домена сервера)",
+	"routing_singbox_dns_bootstrap_toggle": "Использовать другой DNS для резолва домена этого сервера",
+	"routing_singbox_dns_bootstrap_warn_pre": "У",
+	"routing_singbox_dns_bootstrap_warn_post": "сервера адрес — доменное имя. Без bootstrap resolver sing-box не сможет его резолвить.",
+	"routing_singbox_dns_lookup": "Получить IP и сертификаты",
+	"routing_singbox_dns_lookup_hint": "Подставит первый IP и SHA-256 pins; домен сохранится как SNI.",
+	"routing_singbox_dns_found_ips": "Найденные IP: {ips}",
+	"routing_singbox_dns_cert_item": "{subject} · до {notAfter}",
+	"routing_singbox_dns_certificates": "Сертификаты: {certificates}",
+	"routing_singbox_dns_accept_any_cert": "Принимать любой сертификат",
+	"routing_singbox_dns_alpn_hint": "Значения через запятую или с новой строки.",
+	"routing_singbox_dns_tls_min": "Минимальная версия TLS",
+	"routing_singbox_dns_tls_max": "Максимальная версия TLS",
+	"routing_singbox_dns_pin_label": "SHA-256 публичного ключа сертификата",
+	"routing_singbox_dns_pin_hint": "Несколько значений — через запятую или с новой строки.",
+	"routing_singbox_dnsrule_nxdomain": "NXDOMAIN (нет такого домена)",
+	"routing_singbox_dnsrule_drop": "Drop (без ответа)",
+	"routing_singbox_dnsrule_rcode_unset": "— не задан —",
+	"routing_singbox_dnsrule_action_route": "Маршрут",
+	"routing_singbox_dnsrule_action_block": "Блокировка",
+	"routing_singbox_dnsrule_mode_matchers": "По условиям",
+	"routing_singbox_dnsrule_mode_catchall": "Catch-all (всё остальное)",
+	"routing_singbox_dnsrule_mr_off": "выкл",
+	"routing_singbox_dnsrule_mr_anon": "последний анонимный evaluate",
+	"routing_singbox_dnsrule_err_matcher": "Нужен хотя бы один matcher",
+	"routing_singbox_dnsrule_err_server": "Выберите DNS сервер",
+	"routing_singbox_dnsrule_err_race": "race и speculative несовместимы",
+	"routing_singbox_dnsrule_response_tag": "Тег ответа",
+	"routing_singbox_dnsrule_speculative": "Спекулятивный запрос",
+	"routing_singbox_dnsrule_block_method": "Метод блокировки",
+	"routing_singbox_dnsrule_edit_title": "Редактировать DNS правило",
+	"routing_singbox_dnsrule_new_title": "Новое DNS правило",
+	"routing_singbox_dnsrule_rule_type": "Тип правила",
+	"routing_singbox_dnsrule_type_aria": "Тип DNS правила",
+	"routing_singbox_dnsrule_catchall_warn_pre": "Правило без условий совпадает со",
+	"routing_singbox_dnsrule_catchall_warn_all": "всеми",
+	"routing_singbox_dnsrule_catchall_warn_mid": "запросами. Любые правила",
+	"routing_singbox_dnsrule_catchall_warn_below": "ниже",
+	"routing_singbox_dnsrule_catchall_warn_post": "него в списке игнорируются — держите его последним.",
+	"routing_singbox_dnsrule_action": "Действие",
+	"routing_singbox_dnsrule_action_aria": "Действие DNS правила",
+	"routing_singbox_dnsrule_server_all": "DNS сервер (для всех запросов)",
+	"routing_singbox_dnsrule_server": "DNS сервер",
+	"routing_singbox_dnsrule_catchall_hint": "Для простого запасного сервера обычно достаточно «Final-сервера» в «DNS по умолчанию». Если задать и его, и catch-all правило — правило важнее (проверяется раньше final).",
+	"routing_singbox_dnsrule_matchers_min": "Matchers (минимум один)",
+	"routing_singbox_dnsrule_not_selected": "не выбрано",
+	"routing_singbox_dnsrule_suffix_placeholder": "по одному на строке: .youtube.com",
+	"routing_singbox_dnsrule_domain_exact": "Domain (точное совпадение)",
+	"routing_singbox_dnsrule_keyword": "Domain keyword (через запятую)",
+	"routing_singbox_dnsrule_regex": "Domain regex (по строке)",
+	"routing_singbox_dnsrule_qtype": "Query type (через запятую)",
+	"routing_singbox_dnsrule_by_response": "По DNS-ответу",
+	"routing_singbox_dnsrule_evaluate_response": "Ответ evaluate",
+	"routing_singbox_dnsrule_no_evaluate_above": "Нет evaluate-правил выше — сначала создайте правило с действием Evaluate",
+	"routing_singbox_dnsrule_ip_cidr": "IP ответа (CIDR, по строке)",
+	"routing_singbox_dnsrule_rr": "RR-записи",
+	"routing_singbox_dnsrule_answer": "Answer (по строке)",
+	"routing_singbox_dnsrule_ns": "NS (по строке)",
+	"routing_singbox_dnsrule_extra": "Extra (по строке)",
+	"routing_singbox_rule_already_added": "{label} (уже добавлен)",
+	"routing_singbox_rule_action_route": "Направить",
+	"routing_singbox_rule_action_reject": "Заблокировать",
+	"routing_singbox_rule_network_any": "Любой",
+	"routing_singbox_rule_hidden_domains": "точные домены: {domains}",
+	"routing_singbox_rule_hidden_protocol": "прикладной протокол: {protocol}",
+	"routing_singbox_rule_hidden_private": "только локальные адреса назначения",
+	"routing_singbox_rule_hidden_inbound": "вход: {inbounds}",
+	"routing_singbox_rule_err_outbound": "Выберите outbound для действия \"Направить\"",
+	"routing_singbox_rule_title_matchers_only": "Домены и адреса",
+	"routing_singbox_rule_title_edit": "Редактировать правило",
+	"routing_singbox_rule_title_new": "Новое правило",
+	"routing_singbox_rule_logical_warn_pre": "Это правило со вложенной логической структурой, которую форма не показывает. Сохранение",
+	"routing_singbox_rule_logical_warn_bold": "заменит",
+	"routing_singbox_rule_logical_warn_post": "её тем, что введено здесь. Чтобы изменить правило, не потеряв структуру, правьте его в редакторе конфигурации.",
+	"routing_singbox_rule_hidden_warn_pre": "В правиле есть условия, которых нет в этой форме — они сохранятся без изменений:",
+	"routing_singbox_rule_hidden_warn_post": "Изменить их можно в экспертном редакторе конфигурации.",
+	"routing_singbox_rule_domain_placeholder": "по одному на строке, например youtube.com",
+	"routing_singbox_rule_sources_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} источник",
+				"countPlural=few": "{count} источника",
+				"countPlural=many": "{count} источников",
+				"countPlural=*": "{count} источника"
+			}
+		}
+	],
+	"routing_singbox_rule_mac_label": "MAC устройства",
+	"routing_singbox_rule_mac_hint": "По одному MAC в строке. Устройство определяется по таблице соседей роутера; для устройств за другим роутером не работает.",
+	"routing_singbox_rule_add_device": "Добавить устройство…",
+	"routing_singbox_rule_rulesets_hint_pre": "Готовые наборы (geosite/geoip). Для своих доменов и подсетей используйте поля выше — правило сработает по набору",
+	"routing_singbox_rule_rulesets_hint_or": "или",
+	"routing_singbox_rule_rulesets_hint_post": "по вашим адресам.",
+	"routing_singbox_rule_ports_label": "Порты (через запятую)",
+	"routing_singbox_rule_ports_hint": "Необязательно. Дополнительно ограничивает правило конкретными портами.",
+	"routing_singbox_rule_network_label": "Сеть (L4)",
+	"routing_singbox_rule_network_aria": "Протокол сети TCP или UDP",
+	"routing_singbox_rule_network_hint": "Ограничить правило только TCP или только UDP. «Любой» — без фильтра (как раньше).",
+	"routing_singbox_rule_action_aria": "Действие правила маршрутизации",
+	"routing_singbox_rule_route_to": "Куда направить",
+	"routing_singbox_ruleset_interval_24h": "24h (рекомендуется)",
+	"routing_singbox_ruleset_interval_168h": "168h (неделя)",
+	"routing_singbox_ruleset_mode_list": "Список",
+	"routing_singbox_ruleset_download_auto": "автоматически (direct)",
+	"routing_singbox_ruleset_err_json_invalid": "Некорректный JSON: {message}",
+	"routing_singbox_ruleset_err_json_array": "Правила должны быть JSON-массивом",
+	"routing_singbox_ruleset_err_geo_tag": "Выберите хотя бы один тег из dat-файла",
+	"routing_singbox_ruleset_err_url": "URL обязателен для type=remote",
+	"routing_singbox_ruleset_err_path": "Path обязателен для type=local",
+	"routing_singbox_ruleset_err_lossy": "Этот JSON содержит поля, которые режим Список не может сохранить без потерь. Редактируйте в JSON.",
+	"routing_singbox_ruleset_err_inline_empty": "Для inline rule set нужен непустой JSON-массив правил",
+	"routing_singbox_ruleset_err_list_empty": "Список пуст",
+	"routing_singbox_ruleset_err_no_lines": "Нет валидных строк для inline rule set",
+	"routing_singbox_ruleset_edit_title": "Редактировать rule set",
+	"routing_singbox_ruleset_new_title": "Новый rule set",
+	"routing_singbox_ruleset_type_readonly_aria": "Тип rule set (нельзя изменить)",
+	"routing_singbox_ruleset_type_aria": "Тип rule set",
+	"routing_singbox_ruleset_rename_hint": "При переименовании ссылки в правилах маршрутизации и DNS обновятся автоматически.",
+	"routing_singbox_ruleset_srs_hint": "Не используйте суффикс -srs — он добавляется автоматически для скомпилированного набора.",
+	"routing_singbox_ruleset_format": "Формат",
+	"routing_singbox_ruleset_format_readonly_aria": "Формат rule set (нельзя изменить)",
+	"routing_singbox_ruleset_format_aria": "Формат rule set",
+	"routing_singbox_ruleset_url_label": "URL к файлу",
+	"routing_singbox_ruleset_update_interval": "Интервал обновления",
+	"routing_singbox_ruleset_detour_label": "Скачивать через (download detour)",
+	"routing_singbox_ruleset_detour_hint": "Через какой outbound скачивать этот файл. Полезно если URL заблокирован у провайдера — используйте VPN-туннель.",
+	"routing_singbox_ruleset_dat_tags": "Теги {type}.dat",
+	"routing_singbox_ruleset_dat_hint": "После сохранения будет создан remote rule-set с локальным URL конвертации в .srs.",
+	"routing_singbox_ruleset_dat_selected_aria": "Выбранные {type} теги",
+	"routing_singbox_ruleset_dat_loading": "Загрузка dat-файлов…",
+	"routing_singbox_ruleset_dat_none": "Нет известных файлов {type}.dat. Добавьте их на вкладке «Маршрутизация → Гео-данные».",
+	"routing_singbox_ruleset_path_label": "Путь к файлу",
+	"routing_singbox_ruleset_path_hint": "Абсолютный путь. Файл должен существовать на роутере.",
+	"routing_singbox_ruleset_input_format": "Формат ввода",
+	"routing_singbox_ruleset_input_format_aria": "Формат ввода inline rule set",
+	"routing_singbox_ruleset_mode_switch": "При переключении режима",
+	"routing_singbox_ruleset_lossy_title": "Потеря данных в режиме \"Список\"",
+	"routing_singbox_ruleset_rules_json": "Правила (JSON-массив)",
+	"routing_singbox_ruleset_advanced_hint": "Advanced mode: массив объектов с матчерами sing-box.",
+	"routing_page_refreshed": "Данные получены",
+	"routing_page_missing": "Не удалось загрузить: {items}",
+	"routing_page_refresh_error": "Ошибка обновления: {message}",
+	"routing_page_tab_ip": "IP-адреса",
+	"routing_page_tab_clientvpn": "VPN для устройств",
+	"routing_page_tab_policy": "Политики доступа",
+	"routing_page_tab_geodata": "Гео-данные",
+	"routing_page_search": "Поиск",
+	"routing_page_load_missing": "Загрузить недостающее ({count})",
+	"routing_page_refresh": "Обновить",
+	"routing_page_unsaved_title": "Несохранённые правки маршрутизации",
+	"routing_page_unsaved_pre": "Правки sing-box сохранены как черновик, но",
+	"routing_page_unsaved_strong": "ещё не применены",
+	"routing_page_unsaved_post": "Если уйти с вкладки — маршрутизация не изменится, пока вы не нажмёте «Применить».",
+	"routing_page_stay": "Остаться",
+	"routing_page_leave": "Уйти всё равно",
+	"routing_page_search_title": "Поиск по правилам маршрутизации NDMS",
+	"routing_geo_autorefresh_on": "Автообновление гео-файлов включено",
+	"routing_geo_autorefresh_off": "Автообновление гео-файлов отключено",
+	"routing_geo_save_error": "Ошибка сохранения настроек",
+	"routing_geo_settings_saved": "Настройки автообновления сохранены",
+	"routing_geo_updated": "Гео-файлы обновлены",
+	"routing_geo_update_error": "Ошибка обновления",
+	"routing_geo_update_now": "Запустить обновление сейчас",
+	"routing_select": "Выбрать",
+	"routing_select_all": "Выбрать все",
+	"routing_selected_count": "{count} выбрано",
+	"routing_enable": "Включить",
+	"routing_disable": "Выключить",
+	"routing_export": "Экспорт",
+	"routing_bulk_tunnel": "Туннель",
+	"routing_bulk_tunnel_label": "Туннель:",
+	"routing_bulk_apply": "Применить ({count})",
+	"routing_delete_title": "Удаление",
+	"routing_orphan_title": "Без туннеля — {count}",
+	"routing_orphan_hint_ip": "Туннель удалён, правила сохранены. Нажмите «Изменить», чтобы привязать список к другому туннелю.",
+	"routing_orphan_hint_dns": "Туннель удалён, списки доменов сохранены. Нажмите «Изменить», чтобы привязать список к другому туннелю.",
+	"routing_unknown_error": "неизвестная ошибка",
+	"routing_error_create": "Ошибка создания",
+	"routing_error_update": "Ошибка обновления",
+	"routing_error_save": "Ошибка сохранения",
+	"routing_error_delete": "Ошибка удаления",
+	"routing_error_toggle": "Ошибка переключения",
+	"routing_error": "Ошибка",
+	"routing_icon_changed": "Иконка изменена",
+	"routing_icon_reset": "Иконка сброшена",
+	"routing_icon_update_failed": "Не удалось обновить иконку",
+	"routing_import_error": "Ошибка импорта \"{name}\": {message}",
+	"routing_bulk_enabled_rules": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Включено {count} правило",
+				"countPlural=few": "Включено {count} правила",
+				"countPlural=many": "Включено {count} правил",
+				"countPlural=*": "Включено {count} правила"
+			}
+		}
+	],
+	"routing_bulk_enabled_rules_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Включено {ok} из {total} правило ({fail} ошибка)",
+				"totalPlural=one, failPlural=few": "Включено {ok} из {total} правило ({fail} ошибки)",
+				"totalPlural=one, failPlural=many": "Включено {ok} из {total} правило ({fail} ошибок)",
+				"totalPlural=one, failPlural=*": "Включено {ok} из {total} правило ({fail} ошибки)",
+				"totalPlural=few, failPlural=one": "Включено {ok} из {total} правила ({fail} ошибка)",
+				"totalPlural=few, failPlural=few": "Включено {ok} из {total} правила ({fail} ошибки)",
+				"totalPlural=few, failPlural=many": "Включено {ok} из {total} правила ({fail} ошибок)",
+				"totalPlural=few, failPlural=*": "Включено {ok} из {total} правила ({fail} ошибки)",
+				"totalPlural=many, failPlural=one": "Включено {ok} из {total} правил ({fail} ошибка)",
+				"totalPlural=many, failPlural=few": "Включено {ok} из {total} правил ({fail} ошибки)",
+				"totalPlural=many, failPlural=many": "Включено {ok} из {total} правил ({fail} ошибок)",
+				"totalPlural=many, failPlural=*": "Включено {ok} из {total} правил ({fail} ошибки)",
+				"totalPlural=*, failPlural=one": "Включено {ok} из {total} правила ({fail} ошибка)",
+				"totalPlural=*, failPlural=few": "Включено {ok} из {total} правила ({fail} ошибки)",
+				"totalPlural=*, failPlural=many": "Включено {ok} из {total} правила ({fail} ошибок)",
+				"totalPlural=*, failPlural=*": "Включено {ok} из {total} правила ({fail} ошибки)"
+			}
+		}
+	],
+	"routing_bulk_disabled_rules": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Выключено {count} правило",
+				"countPlural=few": "Выключено {count} правила",
+				"countPlural=many": "Выключено {count} правил",
+				"countPlural=*": "Выключено {count} правила"
+			}
+		}
+	],
+	"routing_bulk_disabled_rules_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Выключено {ok} из {total} правило ({fail} ошибка)",
+				"totalPlural=one, failPlural=few": "Выключено {ok} из {total} правило ({fail} ошибки)",
+				"totalPlural=one, failPlural=many": "Выключено {ok} из {total} правило ({fail} ошибок)",
+				"totalPlural=one, failPlural=*": "Выключено {ok} из {total} правило ({fail} ошибки)",
+				"totalPlural=few, failPlural=one": "Выключено {ok} из {total} правила ({fail} ошибка)",
+				"totalPlural=few, failPlural=few": "Выключено {ok} из {total} правила ({fail} ошибки)",
+				"totalPlural=few, failPlural=many": "Выключено {ok} из {total} правила ({fail} ошибок)",
+				"totalPlural=few, failPlural=*": "Выключено {ok} из {total} правила ({fail} ошибки)",
+				"totalPlural=many, failPlural=one": "Выключено {ok} из {total} правил ({fail} ошибка)",
+				"totalPlural=many, failPlural=few": "Выключено {ok} из {total} правил ({fail} ошибки)",
+				"totalPlural=many, failPlural=many": "Выключено {ok} из {total} правил ({fail} ошибок)",
+				"totalPlural=many, failPlural=*": "Выключено {ok} из {total} правил ({fail} ошибки)",
+				"totalPlural=*, failPlural=one": "Выключено {ok} из {total} правила ({fail} ошибка)",
+				"totalPlural=*, failPlural=few": "Выключено {ok} из {total} правила ({fail} ошибки)",
+				"totalPlural=*, failPlural=many": "Выключено {ok} из {total} правила ({fail} ошибок)",
+				"totalPlural=*, failPlural=*": "Выключено {ok} из {total} правила ({fail} ошибки)"
+			}
+		}
+	],
+	"routing_bulk_deleted_rules": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Удалено {count} правило",
+				"countPlural=few": "Удалено {count} правила",
+				"countPlural=many": "Удалено {count} правил",
+				"countPlural=*": "Удалено {count} правила"
+			}
+		}
+	],
+	"routing_bulk_deleted_rules_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Удалено {ok} из {total} правило ({fail} ошибка)",
+				"totalPlural=one, failPlural=few": "Удалено {ok} из {total} правило ({fail} ошибки)",
+				"totalPlural=one, failPlural=many": "Удалено {ok} из {total} правило ({fail} ошибок)",
+				"totalPlural=one, failPlural=*": "Удалено {ok} из {total} правило ({fail} ошибки)",
+				"totalPlural=few, failPlural=one": "Удалено {ok} из {total} правила ({fail} ошибка)",
+				"totalPlural=few, failPlural=few": "Удалено {ok} из {total} правила ({fail} ошибки)",
+				"totalPlural=few, failPlural=many": "Удалено {ok} из {total} правила ({fail} ошибок)",
+				"totalPlural=few, failPlural=*": "Удалено {ok} из {total} правила ({fail} ошибки)",
+				"totalPlural=many, failPlural=one": "Удалено {ok} из {total} правил ({fail} ошибка)",
+				"totalPlural=many, failPlural=few": "Удалено {ok} из {total} правил ({fail} ошибки)",
+				"totalPlural=many, failPlural=many": "Удалено {ok} из {total} правил ({fail} ошибок)",
+				"totalPlural=many, failPlural=*": "Удалено {ok} из {total} правил ({fail} ошибки)",
+				"totalPlural=*, failPlural=one": "Удалено {ok} из {total} правила ({fail} ошибка)",
+				"totalPlural=*, failPlural=few": "Удалено {ok} из {total} правила ({fail} ошибки)",
+				"totalPlural=*, failPlural=many": "Удалено {ok} из {total} правила ({fail} ошибок)",
+				"totalPlural=*, failPlural=*": "Удалено {ok} из {total} правила ({fail} ошибки)"
+			}
+		}
+	],
+	"routing_bulk_tunnel_rules": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Туннель изменён для {count} правило",
+				"countPlural=few": "Туннель изменён для {count} правила",
+				"countPlural=many": "Туннель изменён для {count} правил",
+				"countPlural=*": "Туннель изменён для {count} правила"
+			}
+		}
+	],
+	"routing_bulk_tunnel_rules_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Туннель изменён для {ok} из {total} правило ({fail} ошибка)",
+				"totalPlural=one, failPlural=few": "Туннель изменён для {ok} из {total} правило ({fail} ошибки)",
+				"totalPlural=one, failPlural=many": "Туннель изменён для {ok} из {total} правило ({fail} ошибок)",
+				"totalPlural=one, failPlural=*": "Туннель изменён для {ok} из {total} правило ({fail} ошибки)",
+				"totalPlural=few, failPlural=one": "Туннель изменён для {ok} из {total} правила ({fail} ошибка)",
+				"totalPlural=few, failPlural=few": "Туннель изменён для {ok} из {total} правила ({fail} ошибки)",
+				"totalPlural=few, failPlural=many": "Туннель изменён для {ok} из {total} правила ({fail} ошибок)",
+				"totalPlural=few, failPlural=*": "Туннель изменён для {ok} из {total} правила ({fail} ошибки)",
+				"totalPlural=many, failPlural=one": "Туннель изменён для {ok} из {total} правил ({fail} ошибка)",
+				"totalPlural=many, failPlural=few": "Туннель изменён для {ok} из {total} правил ({fail} ошибки)",
+				"totalPlural=many, failPlural=many": "Туннель изменён для {ok} из {total} правил ({fail} ошибок)",
+				"totalPlural=many, failPlural=*": "Туннель изменён для {ok} из {total} правил ({fail} ошибки)",
+				"totalPlural=*, failPlural=one": "Туннель изменён для {ok} из {total} правила ({fail} ошибка)",
+				"totalPlural=*, failPlural=few": "Туннель изменён для {ok} из {total} правила ({fail} ошибки)",
+				"totalPlural=*, failPlural=many": "Туннель изменён для {ok} из {total} правила ({fail} ошибок)",
+				"totalPlural=*, failPlural=*": "Туннель изменён для {ok} из {total} правила ({fail} ошибки)"
+			}
+		}
+	],
+	"routing_bulk_enabled_routes": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Включено {count} маршрут",
+				"countPlural=few": "Включено {count} маршрута",
+				"countPlural=many": "Включено {count} маршрутов",
+				"countPlural=*": "Включено {count} маршрута"
+			}
+		}
+	],
+	"routing_bulk_enabled_routes_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Включено {ok} из {total} маршрут ({fail} ошибка)",
+				"totalPlural=one, failPlural=few": "Включено {ok} из {total} маршрут ({fail} ошибки)",
+				"totalPlural=one, failPlural=many": "Включено {ok} из {total} маршрут ({fail} ошибок)",
+				"totalPlural=one, failPlural=*": "Включено {ok} из {total} маршрут ({fail} ошибки)",
+				"totalPlural=few, failPlural=one": "Включено {ok} из {total} маршрута ({fail} ошибка)",
+				"totalPlural=few, failPlural=few": "Включено {ok} из {total} маршрута ({fail} ошибки)",
+				"totalPlural=few, failPlural=many": "Включено {ok} из {total} маршрута ({fail} ошибок)",
+				"totalPlural=few, failPlural=*": "Включено {ok} из {total} маршрута ({fail} ошибки)",
+				"totalPlural=many, failPlural=one": "Включено {ok} из {total} маршрутов ({fail} ошибка)",
+				"totalPlural=many, failPlural=few": "Включено {ok} из {total} маршрутов ({fail} ошибки)",
+				"totalPlural=many, failPlural=many": "Включено {ok} из {total} маршрутов ({fail} ошибок)",
+				"totalPlural=many, failPlural=*": "Включено {ok} из {total} маршрутов ({fail} ошибки)",
+				"totalPlural=*, failPlural=one": "Включено {ok} из {total} маршрута ({fail} ошибка)",
+				"totalPlural=*, failPlural=few": "Включено {ok} из {total} маршрута ({fail} ошибки)",
+				"totalPlural=*, failPlural=many": "Включено {ok} из {total} маршрута ({fail} ошибок)",
+				"totalPlural=*, failPlural=*": "Включено {ok} из {total} маршрута ({fail} ошибки)"
+			}
+		}
+	],
+	"routing_bulk_disabled_routes": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Выключено {count} маршрут",
+				"countPlural=few": "Выключено {count} маршрута",
+				"countPlural=many": "Выключено {count} маршрутов",
+				"countPlural=*": "Выключено {count} маршрута"
+			}
+		}
+	],
+	"routing_bulk_disabled_routes_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Выключено {ok} из {total} маршрут ({fail} ошибка)",
+				"totalPlural=one, failPlural=few": "Выключено {ok} из {total} маршрут ({fail} ошибки)",
+				"totalPlural=one, failPlural=many": "Выключено {ok} из {total} маршрут ({fail} ошибок)",
+				"totalPlural=one, failPlural=*": "Выключено {ok} из {total} маршрут ({fail} ошибки)",
+				"totalPlural=few, failPlural=one": "Выключено {ok} из {total} маршрута ({fail} ошибка)",
+				"totalPlural=few, failPlural=few": "Выключено {ok} из {total} маршрута ({fail} ошибки)",
+				"totalPlural=few, failPlural=many": "Выключено {ok} из {total} маршрута ({fail} ошибок)",
+				"totalPlural=few, failPlural=*": "Выключено {ok} из {total} маршрута ({fail} ошибки)",
+				"totalPlural=many, failPlural=one": "Выключено {ok} из {total} маршрутов ({fail} ошибка)",
+				"totalPlural=many, failPlural=few": "Выключено {ok} из {total} маршрутов ({fail} ошибки)",
+				"totalPlural=many, failPlural=many": "Выключено {ok} из {total} маршрутов ({fail} ошибок)",
+				"totalPlural=many, failPlural=*": "Выключено {ok} из {total} маршрутов ({fail} ошибки)",
+				"totalPlural=*, failPlural=one": "Выключено {ok} из {total} маршрута ({fail} ошибка)",
+				"totalPlural=*, failPlural=few": "Выключено {ok} из {total} маршрута ({fail} ошибки)",
+				"totalPlural=*, failPlural=many": "Выключено {ok} из {total} маршрута ({fail} ошибок)",
+				"totalPlural=*, failPlural=*": "Выключено {ok} из {total} маршрута ({fail} ошибки)"
+			}
+		}
+	],
+	"routing_bulk_deleted_routes": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Удалено {count} маршрут",
+				"countPlural=few": "Удалено {count} маршрута",
+				"countPlural=many": "Удалено {count} маршрутов",
+				"countPlural=*": "Удалено {count} маршрута"
+			}
+		}
+	],
+	"routing_bulk_deleted_routes_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Удалено {ok} из {total} маршрут ({fail} ошибка)",
+				"totalPlural=one, failPlural=few": "Удалено {ok} из {total} маршрут ({fail} ошибки)",
+				"totalPlural=one, failPlural=many": "Удалено {ok} из {total} маршрут ({fail} ошибок)",
+				"totalPlural=one, failPlural=*": "Удалено {ok} из {total} маршрут ({fail} ошибки)",
+				"totalPlural=few, failPlural=one": "Удалено {ok} из {total} маршрута ({fail} ошибка)",
+				"totalPlural=few, failPlural=few": "Удалено {ok} из {total} маршрута ({fail} ошибки)",
+				"totalPlural=few, failPlural=many": "Удалено {ok} из {total} маршрута ({fail} ошибок)",
+				"totalPlural=few, failPlural=*": "Удалено {ok} из {total} маршрута ({fail} ошибки)",
+				"totalPlural=many, failPlural=one": "Удалено {ok} из {total} маршрутов ({fail} ошибка)",
+				"totalPlural=many, failPlural=few": "Удалено {ok} из {total} маршрутов ({fail} ошибки)",
+				"totalPlural=many, failPlural=many": "Удалено {ok} из {total} маршрутов ({fail} ошибок)",
+				"totalPlural=many, failPlural=*": "Удалено {ok} из {total} маршрутов ({fail} ошибки)",
+				"totalPlural=*, failPlural=one": "Удалено {ok} из {total} маршрута ({fail} ошибка)",
+				"totalPlural=*, failPlural=few": "Удалено {ok} из {total} маршрута ({fail} ошибки)",
+				"totalPlural=*, failPlural=many": "Удалено {ok} из {total} маршрута ({fail} ошибок)",
+				"totalPlural=*, failPlural=*": "Удалено {ok} из {total} маршрута ({fail} ошибки)"
+			}
+		}
+	],
+	"routing_bulk_tunnel_routes": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Туннель изменён для {count} маршрут",
+				"countPlural=few": "Туннель изменён для {count} маршрута",
+				"countPlural=many": "Туннель изменён для {count} маршрутов",
+				"countPlural=*": "Туннель изменён для {count} маршрута"
+			}
+		}
+	],
+	"routing_bulk_tunnel_routes_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Туннель изменён для {ok} из {total} маршрут ({fail} ошибка)",
+				"totalPlural=one, failPlural=few": "Туннель изменён для {ok} из {total} маршрут ({fail} ошибки)",
+				"totalPlural=one, failPlural=many": "Туннель изменён для {ok} из {total} маршрут ({fail} ошибок)",
+				"totalPlural=one, failPlural=*": "Туннель изменён для {ok} из {total} маршрут ({fail} ошибки)",
+				"totalPlural=few, failPlural=one": "Туннель изменён для {ok} из {total} маршрута ({fail} ошибка)",
+				"totalPlural=few, failPlural=few": "Туннель изменён для {ok} из {total} маршрута ({fail} ошибки)",
+				"totalPlural=few, failPlural=many": "Туннель изменён для {ok} из {total} маршрута ({fail} ошибок)",
+				"totalPlural=few, failPlural=*": "Туннель изменён для {ok} из {total} маршрута ({fail} ошибки)",
+				"totalPlural=many, failPlural=one": "Туннель изменён для {ok} из {total} маршрутов ({fail} ошибка)",
+				"totalPlural=many, failPlural=few": "Туннель изменён для {ok} из {total} маршрутов ({fail} ошибки)",
+				"totalPlural=many, failPlural=many": "Туннель изменён для {ok} из {total} маршрутов ({fail} ошибок)",
+				"totalPlural=many, failPlural=*": "Туннель изменён для {ok} из {total} маршрутов ({fail} ошибки)",
+				"totalPlural=*, failPlural=one": "Туннель изменён для {ok} из {total} маршрута ({fail} ошибка)",
+				"totalPlural=*, failPlural=few": "Туннель изменён для {ok} из {total} маршрута ({fail} ошибки)",
+				"totalPlural=*, failPlural=many": "Туннель изменён для {ok} из {total} маршрута ({fail} ошибок)",
+				"totalPlural=*, failPlural=*": "Туннель изменён для {ok} из {total} маршрута ({fail} ошибки)"
+			}
+		}
+	],
+	"routing_bulk_deleted_policies": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Удалено {count} политика",
+				"countPlural=few": "Удалено {count} политики",
+				"countPlural=many": "Удалено {count} политик",
+				"countPlural=*": "Удалено {count} политики"
+			}
+		}
+	],
+	"routing_bulk_deleted_policies_partial": [
+		{
+			"declarations": [
+				"input ok",
+				"input total",
+				"input fail",
+				"local totalPlural = total: plural",
+				"local failPlural = fail: plural"
+			],
+			"selectors": [
+				"totalPlural",
+				"failPlural"
+			],
+			"match": {
+				"totalPlural=one, failPlural=one": "Удалено {ok} из {total} политика ({fail} ошибка)",
+				"totalPlural=one, failPlural=few": "Удалено {ok} из {total} политика ({fail} ошибки)",
+				"totalPlural=one, failPlural=many": "Удалено {ok} из {total} политика ({fail} ошибок)",
+				"totalPlural=one, failPlural=*": "Удалено {ok} из {total} политика ({fail} ошибки)",
+				"totalPlural=few, failPlural=one": "Удалено {ok} из {total} политики ({fail} ошибка)",
+				"totalPlural=few, failPlural=few": "Удалено {ok} из {total} политики ({fail} ошибки)",
+				"totalPlural=few, failPlural=many": "Удалено {ok} из {total} политики ({fail} ошибок)",
+				"totalPlural=few, failPlural=*": "Удалено {ok} из {total} политики ({fail} ошибки)",
+				"totalPlural=many, failPlural=one": "Удалено {ok} из {total} политик ({fail} ошибка)",
+				"totalPlural=many, failPlural=few": "Удалено {ok} из {total} политик ({fail} ошибки)",
+				"totalPlural=many, failPlural=many": "Удалено {ok} из {total} политик ({fail} ошибок)",
+				"totalPlural=many, failPlural=*": "Удалено {ok} из {total} политик ({fail} ошибки)",
+				"totalPlural=*, failPlural=one": "Удалено {ok} из {total} политики ({fail} ошибка)",
+				"totalPlural=*, failPlural=few": "Удалено {ok} из {total} политики ({fail} ошибки)",
+				"totalPlural=*, failPlural=many": "Удалено {ok} из {total} политики ({fail} ошибок)",
+				"totalPlural=*, failPlural=*": "Удалено {ok} из {total} политики ({fail} ошибки)"
+			}
+		}
+	],
+	"routing_exported_routes": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Экспортировано {count} маршрут",
+				"countPlural=few": "Экспортировано {count} маршрута",
+				"countPlural=many": "Экспортировано {count} маршрутов",
+				"countPlural=*": "Экспортировано {count} маршрута"
+			}
+		}
+	],
+	"routing_exported_rules": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Экспортировано {count} правило",
+				"countPlural=few": "Экспортировано {count} правила",
+				"countPlural=many": "Экспортировано {count} правил",
+				"countPlural=*": "Экспортировано {count} правила"
+			}
+		}
+	],
+	"routing_imported_routes": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Импортировано {count} маршрут",
+				"countPlural=few": "Импортировано {count} маршрута",
+				"countPlural=many": "Импортировано {count} маршрутов",
+				"countPlural=*": "Импортировано {count} маршрута"
+			}
+		}
+	],
+	"routing_imported_rules": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Импортировано {count} правило",
+				"countPlural=few": "Импортировано {count} правила",
+				"countPlural=many": "Импортировано {count} правил",
+				"countPlural=*": "Импортировано {count} правила"
+			}
+		}
+	],
+	"routing_rules_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} правило",
+				"countPlural=few": "{count} правила",
+				"countPlural=many": "{count} правил",
+				"countPlural=*": "{count} правила"
+			}
+		}
+	],
+	"routing_routes_count": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} маршрут",
+				"countPlural=few": "{count} маршрута",
+				"countPlural=many": "{count} маршрутов",
+				"countPlural=*": "{count} маршрута"
+			}
+		}
+	],
+	"routing_rules_active_summary": [
+		{
+			"declarations": [
+				"input count",
+				"input active",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "{count} правило, {active} активных",
+				"countPlural=few": "{count} правила, {active} активных",
+				"countPlural=many": "{count} правил, {active} активных",
+				"countPlural=*": "{count} правила, {active} активных"
+			}
+		}
+	],
+	"routing_ip_orphan_count": "несвязанных: {count}",
+	"routing_policies_devices_summary": [
+		{
+			"declarations": [
+				"input policies",
+				"input devices",
+				"local policiesPlural = policies: plural",
+				"local devicesPlural = devices: plural"
+			],
+			"selectors": [
+				"policiesPlural",
+				"devicesPlural"
+			],
+			"match": {
+				"policiesPlural=one, devicesPlural=one": "{policies} политика, {devices} устройство",
+				"policiesPlural=one, devicesPlural=few": "{policies} политика, {devices} устройства",
+				"policiesPlural=one, devicesPlural=many": "{policies} политика, {devices} устройств",
+				"policiesPlural=one, devicesPlural=*": "{policies} политика, {devices} устройства",
+				"policiesPlural=few, devicesPlural=one": "{policies} политики, {devices} устройство",
+				"policiesPlural=few, devicesPlural=few": "{policies} политики, {devices} устройства",
+				"policiesPlural=few, devicesPlural=many": "{policies} политики, {devices} устройств",
+				"policiesPlural=few, devicesPlural=*": "{policies} политики, {devices} устройства",
+				"policiesPlural=many, devicesPlural=one": "{policies} политик, {devices} устройство",
+				"policiesPlural=many, devicesPlural=few": "{policies} политик, {devices} устройства",
+				"policiesPlural=many, devicesPlural=many": "{policies} политик, {devices} устройств",
+				"policiesPlural=many, devicesPlural=*": "{policies} политик, {devices} устройства",
+				"policiesPlural=*, devicesPlural=one": "{policies} политики, {devices} устройство",
+				"policiesPlural=*, devicesPlural=few": "{policies} политики, {devices} устройства",
+				"policiesPlural=*, devicesPlural=many": "{policies} политики, {devices} устройств",
+				"policiesPlural=*, devicesPlural=*": "{policies} политики, {devices} устройства"
+			}
+		}
+	],
+	"routing_client_bulk_delete_message": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Удалить {count} VPN-правило?",
+				"countPlural=few": "Удалить {count} VPN-правила?",
+				"countPlural=many": "Удалить {count} VPN-правил?",
+				"countPlural=*": "Удалить {count} VPN-правила?"
+			}
+		}
+	],
+	"routing_ip_bulk_delete_message": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Удалить {count} IP-маршрут?",
+				"countPlural=few": "Удалить {count} IP-маршрута?",
+				"countPlural=many": "Удалить {count} IP-маршрутов?",
+				"countPlural=*": "Удалить {count} IP-маршрута?"
+			}
+		}
+	],
+	"routing_dns_bulk_delete_message": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Удалить {count} DNS-маршрут?",
+				"countPlural=few": "Удалить {count} DNS-маршрута?",
+				"countPlural=many": "Удалить {count} DNS-маршрутов?",
+				"countPlural=*": "Удалить {count} DNS-маршрута?"
+			}
+		}
+	],
+	"routing_policy_bulk_delete_message": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Удалить {count} политика? Все устройства будут отвязаны.",
+				"countPlural=few": "Удалить {count} политики? Все устройства будут отвязаны.",
+				"countPlural=many": "Удалить {count} политик? Все устройства будут отвязаны.",
+				"countPlural=*": "Удалить {count} политики? Все устройства будут отвязаны."
+			}
+		}
+	],
+	"routing_dns_created_from_catalog": [
+		{
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
+			"match": {
+				"countPlural=one": "Создано {count} правило из каталога",
+				"countPlural=few": "Создано {count} правила из каталога",
+				"countPlural=many": "Создано {count} правил из каталога",
+				"countPlural=*": "Создано {count} правила из каталога"
+			}
+		}
+	],
+	"routing_dns_created_dedupe": [
+		{
+			"declarations": [
+				"input total",
+				"input exact",
+				"input wildcard",
+				"local totalPlural = total: plural"
+			],
+			"selectors": [
+				"totalPlural"
+			],
+			"match": {
+				"totalPlural=one": "DNS-маршрут создан. Убрано {total} дубль ({exact} точных, {wildcard} wildcard).",
+				"totalPlural=few": "DNS-маршрут создан. Убрано {total} дубля ({exact} точных, {wildcard} wildcard).",
+				"totalPlural=many": "DNS-маршрут создан. Убрано {total} дублей ({exact} точных, {wildcard} wildcard).",
+				"totalPlural=*": "DNS-маршрут создан. Убрано {total} дубля ({exact} точных, {wildcard} wildcard)."
+			}
+		}
+	],
+	"routing_dns_created": "DNS-маршрут создан",
+	"routing_dns_updated_dedupe": [
+		{
+			"declarations": [
+				"input total",
+				"input exact",
+				"input wildcard",
+				"local totalPlural = total: plural"
+			],
+			"selectors": [
+				"totalPlural"
+			],
+			"match": {
+				"totalPlural=one": "DNS-маршрут обновлён. Убрано {total} дубль ({exact} точных, {wildcard} wildcard).",
+				"totalPlural=few": "DNS-маршрут обновлён. Убрано {total} дубля ({exact} точных, {wildcard} wildcard).",
+				"totalPlural=many": "DNS-маршрут обновлён. Убрано {total} дублей ({exact} точных, {wildcard} wildcard).",
+				"totalPlural=*": "DNS-маршрут обновлён. Убрано {total} дубля ({exact} точных, {wildcard} wildcard)."
+			}
+		}
+	],
+	"routing_dns_updated": "DNS-маршрут обновлён",
+	"routing_dns_deleted": "DNS-маршрут удалён",
+	"routing_dns_subs_updated": "Подписки обновлены",
+	"routing_dns_subs_error": "Обновление подписок: {message}",
+	"routing_dns_no_records": "У выбранных пресетов нет DNS-записей",
+	"routing_dns_none_created": "Не удалось создать ни одного правила",
+	"routing_dns_requires_pre": "Для DNS-маршрутизации требуется прошивка OS5 или",
+	"routing_dns_empty_title": "DNS-маршрутов пока нет",
+	"routing_dns_empty_desc": "Выберите сервисы из каталога или создайте правило вручную",
+	"routing_dns_create_manual": "+ Создать вручную",
+	"routing_dns_delete_title": "Удалить DNS-маршрут",
+	"routing_dns_delete_message": "Удалить DNS-маршрут «{name}»?",
+	"routing_ip_updated": "IP-маршрут обновлён",
+	"routing_ip_created": "IP-маршрут создан",
+	"routing_ip_deleted": "IP-маршрут удалён",
+	"routing_ip_import_set": "Загрузить набор правил",
+	"routing_ip_empty": "Нет IP-маршрутов",
+	"routing_ip_delete_message": "Удалить список маршрутов «{name}»?",
+	"routing_client_created": "Правило создано",
+	"routing_client_updated": "Правило обновлено",
+	"routing_client_deleted": "Правило удалено",
+	"routing_client_vpn_on": "VPN включён",
+	"routing_client_vpn_off": "VPN отключён",
+	"routing_client_empty": "Нет правил VPN для устройств. Создайте правило, чтобы направить трафик устройства через VPN-туннель.",
+	"routing_client_delete_title": "Удаление правила",
+	"routing_client_delete_message": "Удалить VPN-правило для «{name}»?",
+	"access_policy_created": "Политика создана",
+	"access_policy_deleted": "Политика удалена",
+	"access_policy_refresh_failed": "Не удалось обновить политики доступа",
+	"access_policy_refreshed": "Политики обновлены",
+	"access_policy_refresh_error": "Ошибка обновления политик: {message}",
+	"access_policy_no_data": "Данные политик не получены от маршрутизатора. Нажмите «Загрузить недостающее» в заголовке страницы, чтобы повторить запрос.",
+	"access_policy_empty": "Нет политик доступа. Создайте политику, чтобы направить трафик устройств через выбранные интерфейсы.",
+	"access_policy_delete_title": "Удаление политики",
+	"access_policy_delete_message": "Удалить политику «{name}»?",
+	"access_policy_delete_secondary": "Все устройства будут отвязаны от этой политики."
 }
