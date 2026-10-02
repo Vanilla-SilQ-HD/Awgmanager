@@ -5,9 +5,6 @@ import { m } from '$lib/i18n';
 // input считает UTF-16-единицы, а не байты, поэтому проверка — здесь.
 export const TUNNEL_NAME_MAX_BYTES = 256;
 
-/** Текст ErrNameTooLong сервера; в интерфейсе не используется (там сообщение i18n). */
-export const TUNNEL_NAME_TOO_LONG = `имя туннеля длиннее ${TUNNEL_NAME_MAX_BYTES} байт (ограничение роутера)`;
-
 export function tunnelNameBytes(name: string): number {
 	return new TextEncoder().encode(name).length;
 }

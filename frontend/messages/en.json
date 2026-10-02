@@ -3710,21 +3710,6 @@
 			}
 		}
 	],
-	"routing_routes_count": [
-		{
-			"declarations": [
-				"input count",
-				"local countPlural = count: plural"
-			],
-			"selectors": [
-				"countPlural"
-			],
-			"match": {
-				"countPlural=one": "{count} route",
-				"countPlural=*": "{count} routes"
-			}
-		}
-	],
 	"routing_rules_active_summary": [
 		{
 			"declarations": [
