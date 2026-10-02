@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { OversizedTag } from '$lib/types';
-	import { m } from '$lib/i18n';
+	import { m, formatLocale } from '$lib/i18n';
 
 	interface Props {
 		tags: OversizedTag[];
@@ -11,7 +11,7 @@
 
 	function fmtCount(n: number): string {
 		if (n < 0) return '?';
-		return n.toLocaleString('ru-RU');
+		return n.toLocaleString(formatLocale());
 	}
 </script>
 

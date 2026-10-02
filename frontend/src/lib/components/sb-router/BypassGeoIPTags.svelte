@@ -9,7 +9,7 @@
   завершении бэкенд говорит resource:invalidated («bypass-set»).
 -->
 <script lang="ts">
-  import { m } from '$lib/i18n';
+  import { m, formatLocale } from '$lib/i18n';
   import { onMount, tick } from 'svelte';
   import { api } from '$lib/api/client';
   import { Button } from '$lib/components/ui';
@@ -52,7 +52,7 @@
   // другой вкладки — обе причины блокируют обе кнопки.
   const installBusy = $derived(installing !== null || (status?.installing ?? false));
   const entryCountLabel = $derived(
-    status?.entryCountOK ? status.entryCount.toLocaleString('ru-RU') : m.sb_router_bypass_geo_na(),
+    status?.entryCountOK ? status.entryCount.toLocaleString(formatLocale()) : m.sb_router_bypass_geo_na(),
   );
 
   onMount(async () => {
@@ -145,7 +145,7 @@
             onchange={(e) => void toggleTag(opt.name, e)}
           />
           <span class="tag-name">{opt.name}</span>
-          <span class="tag-count">{opt.count.toLocaleString('ru-RU')}</span>
+          <span class="tag-count">{opt.count.toLocaleString(formatLocale())}</span>
         </label>
       {:else}
         <p class="hint">{m.sb_router_bypass_geo_nothing_found()}</p>
@@ -153,7 +153,7 @@
     </div>
 
     <div class="budget" class:warn={overBudget}>
-      {m.sb_router_bypass_geo_budget({ total: total.toLocaleString('ru-RU'), max: BYPASS_SET_MAX_ELEM.toLocaleString('ru-RU') })}
+      {m.sb_router_bypass_geo_budget({ total: total.toLocaleString(formatLocale()), max: BYPASS_SET_MAX_ELEM.toLocaleString(formatLocale()) })}
     </div>
     {#if overBudget}
       <p class="hint warn">
@@ -161,7 +161,7 @@
       </p>
     {/if}
     {#if budgetOverflow !== null}
-      <p class="hint warn">{m.sb_router_bypass_geo_budget_exceeded({ total: budgetOverflow.toLocaleString('ru-RU'), max: BYPASS_SET_MAX_ELEM.toLocaleString('ru-RU') })}</p>
+      <p class="hint warn">{m.sb_router_bypass_geo_budget_exceeded({ total: budgetOverflow.toLocaleString(formatLocale()), max: BYPASS_SET_MAX_ELEM.toLocaleString(formatLocale()) })}</p>
     {/if}
 
     <p class="hint">

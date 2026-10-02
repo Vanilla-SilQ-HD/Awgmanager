@@ -137,3 +137,14 @@ describe('formatRelativeTimeParts', () => {
 		expect(formatRelativeTimeParts(ago(sec))).toEqual({ main: enMain, suffix: enSuffix });
 	});
 });
+
+describe('форматы даты и времени следуют языку интерфейса', () => {
+	it('ru-RU по умолчанию, en-GB в английском', () => {
+		const ts = '2026-09-06T08:05:09Z';
+		const ru = formatDate(ts);
+		expect(ru).toContain('.');
+		locale.set('en');
+		expect(formatDate(ts)).toContain('/');
+		expect(formatDate(ts)).not.toBe(ru);
+	});
+});

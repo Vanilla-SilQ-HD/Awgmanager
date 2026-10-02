@@ -43,6 +43,15 @@ let current = $state<Locale>(detectLocale());
 // на смену языка и перерисовывается без перезагрузки страницы.
 overwriteGetLocale(() => current);
 
+/**
+ * Локаль Intl для форматов дат и чисел на языке интерфейса. Для английского —
+ * en-GB: 24-часовое время и день перед месяцем, как и в русском интерфейсе.
+ * Вызов внутри шаблона или $derived подписывается на смену языка.
+ */
+export function formatLocale(): string {
+	return current === 'en' ? 'en-GB' : 'ru-RU';
+}
+
 export const locale = {
 	get current(): Locale {
 		return current;

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { m } from '$lib/i18n';
+	import { m, formatLocale } from '$lib/i18n';
 	import { browser } from '$app/environment';
 	import type { SystemInfo } from '$lib/types';
 	import type { UsageLevel } from '$lib/types/usageLevel';
@@ -62,9 +62,9 @@
 		const now = new Date();
 		const sameDay = d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
 		if (sameDay) {
-			return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+			return d.toLocaleTimeString(formatLocale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 		}
-		return d.toLocaleString('ru-RU', {
+		return d.toLocaleString(formatLocale(), {
 			day: '2-digit',
 			month: '2-digit',
 			hour: '2-digit',

@@ -1,4 +1,4 @@
-import { m } from '$lib/i18n';
+import { m, formatLocale } from '$lib/i18n';
 import type { AmneziaPremiumCountry, AmneziaPremiumIssuedConfig } from '$lib/types';
 
 // Решения списка стран мастера Amnezia Premium: чистые функции над ответом
@@ -206,7 +206,7 @@ export function isPremiumIssueAllowed(state: PremiumSubscriptionState): boolean 
 export function formatPremiumDate(value: string | undefined): string {
 	const ms = Date.parse(value?.trim() ?? '');
 	if (!Number.isFinite(ms)) return '';
-	return new Date(ms).toLocaleDateString('ru-RU', {
+	return new Date(ms).toLocaleDateString(formatLocale(), {
 		day: '2-digit',
 		month: '2-digit',
 		year: 'numeric',

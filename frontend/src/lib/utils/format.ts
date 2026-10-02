@@ -1,4 +1,4 @@
-import { m } from '$lib/i18n';
+import { m, formatLocale } from '$lib/i18n';
 
 /**
  * Format bytes to human readable string
@@ -80,7 +80,7 @@ export function secondsSince(isoTimestamp: string): number {
  */
 export function formatTime(timestamp: string): string {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString('ru-RU', {
+    return date.toLocaleTimeString(formatLocale(), {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit'
@@ -93,7 +93,7 @@ export function formatTime(timestamp: string): string {
 export function formatDate(timestamp: string): string {
     const date = new Date(timestamp);
     if (isNaN(date.getTime())) return '—';
-    return date.toLocaleDateString('ru-RU', {
+    return date.toLocaleDateString(formatLocale(), {
         day: '2-digit',
         month: '2-digit',
         hour: '2-digit',

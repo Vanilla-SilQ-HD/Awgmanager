@@ -2,7 +2,7 @@
 	import { RefreshCw } from 'lucide-svelte';
 	import type { ConnectionStats } from '$lib/types';
 	import { formatBytes } from '$lib/utils/format';
-	import { m } from '$lib/i18n';
+	import { m, formatLocale } from '$lib/i18n';
 
 	interface Props {
 		stats: ConnectionStats | null;
@@ -18,7 +18,7 @@
 
 	const time = $derived(
 		fetchedAt
-			? new Date(fetchedAt).toLocaleTimeString('ru-RU', {
+			? new Date(fetchedAt).toLocaleTimeString(formatLocale(), {
 					hour: '2-digit',
 					minute: '2-digit',
 					second: '2-digit',
