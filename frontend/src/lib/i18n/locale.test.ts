@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { flushSync } from 'svelte';
 
 const STORAGE_KEY = 'awg-manager-locale';
@@ -12,6 +12,13 @@ async function loadI18n() {
 	vi.resetModules();
 	return import('./index');
 }
+
+// Скомпилированный словарь Paraglide весит несколько МБ: первая трансформация
+// на холодном кеше vitest дольше 5-секундного лимита теста. Прогреваем один
+// раз заранее — loadI18n() после vi.resetModules() берёт её из кеша.
+beforeAll(async () => {
+	await import('./index');
+}, 60_000);
 
 describe('locale', () => {
 	beforeEach(() => {
