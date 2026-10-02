@@ -308,9 +308,9 @@
 
 	function fmtTime(t: number, withDate = false): string {
 		const d = new Date(t * 1000);
-		return withDate
-			? d.toLocaleString(formatLocale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-			: d.toLocaleTimeString(formatLocale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+		if (!withDate) return d.toLocaleTimeString(formatLocale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+		const date = d.toLocaleDateString(formatLocale(), { day: '2-digit', month: '2-digit' });
+		return `${date} ${d.toLocaleTimeString(formatLocale(), { hour: '2-digit', minute: '2-digit' })}`;
 	}
 
 	let showDateInLabels = $derived(selectedPeriod === '12h' || selectedPeriod === '24h');

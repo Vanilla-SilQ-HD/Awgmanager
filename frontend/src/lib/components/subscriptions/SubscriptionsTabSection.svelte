@@ -13,7 +13,7 @@
 	import SubscriptionCard from '$lib/components/subscriptions/SubscriptionCard.svelte';
 	import SubscriptionGroupsSection from '$lib/components/subscriptions/SubscriptionGroupsSection.svelte';
 	import { singboxSubscriptionTableSort, type SubscriptionSortKey } from '$lib/stores/tunnelTableSort';
-		import { formatBytes } from '$lib/utils/format';
+	import { formatBytes } from '$lib/utils/format';
 	import { ariaSort } from '$lib/utils/tunnelTableSort';
 	import type { SingboxLayoutMode, TunnelRenderMode } from '$lib/constants/singboxLayout';
 	import type { Subscription } from '$lib/types';

@@ -6,7 +6,7 @@
 	import { TunnelToolbarViewRow } from '$lib/components/tunnels';
 	import { SingboxInstallBanner, SingboxTunnelCard } from '$lib/components/singbox';
 	import { singboxTunnelTableSort, type SingboxTunnelSortKey } from '$lib/stores/tunnelTableSort';
-		import { formatBytes } from '$lib/utils/format';
+	import { formatBytes } from '$lib/utils/format';
 	import { ariaSort } from '$lib/utils/tunnelTableSort';
 	import type { SingboxLayoutMode, TunnelRenderMode } from '$lib/constants/singboxLayout';
 	import type { SingboxTunnel } from '$lib/types';

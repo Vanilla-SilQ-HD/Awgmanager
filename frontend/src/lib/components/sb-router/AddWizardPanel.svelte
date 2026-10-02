@@ -41,7 +41,7 @@
   import MobileBottomBar from './MobileBottomBar.svelte';
   import { mode } from './modeStore';
   import { ensureTunnelDnsInfra, syncTunnelDnsRule } from './emptyStateActions';
-    import { findScrollContainer } from '$lib/utils/findScrollContainer';
+  import { findScrollContainer } from '$lib/utils/findScrollContainer';
   import { previewTunnelOutboundResolution, formatWizardOutboundPreview } from './wizardCompositeOutbound';
 
   const outbounds = singboxRouterStore.outbounds;

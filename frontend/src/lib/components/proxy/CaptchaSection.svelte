@@ -7,7 +7,7 @@
 	import { Button } from '$lib/components/ui';
 	import { api } from '$lib/api/client';
 	import { createSelfReschedulingPoll } from '$lib/utils/selfReschedulingPoll';
-		import type { FreeTurnCaptchaClientStatus } from '$lib/types';
+	import type { FreeTurnCaptchaClientStatus } from '$lib/types';
 	import DetailSection from './DetailSection.svelte';
 
 	interface Props {

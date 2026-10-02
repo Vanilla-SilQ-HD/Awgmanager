@@ -4,7 +4,7 @@
 	import { parseStaticRouteImport, type PortableStaticRoute } from '$lib/utils/staticroute-export';
 	import type { RoutingTunnel } from '$lib/types';
 	import { routingTunnelLabel } from '$lib/utils/routingTunnelOptions';
-		import RoutingImportDropZone from './RoutingImportDropZone.svelte';
+	import RoutingImportDropZone from './RoutingImportDropZone.svelte';
 
 	interface Props {
 		open: boolean;
