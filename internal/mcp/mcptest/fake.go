@@ -997,6 +997,76 @@ func (f *Fake) SetSingboxSubscriptionEnabled(_ context.Context, id string, enabl
 	return mcpsrv.SingboxSubscription{}, nil, fmt.Errorf("sing-box subscription %q not found (use list_singbox_subscriptions)", id)
 }
 
+// SetSingboxSubscriptionMode mirrors subscription.Service.Update for the
+// mode: the subscription's own group is rebuilt with the new type, and
+// nothing happens when the mode already has the value asked for.
+func (f *Fake) SetSingboxSubscriptionMode(_ context.Context, id, mode string) (mcpsrv.SingboxSubscription, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxSubscription{}, f.Err
+	}
+	if mode != "selector" && mode != "urltest" {
+		return mcpsrv.SingboxSubscription{}, fmt.Errorf("mode must be selector or urltest")
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.Subscriptions {
+		sub := &f.Subscriptions[i]
+		if sub.ID != id {
+			continue
+		}
+		sub.MemberCount = f.subscriptionMemberCount(*sub)
+		sub.Mode = mode
+		for j := range f.RouterOutbounds {
+			if f.RouterOutbounds[j].Tag == sub.GroupTag {
+				f.RouterOutbounds[j].Type = mode
+			}
+		}
+		return *sub, nil
+	}
+	return mcpsrv.SingboxSubscription{}, fmt.Errorf("sing-box subscription %q not found (use list_singbox_subscriptions)", id)
+}
+
+// SetSingboxSubscriptionActiveMember mirrors subscription.Service.SetActiveMember:
+// refused in urltest mode and for a tag outside the group; otherwise the
+// running group switches to the server (ActiveMembers). With ClashDown the
+// switch fails, as it does while sing-box is stopped.
+func (f *Fake) SetSingboxSubscriptionActiveMember(_ context.Context, id, memberTag string) (mcpsrv.SingboxSubscription, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxSubscription{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.Subscriptions {
+		sub := f.Subscriptions[i]
+		if sub.ID != id {
+			continue
+		}
+		if sub.Mode == "urltest" {
+			return mcpsrv.SingboxSubscription{}, fmt.Errorf("the subscription is in urltest mode: switch it to selector with set_singbox_subscription_mode first")
+		}
+		found := false
+		for _, m := range f.GroupMembers[sub.GroupTag] {
+			if m.Tag == memberTag {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return mcpsrv.SingboxSubscription{}, fmt.Errorf("%q is not a server of this subscription's group (get_singbox_outbound with tag %q lists them)", memberTag, sub.GroupTag)
+		}
+		if f.ClashDown {
+			return mcpsrv.SingboxSubscription{}, fmt.Errorf("the server is STORED as the active one, but switching the running sing-box failed")
+		}
+		if f.ActiveMembers == nil {
+			f.ActiveMembers = map[string]string{}
+		}
+		f.ActiveMembers[sub.GroupTag] = memberTag
+		sub.MemberCount = f.subscriptionMemberCount(sub)
+		return sub, nil
+	}
+	return mcpsrv.SingboxSubscription{}, fmt.Errorf("sing-box subscription %q not found (use list_singbox_subscriptions)", id)
+}
+
 func (f *Fake) ListSingboxTunnels(context.Context) ([]mcpsrv.SingboxTunnel, error) {
 	if f.Err != nil {
 		return nil, f.Err
