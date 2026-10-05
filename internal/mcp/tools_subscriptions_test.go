@@ -311,7 +311,7 @@ func TestTools_SubscriptionModeAndServerRejectNonsense(t *testing.T) {
 	if !res.IsError || !strings.Contains(toolText(res), "get_singbox_outbound") {
 		t.Fatalf("a foreign server must be refused with the listing tool named: %q", toolText(res))
 	}
-	if fake.ActiveMembers["sub-1a00ae3b"] != "sub-1a00ae3b-k1" || fake.Subscriptions[0].Mode != "urltest" {
+	if fake.ActiveMembers["sub-1a00ae3b"] != "sub-1a00ae3b-k1" || fake.Subscriptions[1].Mode != "selector" {
 		t.Fatal("a refused call changed something")
 	}
 }
