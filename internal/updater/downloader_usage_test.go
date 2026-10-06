@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hoaxisr/awg-manager/internal/backup"
 	"github.com/hoaxisr/awg-manager/internal/downloader"
 	"github.com/hoaxisr/awg-manager/internal/logging"
 	"github.com/hoaxisr/awg-manager/internal/sys/appver"
@@ -273,7 +274,7 @@ func TestUpgradeWithDownloader_UsesFileRequest(t *testing.T) {
 	t.Cleanup(func() { startDetachedUpgrade = oldStart })
 
 	url := "http://repo.local/aarch64-k3.10/awg-manager_2.12.0_aarch64-3.10-kn.ipk?token=x"
-	if err := upgradeWithDownloader(context.Background(), url, "", dl); err != nil {
+	if err := upgradeWithDownloader(context.Background(), url, "", dl, nil); err != nil {
 		t.Fatalf("upgradeWithDownloader: %v", err)
 	}
 	if seen.Request.Purpose != "awgm-update-ipk" {
@@ -293,5 +294,56 @@ func TestUpgradeWithDownloader_UsesFileRequest(t *testing.T) {
 	}
 	if filepath.Base(seen.DestPath) != "awg-manager_2.12.0_aarch64-3.10-kn.ipk" {
 		t.Fatalf("dest filename = %q, want awg-manager_2.12.0_aarch64-3.10-kn.ipk", filepath.Base(seen.DestPath))
+	}
+}
+
+func TestApplyUpgrade_SnapshotsBeforeInstall(t *testing.T) {
+	dl := &fakeDownloader{
+		downloadFileFn: func(_ context.Context, req downloader.FileRequest) (downloader.FileResult, error) {
+			return downloader.FileResult{Path: req.DestPath, Size: 123}, nil
+		},
+	}
+	var calls []string
+	oldStart := startDetachedUpgrade
+	startDetachedUpgrade = func(_ string) error { calls = append(calls, "install"); return nil }
+	t.Cleanup(func() { startDetachedUpgrade = oldStart })
+
+	s := New("2.11.0", nil, nil, t.TempDir(), nil)
+	s.SetDownloader(dl)
+	// Снимок, который не удался, не останавливает обновление.
+	s.snapshot = func() (backup.Snapshot, error) {
+		calls = append(calls, "snapshot")
+		return backup.Snapshot{}, errors.New("мало места")
+	}
+	s.cached = &UpdateInfo{DownloadURL: "http://repo.local/aarch64-k3.10/awg-manager_2.12.0_aarch64-3.10-kn.ipk"}
+	if err := s.ApplyUpgrade(context.Background()); err != nil {
+		t.Fatalf("ApplyUpgrade: %v", err)
+	}
+	if strings.Join(calls, ",") != "snapshot,install" {
+		t.Fatalf("calls = %v, want snapshot before install", calls)
+	}
+}
+
+func TestUpgradeWithDownloader_NoSnapshotWhenPackageRejected(t *testing.T) {
+	dl := &fakeDownloader{
+		downloadFileFn: func(_ context.Context, req downloader.FileRequest) (downloader.FileResult, error) {
+			return downloader.FileResult{Path: req.DestPath, Size: 123}, nil
+		},
+	}
+	oldStart := startDetachedUpgrade
+	startDetachedUpgrade = func(_ string) error {
+		t.Fatal("установка после отвергнутого пакета")
+		return nil
+	}
+	t.Cleanup(func() { startDetachedUpgrade = oldStart })
+
+	called := false
+	url := "http://repo.local/aarch64-k3.10/awg-manager_2.12.0_aarch64-3.10-kn.ipk"
+	// Файла нет, контрольная сумма задана — проверка пакета не проходит.
+	if err := upgradeWithDownloader(context.Background(), url, strings.Repeat("0", 64), dl, func() { called = true }); err == nil {
+		t.Fatal("ожидалась ошибка проверки пакета")
+	}
+	if called {
+		t.Fatal("снимок снят, хотя обновление не дошло до установки")
 	}
 }

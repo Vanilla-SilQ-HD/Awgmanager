@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hoaxisr/awg-manager/internal/backup"
 	"github.com/hoaxisr/awg-manager/internal/logging"
 	"github.com/hoaxisr/awg-manager/internal/storage"
 )
@@ -37,6 +38,9 @@ type Service struct {
 	features func() Features
 	// instanceID — ID установки, прочитанный или заведённый первой проверкой; под mu.
 	instanceID string
+	// snapshot снимает каталог данных перед установкой обновления; в тестах
+	// подменяется.
+	snapshot func() (backup.Snapshot, error)
 }
 
 // New creates a new updater service. dataDir is used for the auto-install
@@ -51,6 +55,9 @@ func New(version string, settings *storage.SettingsStore, appLogger logging.AppL
 		singboxUpdater: singboxUpdater,
 		stop:           make(chan struct{}),
 		done:           make(chan struct{}),
+	}
+	s.snapshot = func() (backup.Snapshot, error) {
+		return backup.TakeUpdateSnapshot(dataDir, version, time.Now())
 	}
 	s.downloader = newLoggingDownloader(newDefaultDownloader(), s.appLog)
 	s.changelog = newChangelogFetcher(changelogURLForChannel(channelStable), 10*time.Minute, s.downloader)
@@ -221,7 +228,7 @@ func (s *Service) ApplyUpgrade(ctx context.Context) error {
 	}
 	s.upgrading = true
 	s.mu.Unlock()
-	if err := upgradeWithDownloader(ctx, downloadURL, wantSHA256, s.downloader); err != nil {
+	if err := upgradeWithDownloader(ctx, downloadURL, wantSHA256, s.downloader, s.snapshotBeforeInstall); err != nil {
 		s.mu.Lock()
 		s.upgrading = false
 		s.mu.Unlock()
@@ -238,6 +245,20 @@ func (s *Service) ApplyUpgrade(ctx context.Context) error {
 		s.mu.Unlock()
 	})
 	return nil
+}
+
+// snapshotBeforeInstall снимает каталог данных перед установкой. Неудача не
+// останавливает обновление: снимок — страховка, а не условие установки.
+func (s *Service) snapshotBeforeInstall() {
+	if s.snapshot == nil {
+		return
+	}
+	snap, err := s.snapshot()
+	if err != nil {
+		s.appLog.Warn("snapshot", "", "снимок настроек перед обновлением не сохранён: "+err.Error())
+		return
+	}
+	s.appLog.Info("snapshot", snap.ID, fmt.Sprintf("снимок настроек перед обновлением сохранён (%d КБ)", snap.Size>>10))
 }
 
 // GetChangelog fetches the monolithic CHANGELOG.md from the repo server,

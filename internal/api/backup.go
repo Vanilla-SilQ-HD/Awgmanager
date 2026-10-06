@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -152,29 +154,36 @@ func (h *BackupHandler) Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.restoreFrom(w, r, file, "import")
+}
+
+// restoreFrom — общий путь восстановления из загрузки и из снимка: остановить
+// дочерние процессы, заменить данные, при отказе поднять процессы обратно, при
+// успехе запланировать перезапуск.
+func (h *BackupHandler) restoreFrom(w http.ResponseWriter, r *http.Request, src io.Reader, op string) {
 	quiesced := false
 	if h.quiesce != nil {
 		if err := h.quiesce(r.Context()); err != nil {
 			if h.log != nil {
-				h.log.Warn("import", "", "quiesce: "+err.Error())
+				h.log.Warn(op, "", "quiesce: "+err.Error())
 			}
 			response.Error(w, "не удалось остановить службы перед восстановлением: "+err.Error(), "BACKUP_QUIESCE_FAILED")
 			return
 		}
 		quiesced = true
 	}
-	if err := backup.Restore(h.dataDir, file); err != nil {
+	if err := backup.Restore(h.dataDir, src); err != nil {
 		if quiesced && h.resume != nil {
 			h.resume(r.Context())
 		}
 		if h.log != nil {
-			h.log.Warn("import", "", err.Error())
+			h.log.Warn(op, "", err.Error())
 		}
 		response.Error(w, err.Error(), "BACKUP_IMPORT_FAILED")
 		return
 	}
 	if h.log != nil {
-		h.log.Info("import", "", "full data-dir restore applied, scheduling restart")
+		h.log.Info(op, "", "full data-dir restore applied, scheduling restart")
 	}
 	if h.restart != nil {
 		h.restart()
@@ -182,4 +191,152 @@ func (h *BackupHandler) Import(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, map[string]string{
 		"message": "Резервная копия восстановлена. AWG Manager перезапускается…",
 	})
+}
+
+// UpdateSnapshotDTO — снимок настроек, снятый перед обновлением.
+type UpdateSnapshotDTO struct {
+	ID         string    `json:"id"`
+	CreatedAt  time.Time `json:"createdAt"`
+	AppVersion string    `json:"appVersion,omitempty"`
+	Size       int64     `json:"size"`
+}
+
+// UpdateSnapshotsData — снимки, новые первыми, и сколько их хранится.
+type UpdateSnapshotsData struct {
+	Snapshots []UpdateSnapshotDTO `json:"snapshots"`
+	Keep      int                 `json:"keep"`
+}
+
+// ListSnapshots returns the settings snapshots taken before updates.
+//
+//	@Summary		List pre-update snapshots
+//	@Description	Снимки каталога данных, которые AWG Manager сохраняет перед установкой обновления; новые первыми.
+//	@Tags			system
+//	@Produce		json
+//	@Security		CookieAuth
+//	@Success		200	{object}	APIEnvelope{data=UpdateSnapshotsData}
+//	@Failure		500	{object}	APIErrorEnvelope
+//	@Router			/system/backup/snapshots [get]
+func (h *BackupHandler) ListSnapshots(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		response.MethodNotAllowed(w)
+		return
+	}
+	h.writeSnapshots(w)
+}
+
+func (h *BackupHandler) writeSnapshots(w http.ResponseWriter) {
+	list, err := backup.ListSnapshots(h.dataDir)
+	if err != nil {
+		response.InternalError(w, err.Error())
+		return
+	}
+	out := make([]UpdateSnapshotDTO, 0, len(list))
+	for _, sn := range list {
+		out = append(out, UpdateSnapshotDTO{ID: sn.ID, CreatedAt: sn.CreatedAt, AppVersion: sn.AppVersion, Size: sn.Size})
+	}
+	response.Success(w, UpdateSnapshotsData{Snapshots: out, Keep: backup.SnapshotKeep})
+}
+
+// snapshotError отвечает на отказ при работе со снимком: неизвестный id — 404.
+func snapshotError(w http.ResponseWriter, err error) {
+	if errors.Is(err, backup.ErrSnapshotNotFound) {
+		response.ErrorWithStatus(w, http.StatusNotFound, err.Error(), "SNAPSHOT_NOT_FOUND")
+		return
+	}
+	response.InternalError(w, err.Error())
+}
+
+// DownloadSnapshot streams one pre-update snapshot.
+//
+//	@Summary		Download pre-update snapshot
+//	@Description	Отдаёт снимок как обычный архив резервной копии.
+//	@Tags			system
+//	@Produce		application/gzip
+//	@Security		CookieAuth
+//	@Param			id	query		string	true	"Snapshot id"
+//	@Success		200	{file}		binary
+//	@Failure		400	{object}	APIErrorEnvelope
+//	@Failure		404	{object}	APIErrorEnvelope
+//	@Router			/system/backup/snapshots/download [get]
+func (h *BackupHandler) DownloadSnapshot(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		response.MethodNotAllowed(w)
+		return
+	}
+	id, ok := requireQueryID(w, r)
+	if !ok {
+		return
+	}
+	f, err := backup.OpenSnapshot(h.dataDir, id)
+	if err != nil {
+		snapshotError(w, err)
+		return
+	}
+	defer f.Close()
+	w.Header().Set("Content-Type", "application/gzip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", "awg-manager-"+id))
+	if _, err := io.Copy(w, f); err != nil && h.log != nil {
+		h.log.Warn("snapshot-download", id, "снимок отдан не полностью: "+err.Error())
+	}
+}
+
+// RestoreSnapshot restores the data directory from a pre-update snapshot.
+//
+//	@Summary		Restore pre-update snapshot
+//	@Description	Восстанавливает каталог данных из снимка так же, как из загруженного архива, и планирует перезапуск демона.
+//	@Tags			system
+//	@Produce		json
+//	@Security		CookieAuth
+//	@Param			id	query		string	true	"Snapshot id"
+//	@Success		200	{object}	APIEnvelope
+//	@Failure		400	{object}	APIErrorEnvelope
+//	@Failure		404	{object}	APIErrorEnvelope
+//	@Router			/system/backup/snapshots/restore [post]
+func (h *BackupHandler) RestoreSnapshot(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.MethodNotAllowed(w)
+		return
+	}
+	id, ok := requireQueryID(w, r)
+	if !ok {
+		return
+	}
+	f, err := backup.OpenSnapshot(h.dataDir, id)
+	if err != nil {
+		snapshotError(w, err)
+		return
+	}
+	defer f.Close()
+	h.restoreFrom(w, r, f, "snapshot-restore")
+}
+
+// DeleteSnapshot removes one pre-update snapshot.
+//
+//	@Summary		Delete pre-update snapshot
+//	@Tags			system
+//	@Produce		json
+//	@Security		CookieAuth
+//	@Param			id	query		string	true	"Snapshot id"
+//	@Success		200	{object}	APIEnvelope{data=UpdateSnapshotsData}
+//	@Failure		400	{object}	APIErrorEnvelope
+//	@Failure		404	{object}	APIErrorEnvelope
+//	@Router			/system/backup/snapshots/delete [post]
+func (h *BackupHandler) DeleteSnapshot(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.MethodNotAllowed(w)
+		return
+	}
+	id, ok := requireQueryID(w, r)
+	if !ok {
+		return
+	}
+	if err := backup.DeleteSnapshot(h.dataDir, id); err != nil {
+		snapshotError(w, err)
+		return
+	}
+	if h.log != nil {
+		h.log.Info("snapshot-delete", id, "снимок перед обновлением удалён")
+	}
+	h.writeSnapshots(w)
 }
