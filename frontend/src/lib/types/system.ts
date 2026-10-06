@@ -353,6 +353,20 @@ export interface UpdateInfo {
 	lastAutoInstallAt?: string;
 }
 
+/** Снимок настроек, который AWG Manager сохраняет перед установкой обновления. */
+export interface UpdateSnapshot {
+	id: string;
+	createdAt: string;
+	appVersion?: string;
+	size: number;
+}
+
+export interface UpdateSnapshotsData {
+	snapshots: UpdateSnapshot[];
+	/** Сколько последних снимков хранится. */
+	keep: number;
+}
+
 export interface ChangelogGroup {
 	heading: string;
 	items: string[];

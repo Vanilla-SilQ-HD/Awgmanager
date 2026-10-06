@@ -126,7 +126,9 @@ var startDetachedUpgrade = func(ipkPath string) error {
 	return nil
 }
 
-func upgradeWithDownloader(ctx context.Context, downloadURL, wantSHA256 string, dl Downloader) error {
+// beforeInstall (может быть nil) зовётся после скачивания и проверки пакета,
+// перед установкой: снимок не пишется, если обновление не дошло до установки.
+func upgradeWithDownloader(ctx context.Context, downloadURL, wantSHA256 string, dl Downloader, beforeInstall func()) error {
 	if dl == nil {
 		dl = newDefaultDownloader()
 	}
@@ -156,6 +158,9 @@ func upgradeWithDownloader(ctx context.Context, downloadURL, wantSHA256 string, 
 	if err := verifyFileSHA256(ipkPath, wantSHA256); err != nil {
 		os.Remove(ipkPath)
 		return err
+	}
+	if beforeInstall != nil {
+		beforeInstall()
 	}
 	if err := startDetachedUpgrade(ipkPath); err != nil {
 		os.Remove(ipkPath)

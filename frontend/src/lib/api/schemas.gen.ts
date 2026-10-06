@@ -2766,6 +2766,18 @@ const api_UpdateSettingsDTO: v.GenericSchema = v.looseObject({
 	statsEnabled: v.optional(v.nullable(v.boolean())),
 });
 
+const api_UpdateSnapshotDTO: v.GenericSchema = v.looseObject({
+	appVersion: v.optional(v.nullable(v.string())),
+	createdAt: v.optional(v.nullable(v.string())),
+	id: v.optional(v.nullable(v.string())),
+	size: v.optional(v.nullable(v.number())),
+});
+
+const api_UpdateSnapshotsData: v.GenericSchema = v.looseObject({
+	keep: v.optional(v.nullable(v.number())),
+	snapshots: v.optional(v.nullable(v.array(v.lazy(() => api_UpdateSnapshotDTO)))),
+});
+
 const api_UserConfigApplyResponse: v.GenericSchema = v.looseObject({
 	ok: v.optional(v.nullable(v.boolean())),
 	warnings: v.optional(v.nullable(v.array(v.lazy(() => api_RouterValidationErrorDTO)))),
@@ -3419,6 +3431,9 @@ export const RESPONSE_SCHEMAS: Record<string, v.GenericSchema> = {
 	"GET /system-tunnels": v.lazy(() => api_SystemTunnelsResponse),
 	"GET /system-tunnels/asc": v.lazy(() => api_ASCParamsResponse),
 	"GET /system/all-interfaces": v.lazy(() => api_AllInterfacesResponse),
+	"GET /system/backup/snapshots": v.intersect([v.lazy(() => api_APIEnvelope), v.looseObject({
+	data: v.optional(v.nullable(v.lazy(() => api_UpdateSnapshotsData))),
+})]),
 	"GET /system/files/checksum": v.lazy(() => api_SystemFileChecksumResponse),
 	"GET /system/files/list": v.lazy(() => api_SystemFilesListResponse),
 	"GET /system/files/read": v.lazy(() => api_SystemFileReadResponse),
@@ -3668,6 +3683,10 @@ export const RESPONSE_SCHEMAS: Record<string, v.GenericSchema> = {
 })]),
 	"POST /system-tunnels/asc": v.lazy(() => api_OkResponse),
 	"POST /system/backup/import": v.lazy(() => api_APIEnvelope),
+	"POST /system/backup/snapshots/delete": v.intersect([v.lazy(() => api_APIEnvelope), v.looseObject({
+	data: v.optional(v.nullable(v.lazy(() => api_UpdateSnapshotsData))),
+})]),
+	"POST /system/backup/snapshots/restore": v.lazy(() => api_APIEnvelope),
 	"POST /system/files/chmod": v.lazy(() => api_SystemOKResponse),
 	"POST /system/files/copy": v.lazy(() => api_SystemOKResponse),
 	"POST /system/files/mkdir": v.lazy(() => api_SystemOKResponse),
