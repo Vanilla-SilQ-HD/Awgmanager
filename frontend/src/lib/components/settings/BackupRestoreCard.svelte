@@ -224,7 +224,7 @@
 								disabled={restoring || snapshotBusy !== null}
 								onclick={() => downloadSnapshot(snap)}
 							>
-								{m.settings_backup_snapshot_download()}
+								{m.common_download()}
 							</Button>
 							<Button
 								variant="outline-danger"
@@ -240,7 +240,7 @@
 								disabled={restoring || snapshotBusy !== null}
 								onclick={() => (deleteSnapshotTarget = snap)}
 							>
-								{m.settings_backup_snapshot_delete()}
+								{m.common_delete()}
 							</Button>
 						</div>
 					</li>
@@ -283,7 +283,7 @@
 	message={deleteSnapshotTarget
 		? m.settings_backup_snapshot_delete_message({ name: snapshotLabel(deleteSnapshotTarget) })
 		: ''}
-	confirmLabel={m.settings_backup_snapshot_delete()}
+	confirmLabel={m.common_delete()}
 	variant="danger"
 	busy={snapshotBusy !== null}
 	onClose={() => (deleteSnapshotTarget = null)}

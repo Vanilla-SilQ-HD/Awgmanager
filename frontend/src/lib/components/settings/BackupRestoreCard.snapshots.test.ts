@@ -8,10 +8,15 @@ import type { UpdateSnapshotsData } from '$lib/types';
 
 vi.mock('$lib/api/client', () => ({
 	api: {
+		importFullBackup: vi.fn(),
 		deleteUpdateSnapshot: vi.fn(),
 		restoreUpdateSnapshot: vi.fn(),
 		downloadUpdateSnapshot: vi.fn()
 	}
+}));
+// Ожидание перезапуска демона в тесте не нужно: сразу «не дождались».
+vi.mock('$lib/restartRecovery', () => ({
+	waitForBackendRestart: vi.fn().mockResolvedValue('timeout')
 }));
 vi.mock('$lib/stores/notifications', () => ({
 	notifications: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
@@ -75,6 +80,24 @@ describe('BackupRestoreCard: снимки перед обновлением', ()
 		await vi.waitFor(() =>
 			expect(applyMutationResponse).toHaveBeenCalledWith({ snapshots: [], keep: 3, ttlDays: 7 })
 		);
+	});
+
+	// Восстановление разрушительно: подтверждение обязано звать восстановление
+	// именно этого снимка, а не загрузку файла.
+	it('восстанавливает выбранный снимок только после подтверждения', async () => {
+		setState({ data: { snapshots: [snap], keep: 3, ttlDays: 7 } });
+		vi.mocked(api.restoreUpdateSnapshot).mockResolvedValue({ message: 'ok' });
+		render(BackupRestoreCard);
+
+		const rowRestore = screen.getAllByRole('button', { name: 'Восстановить' });
+		await fireEvent.click(rowRestore[rowRestore.length - 1]);
+		expect(api.restoreUpdateSnapshot).not.toHaveBeenCalled();
+		expect(await screen.findByText(/Данные будут возвращены к снимку/)).toBeTruthy();
+
+		const confirm = screen.getAllByRole('button', { name: 'Восстановить' });
+		await fireEvent.click(confirm[confirm.length - 1]);
+		await vi.waitFor(() => expect(api.restoreUpdateSnapshot).toHaveBeenCalledWith(snap.id));
+		expect(api.importFullBackup).not.toHaveBeenCalled();
 	});
 
 	it('ошибку загрузки не выдаёт за «снимков нет» и даёт повторить', async () => {
