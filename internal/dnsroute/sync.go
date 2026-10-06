@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/hoaxisr/awg-manager/internal/ipfamily"
 	"github.com/hoaxisr/awg-manager/internal/ndms"
 	"github.com/hoaxisr/awg-manager/internal/ndms/command"
 	"github.com/hoaxisr/awg-manager/internal/ndms/query"
@@ -240,12 +241,11 @@ func buildTargetState(data *StoreData, failedTunnels map[string]struct{}) target
 		// SkipIPv6 drops IPv6 entries here, at render time, so the stored
 		// list keeps them. An IPv6 exclude has nothing left to carve from
 		// and would still take a slot in every chunk, so it goes too.
-		if list.SkipIPv6 != nil && *list.SkipIPv6 {
-			items = withoutIPv6(items)
-			excludes = withoutIPv6(excludes)
-			if len(items) == 0 {
-				continue
-			}
+		// A list left with no entries gets no groups: chunkWithReserve
+		// returns none for an empty input.
+		if list.SkipsIPv6() {
+			items = ipfamily.WithoutIPv6(items)
+			excludes = ipfamily.WithoutIPv6(excludes)
 		}
 
 		// NDMS applies an exclude only inside its own object-group, so the

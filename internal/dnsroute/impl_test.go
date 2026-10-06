@@ -2,8 +2,11 @@ package dnsroute
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -689,7 +692,65 @@ func TestServiceImpl_UpdatePartialPreservesSkipIPv6(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Update off: %v", err)
 	}
-	if updated.SkipIPv6 == nil || *updated.SkipIPv6 {
-		t.Fatalf("an explicit false must clear the flag: %v", updated.SkipIPv6)
+	// Явный false хранится как отсутствие поля: в ответе API его нет, как
+	// и обещает DnsRouteDTO (bool omitempty).
+	if updated.SkipIPv6 != nil {
+		t.Fatalf("an explicit false must clear the flag: %v", *updated.SkipIPv6)
+	}
+	raw, err := json.Marshal(updated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "skipIPv6") {
+		t.Fatalf("a cleared flag must not be serialised: %s", raw)
+	}
+}
+
+// TestRoutedSubnets_LimitCountsWhatTheRouterGets — лимит подсетей считает
+// то, что уйдёт на роутер: NDMS-список с SkipIPv6 не отвергается из-за
+// IPv6-сетей, а без флага и в списке HydraRoute они считаются. Первой идёт
+// покрывающая /32: дедупликация сверяет сети с уже оставленными, и с ней
+// Create на 20 тысячах записей не тянется секундами.
+func TestRoutedSubnets_LimitCountsWhatTheRouterGets(t *testing.T) {
+	entries := []string{"10.0.0.0/8", "geoip:RU", "2001:db8::/32"}
+	for i := 0; i < MaxSubnetsPerList; i++ {
+		entries = append(entries, fmt.Sprintf("2001:db8:%x::/48", i))
+	}
+	skip := true
+	ndms := DomainList{SkipIPv6: &skip}
+	if got := ndms.routedSubnets(entries); len(got) != 2 {
+		t.Fatalf("NDMS + SkipIPv6: routed = %d, want 2 (IPv4 and the tag)", len(got))
+	}
+	if err := validateSubnetsLimit(len(ndms.routedSubnets(entries))); err != nil {
+		t.Fatalf("SkipIPv6: IPv6 networks must not count against the limit: %v", err)
+	}
+	for name, l := range map[string]DomainList{
+		"no flag":    {},
+		"hydraroute": {SkipIPv6: &skip, Backend: "hydraroute"},
+	} {
+		if got := len(l.routedSubnets(entries)); got != len(entries) {
+			t.Errorf("%s: routed = %d, want all %d", name, got, len(entries))
+		}
+	}
+
+	store := NewStore(t.TempDir())
+	if _, err := store.Load(); err != nil {
+		t.Fatal(err)
+	}
+	q, c, _, _ := newTestNDMS()
+	svc := &ServiceImpl{store: store, queries: q, commands: c}
+	big := func(skipIPv6 *bool) DomainList {
+		return DomainList{
+			Name:          "big v6",
+			ManualDomains: entries,
+			Routes:        []RouteTarget{{Interface: "OpkgTun0", TunnelID: "t1"}},
+			SkipIPv6:      skipIPv6,
+		}
+	}
+	if _, err := svc.Create(context.Background(), big(nil)); err == nil || !strings.Contains(err.Error(), "слишком много подсетей") {
+		t.Fatalf("without SkipIPv6 the list is over the limit, err = %v", err)
+	}
+	if _, err := svc.Create(context.Background(), big(&skip)); err != nil {
+		t.Fatalf("with SkipIPv6 the same list is within the limit: %v", err)
 	}
 }

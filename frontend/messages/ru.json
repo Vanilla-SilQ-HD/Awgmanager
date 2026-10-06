@@ -4086,6 +4086,8 @@
 	"dns_routes_card_dedup_exact": "{domain} — дубль {coveredBy} ({list})",
 	"dns_routes_card_dedup_covered": "{domain} — покрыт {coveredBy} ({list})",
 	"dns_routes_card_removed": "{count} убрано",
+	"dns_routes_card_ipv6_only": "Только IPv6 — на роутер не отправлен",
+	"dns_routes_card_ipv6_only_title": "Все записи списка — IPv6, а включено «Не отправлять IPv6 на роутер». Список не попадает на роутер, хотя включён. Добавьте IPv4-записи или выключите эту настройку.",
 	"dns_routes_card_edit_title": "Изменить DNS-маршрут «{name}»",
 	"dns_routes_card_refresh_via_title": "Обновить подписки DNS-маршрута «{name}» через {route}",
 	"dns_routes_card_refresh_title": "Обновить подписки DNS-маршрута «{name}»",

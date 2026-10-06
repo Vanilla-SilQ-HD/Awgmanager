@@ -3828,6 +3828,8 @@
 	"dns_routes_card_dedup_exact": "{domain} — duplicate of {coveredBy} ({list})",
 	"dns_routes_card_dedup_covered": "{domain} — covered by {coveredBy} ({list})",
 	"dns_routes_card_removed": "{count} removed",
+	"dns_routes_card_ipv6_only": "IPv6 only — not sent to the router",
+	"dns_routes_card_ipv6_only_title": "Every entry of this list is IPv6, and \"Do not send IPv6 to the router\" is on. The list does not reach the router even though it is enabled. Add IPv4 entries or turn this setting off.",
 	"dns_routes_card_edit_title": "Edit DNS route “{name}”",
 	"dns_routes_card_refresh_via_title": "Refresh subscriptions of DNS route “{name}” via {route}",
 	"dns_routes_card_refresh_title": "Refresh subscriptions of DNS route “{name}”",
