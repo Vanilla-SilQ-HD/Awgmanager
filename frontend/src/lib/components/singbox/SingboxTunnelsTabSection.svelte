@@ -13,6 +13,7 @@
 	import type { SubscriptionActiveCardVM, SingboxTunnelListStats } from '$lib/components/subscriptions/subscriptionVMs';
 	import { Globe, LayoutGrid, Link, Waypoints } from 'lucide-svelte';
 	import CreateIcon from '$lib/components/ui/icons/CreateIcon.svelte';
+	import RichText from '$lib/components/ui/RichText.svelte';
 	import { showSummary } from '$lib/stores/showSummary';
 
 	interface Props {
@@ -139,7 +140,7 @@
 			<div class="info-versions">
 				<div class="info-version">
 					<Badge variant="accent" size="sm" mono>VLESS</Badge>
-					<span class="info-version-desc">{m.singbox_tabs_vless_prefix()} <strong>Reality</strong> {m.singbox_tabs_vless_suffix()}</span>
+					<span class="info-version-desc"><RichText text={m.singbox_tabs_vless_desc()} /></span>
 				</div>
 				<div class="info-version">
 					<Badge variant="error" size="sm" mono>Trojan</Badge>

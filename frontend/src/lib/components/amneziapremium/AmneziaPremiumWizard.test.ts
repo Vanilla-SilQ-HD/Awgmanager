@@ -164,7 +164,8 @@ describe('AmneziaPremiumWizard', () => {
 		await settle();
 
 		expect(screen.getByText('Зеркало Amnezia недоступно (fixture)')).toBeTruthy();
-		expect(screen.getByRole('button', { name: 'Закрыть' })).toBeTruthy();
+		// Крестик модалки и действие «Закрыть» на экране ошибки.
+		expect(screen.getAllByRole('button', { name: 'Закрыть' })).toHaveLength(2);
 		expect(screen.getByRole('button', { name: 'Повторить' })).toBeTruthy();
 
 		const another = screen.getByRole('button', { name: 'Ввести другой ключ' });

@@ -24,6 +24,9 @@
 	--tunnel-list-col-traffic-awg-max: 210px;
 	--tunnel-list-col-ping: 78px;
 	--tunnel-list-col-actions: 92px;
+	/* AWG list: every row is its own grid, so the actions track must not depend
+	   on the row's content — fixed to the widest set («Взять» + «Удалить»). */
+	--tunnel-list-col-actions-awg: 128px;
 
 	--tunnel-list-min-width: 764px;
 	--tunnel-list-row-padding: 0.75rem;
@@ -67,7 +70,7 @@
 		minmax(var(--tunnel-list-col-status), 0.85fr)
 		minmax(145px, 0.75fr)
 		minmax(var(--tunnel-list-col-traffic-awg-min), var(--tunnel-list-col-traffic-awg-max))
-		minmax(var(--tunnel-list-col-actions), max-content);
+		var(--tunnel-list-col-actions-awg);
 	border: 1px solid var(--color-border);
 	border-radius: 12px;
 	background: var(--color-bg-secondary);
@@ -1329,7 +1332,7 @@ button.tunnel-list-traffic-cell:focus-visible {
 			minmax(140px, 0.78fr)
 			minmax(132px, 0.72fr)
 			minmax(var(--tunnel-list-col-traffic-awg-min), var(--tunnel-list-col-traffic-awg-max))
-			minmax(72px, max-content);
+			var(--tunnel-list-col-actions-awg);
 	}
 }
 
@@ -1342,7 +1345,7 @@ button.tunnel-list-traffic-cell:focus-visible {
 			minmax(128px, 0.72fr)
 			minmax(122px, 0.68fr)
 			minmax(var(--tunnel-list-col-traffic-awg-min), var(--tunnel-list-col-traffic-awg-max))
-			minmax(70px, max-content);
+			var(--tunnel-list-col-actions-awg);
 	}
 
 	.awg-list-row {
@@ -1366,7 +1369,7 @@ html[data-layout-compact='true'] .awg-list-table:not(.singbox-tunnel-table):not(
 		minmax(120px, 0.78fr)
 		minmax(112px, 0.68fr)
 		minmax(var(--tunnel-list-col-traffic-awg-min), var(--tunnel-list-col-traffic-awg-max))
-		minmax(64px, max-content);
+		var(--tunnel-list-col-actions-awg);
 }
 
 html[data-layout-compact='true'] .awg-list-row {

@@ -204,6 +204,12 @@
 		color: #9c8aff;
 	}
 	.badge.muted { background: rgba(110, 110, 110, 0.15); color: var(--text-tertiary, #6e6e6e); }
+	/* Светлая тема: те же оттенки, притемнённые к цвету текста, — на бледной
+	   подложке исходные не дотягивали до контраста 4.5:1 (WCAG AA). */
+	:global([data-theme='light']) .proto-udp { color: color-mix(in srgb, #dab856 40%, var(--color-text-primary)); }
+	:global([data-theme='light']) .proto-tcp { color: color-mix(in srgb, #4a9eff 40%, var(--color-text-primary)); }
+	:global([data-theme='light']) .badge:not(.muted) { color: color-mix(in srgb, #da7756 40%, var(--color-text-primary)); }
+	:global([data-theme='light']) .badge.awg { color: color-mix(in srgb, #9c8aff 40%, var(--color-text-primary)); }
 	.kill {
 		all: unset;
 		cursor: pointer;
