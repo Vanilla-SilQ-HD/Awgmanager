@@ -1,6 +1,6 @@
 <script lang="ts">
     import { m } from '$lib/i18n';
-    import { onMount, onDestroy } from 'svelte';
+    import { onMount, onDestroy, tick } from 'svelte';
     import { get } from 'svelte/store';
     import { goto } from '$app/navigation';
     import { browser } from '$app/environment';
@@ -95,7 +95,7 @@
     let editRuleCounter = $state(0);
     let searchOpen = $state(false);
 
-    function handleSearchRuleClick(id: string, type: 'dns' | 'ip') {
+    async function handleSearchRuleClick(id: string, type: 'dns' | 'ip') {
         if (type === 'dns') {
             // dnsRoutes mixes NDMS and hydraroute backends in one array;
             // route hydraroute hits to the HR Neo tab so the edit modal
@@ -105,9 +105,12 @@
         } else {
             activeTab = 'ip';
         }
+        searchOpen = false;
+        // A freshly mounted tab captures editRuleCounter at mount; bump it only
+        // after the switched-to tab has mounted so its effect sees the change.
+        await tick();
         editRuleId = id;
         editRuleCounter++;
-        searchOpen = false;
     }
 
     // NDMS tab is OS5-only (see tabItems gate). On OS4, bounce off `dns`

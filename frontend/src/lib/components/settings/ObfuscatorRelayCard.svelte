@@ -22,7 +22,7 @@
 <div class="settings-block" id="obfuscator-relay">
 	<div class="card">
 		<SettingsSectionLabel label={m.settings_relay_title()} icon={Cpu} header />
-		<div class="setting-row">
+		<div class="setting-row toggle-inline-row">
 			<div class="flex flex-col gap-1">
 				<span class="font-medium">{m.settings_relay_phobos_label()}</span>
 				<span class="setting-description">
@@ -32,7 +32,7 @@
 					<span class="setting-description text-warning">{m.settings_relay_tripped({ reason: tripped })}</span>
 				{/if}
 			</div>
-			<Toggle checked={!process} disabled={saving} onchange={(v: boolean) => ontoggle(!v)} />
+			<Toggle checked={!process} controlled disabled={saving} onchange={(v: boolean) => ontoggle(!v)} />
 		</div>
 	</div>
 </div>

@@ -156,7 +156,7 @@
 					{m.settings_mcp_access_description()}
 				</span>
 			</div>
-			<Toggle checked={enabled} onchange={ontoggle} disabled={saving} ariaLabel={m.settings_mcp_title()} />
+			<Toggle checked={enabled} controlled onchange={ontoggle} disabled={saving} ariaLabel={m.settings_mcp_title()} />
 		</div>
 
 		{#if enabled}

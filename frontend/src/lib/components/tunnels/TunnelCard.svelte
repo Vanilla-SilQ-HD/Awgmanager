@@ -686,6 +686,14 @@
 		padding: 4px 0;
 	}
 
+	/* Card stretched by its grid row takes the spare height under the header
+	   (as SingboxTunnelCard does): details and actions of neighbours line up
+	   even when one header has an extra badge row or a wrapped note. */
+	.card.view-compact .details,
+	.card.view-dense:not(.view-list) .details {
+		margin-top: auto;
+	}
+
 	.title-line-dense {
 		display: flex;
 		align-items: baseline;

@@ -245,6 +245,7 @@
 		</div>
 		<Toggle
 			checked={settings.updates.autoInstallEnabled}
+			controlled
 			onchange={toggleAutoInstall}
 			disabled={savingAutoInstall}
 		/>
@@ -300,6 +301,7 @@
 	</div>
 	<Toggle
 		checked={settings.updates.statsEnabled}
+		controlled
 		onchange={toggleStats}
 		disabled={savingStats}
 	/>

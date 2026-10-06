@@ -570,6 +570,13 @@
 				<summary>{m.hrneo_tab_daemon_settings()}</summary>
 				<div class="acc-body"><HrNeoSettingsView /></div>
 			</details>
+
+			{#if oversizedInstalled && oversizedTags.length > 0}
+				<details>
+					<summary>{m.hrneo_sidebar_disabled_tags()}</summary>
+					<div class="acc-body"><HrNeoDisabledTagsView tags={oversizedTags} {maxelem} /></div>
+				</details>
+			{/if}
 		</div>
 	{/if}
 </div>

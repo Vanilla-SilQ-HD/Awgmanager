@@ -63,7 +63,7 @@
 			{m.settings_dnsroute_auto_description()}
 		</span>
 	</div>
-	<Toggle checked={settings.dnsRoute.autoRefreshEnabled} onchange={onToggle} disabled={saving} />
+	<Toggle checked={settings.dnsRoute.autoRefreshEnabled} controlled onchange={onToggle} disabled={saving} />
 </div>
 
 {#if settings.dnsRoute.autoRefreshEnabled}

@@ -339,7 +339,7 @@
 			<div class="kv-stacked-stat">
 				<span class="kv-stacked-label">Delay</span>
 				<span class="kv-stacked-value">
-					{#if cardState === 'unknown'}—{:else if cardState === 'fail'}fail{:else}avg {avg}ms{/if}
+					{#if cardState === 'unknown' || cardState === 'stopped'}—{:else if cardState === 'fail'}fail{:else}avg {avg}ms{/if}
 				</span>
 			</div>
 		</div>

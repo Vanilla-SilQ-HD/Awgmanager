@@ -94,4 +94,19 @@ describe('SubscriptionMemberList', () => {
 		expect(onremove).toHaveBeenCalledWith(members[0]);
 		expect(onexclude).not.toHaveBeenCalled();
 	});
+
+	it('keyboard: Enter on the row picks it, Enter on a nested button is left to the button', async () => {
+		const onpick = vi.fn();
+		const { container } = render(SubscriptionMemberList, {
+			props: baseProps({ isInline: true, isUrlSub: false, onpick }),
+		});
+		const rmBtn = container.querySelectorAll('.member-remove-btn')[0];
+		// fireEvent returns false when the handler called preventDefault (button activation suppressed).
+		expect(await fireEvent.keyDown(rmBtn, { key: 'Enter' })).toBe(true);
+		expect(await fireEvent.keyDown(rmBtn, { key: ' ' })).toBe(true);
+		expect(onpick).not.toHaveBeenCalled();
+
+		expect(await fireEvent.keyDown(rowLines(container)[0], { key: 'Enter' })).toBe(false);
+		expect(onpick).toHaveBeenCalledWith('tag-alpha');
+	});
 });

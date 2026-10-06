@@ -29,15 +29,9 @@
 
 	@media (max-width: 640px) {
 		.language-row {
-			flex-direction: row;
-			align-items: center;
-			flex-wrap: nowrap;
-			gap: 0.75rem;
-		}
-
-		.language-row > *:first-child {
-			flex: 1 1 auto;
-			min-width: 0;
+			flex-direction: column;
+			align-items: stretch;
+			gap: 0.5rem;
 		}
 	}
 </style>
