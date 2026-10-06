@@ -2763,6 +2763,7 @@ const api_UpdateSettingsDTO: v.GenericSchema = v.looseObject({
 	autoInstallTime: v.optional(v.nullable(v.string())),
 	channel: v.optional(v.nullable(v.string())),
 	checkEnabled: v.optional(v.nullable(v.boolean())),
+	snapshotDisabled: v.optional(v.nullable(v.boolean())),
 	statsEnabled: v.optional(v.nullable(v.boolean())),
 });
 

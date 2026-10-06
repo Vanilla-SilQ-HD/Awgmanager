@@ -253,6 +253,12 @@ func (s *Service) snapshotBeforeInstall() {
 	if s.snapshot == nil {
 		return
 	}
+	if s.settings != nil {
+		if st, err := s.settings.Get(); err == nil && st.Updates.SnapshotDisabled {
+			s.appLog.Info("snapshot", "", "снимок настроек перед обновлением отключён в настройках")
+			return
+		}
+	}
 	snap, err := s.snapshot()
 	if err != nil {
 		s.appLog.Warn("snapshot", "", "снимок настроек перед обновлением не сохранён: "+err.Error())

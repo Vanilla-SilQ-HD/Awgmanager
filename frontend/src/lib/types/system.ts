@@ -241,6 +241,8 @@ export interface UpdateSettings {
 	autoInstallIntervalDays: number;
 	autoInstallTime: string;
 	statsEnabled: boolean;
+	/** Не сохранять снимок данных перед установкой обновления; по умолчанию false. */
+	snapshotDisabled?: boolean;
 }
 
 export interface DownloadSettings {

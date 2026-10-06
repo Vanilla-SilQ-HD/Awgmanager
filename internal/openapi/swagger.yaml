@@ -7810,6 +7810,12 @@ definitions:
       checkEnabled:
         example: true
         type: boolean
+      snapshotDisabled:
+        description: |-
+          SnapshotDisabled — не сохранять снимок каталога данных перед
+          установкой обновления. По умолчанию false: снимок сохраняется.
+        example: false
+        type: boolean
       statsEnabled:
         description: |-
           StatsEnabled — анонимная статистика установок: случайный ID установки

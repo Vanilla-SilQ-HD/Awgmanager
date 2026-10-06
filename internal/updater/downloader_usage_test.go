@@ -12,6 +12,7 @@ import (
 	"github.com/hoaxisr/awg-manager/internal/backup"
 	"github.com/hoaxisr/awg-manager/internal/downloader"
 	"github.com/hoaxisr/awg-manager/internal/logging"
+	"github.com/hoaxisr/awg-manager/internal/storage"
 	"github.com/hoaxisr/awg-manager/internal/sys/appver"
 )
 
@@ -345,5 +346,37 @@ func TestUpgradeWithDownloader_NoSnapshotWhenPackageRejected(t *testing.T) {
 	}
 	if called {
 		t.Fatal("снимок снят, хотя обновление не дошло до установки")
+	}
+}
+
+// Снимок, выключенный в настройках, не снимается, а установка идёт.
+func TestApplyUpgrade_SnapshotDisabledInSettings(t *testing.T) {
+	dl := &fakeDownloader{
+		downloadFileFn: func(_ context.Context, req downloader.FileRequest) (downloader.FileResult, error) {
+			return downloader.FileResult{Path: req.DestPath, Size: 123}, nil
+		},
+	}
+	var calls []string
+	oldStart := startDetachedUpgrade
+	startDetachedUpgrade = func(_ string) error { calls = append(calls, "install"); return nil }
+	t.Cleanup(func() { startDetachedUpgrade = oldStart })
+
+	dir := t.TempDir()
+	store := storage.NewSettingsStore(dir)
+	if err := store.Update(func(cur *storage.Settings) error { cur.Updates.SnapshotDisabled = true; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	s := New("2.11.0", store, nil, dir, nil)
+	s.SetDownloader(dl)
+	s.snapshot = func() (backup.Snapshot, error) {
+		calls = append(calls, "snapshot")
+		return backup.Snapshot{}, nil
+	}
+	s.cached = &UpdateInfo{DownloadURL: "http://repo.local/aarch64-k3.10/awg-manager_2.12.0_aarch64-3.10-kn.ipk"}
+	if err := s.ApplyUpgrade(context.Background()); err != nil {
+		t.Fatalf("ApplyUpgrade: %v", err)
+	}
+	if strings.Join(calls, ",") != "install" {
+		t.Fatalf("calls = %v, want install only", calls)
 	}
 }
