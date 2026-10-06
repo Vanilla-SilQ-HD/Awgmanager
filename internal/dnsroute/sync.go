@@ -235,11 +235,23 @@ func buildTargetState(data *StoreData, failedTunnels map[string]struct{}) target
 		items := make([]string, 0, len(list.Domains)+len(list.Subnets))
 		items = append(items, list.Domains...)
 		items = append(items, list.Subnets...)
+		excludes := list.Excludes
+
+		// SkipIPv6 drops IPv6 entries here, at render time, so the stored
+		// list keeps them. An IPv6 exclude has nothing left to carve from
+		// and would still take a slot in every chunk, so it goes too.
+		if list.SkipIPv6 != nil && *list.SkipIPv6 {
+			items = withoutIPv6(items)
+			excludes = withoutIPv6(excludes)
+			if len(items) == 0 {
+				continue
+			}
+		}
 
 		// NDMS applies an exclude only inside its own object-group, so the
 		// full exclude set goes into every chunk. Excludes also count
 		// against the group's capacity — shrink each chunk's budget.
-		chunks := chunkWithReserve(items, MaxDomainsPerGroup, len(list.Excludes))
+		chunks := chunkWithReserve(items, MaxDomainsPerGroup, len(excludes))
 
 		for i, chunk := range chunks {
 			groupName := buildGroupName(list.ID, list.Name, i+1)
@@ -247,7 +259,7 @@ func buildTargetState(data *StoreData, failedTunnels map[string]struct{}) target
 			g := targetGroup{
 				name:     groupName,
 				includes: chunk,
-				excludes: list.Excludes,
+				excludes: excludes,
 			}
 
 			ts.groups = append(ts.groups, g)

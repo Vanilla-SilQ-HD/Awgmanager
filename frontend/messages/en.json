@@ -4017,6 +4017,8 @@
 	"dns_routes_edit_excludes": "Exclusions",
 	"dns_routes_edit_excludes_placeholder": "# Domains that should NOT be routed\nexample.com\n.local\n\n# Subnets that should NOT be routed\n10.0.0.0/8\n2001:db8::/32",
 	"dns_routes_edit_excludes_hint": "These domains will be excluded from routing through the tunnel.\nComments start with #\nCtrl+/ or Cmd+/ toggles comments on selected lines.",
+	"dns_routes_edit_skip_ipv6": "Do not send IPv6 to the router",
+	"dns_routes_edit_skip_ipv6_hint": "IPv6 addresses and networks from the list are not added to the router’s routes and do not count against its limit. They stay in the list — turn this off to bring them back.",
 	"dns_routes_edit_dedup_summary": [
 		{
 			"declarations": [

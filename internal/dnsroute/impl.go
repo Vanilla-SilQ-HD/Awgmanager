@@ -371,6 +371,9 @@ func (s *ServiceImpl) Update(ctx context.Context, list DomainList) (*DomainList,
 	if list.HRPolicyName == "" {
 		list.HRPolicyName = existing.HRPolicyName
 	}
+	if list.SkipIPv6 == nil {
+		list.SkipIPv6 = existing.SkipIPv6
+	}
 	if list.ManualText == nil {
 		list.ManualText = existing.ManualText
 	} else {

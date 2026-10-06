@@ -156,6 +156,27 @@ func matchSubnets(subnets []string, ips []net.IP) (cidr string, hit string, unev
 	return "", "", unevaluated
 }
 
+// withoutIPv6Entries drops what the router never gets from a list with
+// SkipIPv6: IPv6 networks and bare IPv6 addresses. IPv4, IPv4-mapped
+// addresses, tags and names stay. It repeats the rule of
+// dnsroute.isIPv6Entry rather than import it: this package stays free of
+// the daemon's services (cmd/mcp-dev builds it on darwin).
+func withoutIPv6Entries(entries []string) []string {
+	out := make([]string, 0, len(entries))
+	for _, e := range entries {
+		s := strings.TrimSpace(e)
+		ip, _, err := net.ParseCIDR(s)
+		if err != nil {
+			ip = net.ParseIP(s)
+		}
+		if ip != nil && ip.To4() == nil {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
 // explainNote states in words how the matches relate. It deliberately
 // stops short of naming a single winner when a device route and a list
 // both apply: the device rule captures everything that device sends,
@@ -266,6 +287,14 @@ func registerExplainTools(s *mcp.Server, d Deps) {
 			return nil, explainOut{}, err
 		}
 		for _, detail := range details {
+			// A list with SkipIPv6 keeps its IPv6 entries but never puts
+			// them on the router: matching against them would report a
+			// route the traffic does not take.
+			if detail.SkipIPv6 {
+				detail.Domains = withoutIPv6Entries(detail.Domains)
+				detail.Subnets = withoutIPv6Entries(detail.Subnets)
+				detail.Excludes = withoutIPv6Entries(detail.Excludes)
+			}
 			entry, unevaluated := matchDNSList(detail.Domains, target, ips)
 			if entry == "" {
 				sub, _, subUnevaluated := matchSubnets(detail.Subnets, ips)

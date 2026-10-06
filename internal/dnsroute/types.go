@@ -38,6 +38,13 @@ type DomainList struct {
 	// Only honored when HRRouteMode == "policy" and HRPolicyName is set
 	// (new-policy flow). Ignored otherwise. Not persisted back to clients.
 	HRPolicyInterfaces []string `json:"hrPolicyInterfaces,omitempty"`
+	// SkipIPv6 keeps IPv6 entries (CIDRs and bare addresses) out of the
+	// router: each one takes an include slot in the NDMS object-group like
+	// a domain, and on a router without IPv6 they only eat the limit. The
+	// list itself keeps them, so turning the flag off brings them back on
+	// the next reconcile without a refetch. NDMS lists only. A pointer, so
+	// a partial update that does not send it keeps the stored value.
+	SkipIPv6 *bool `json:"skipIPv6,omitempty"`
 }
 
 // Subscription represents a remote domain list URL that is periodically fetched.

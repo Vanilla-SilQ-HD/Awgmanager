@@ -4285,6 +4285,8 @@
 	"dns_routes_edit_excludes": "Исключения",
 	"dns_routes_edit_excludes_placeholder": "# Домены, которые НЕ маршрутизировать\nexample.com\n.local\n\n# Подсети, которые НЕ маршрутизировать\n10.0.0.0/8\n2001:db8::/32",
 	"dns_routes_edit_excludes_hint": "Эти домены будут исключены из маршрутизации через туннель.\nКомментарии начинаются с #\nCtrl+/ или Cmd+/ комментирует выбранные строки.",
+	"dns_routes_edit_skip_ipv6": "Не отправлять IPv6 на роутер",
+	"dns_routes_edit_skip_ipv6_hint": "IPv6-адреса и подсети из списка не попадают в маршруты роутера и не занимают место в лимите. В самом списке они остаются — выключите, чтобы вернуть.",
 	"dns_routes_edit_dedup_summary": [
 		{
 			"declarations": [

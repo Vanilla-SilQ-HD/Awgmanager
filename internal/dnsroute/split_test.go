@@ -68,3 +68,28 @@ func TestSplitDomainsAndSubnets(t *testing.T) {
 		})
 	}
 }
+
+// TestIsIPv6Entry — #1011: IPv6 приходит в список и подсетью, и голым
+// адресом (он попадает в домены). Оба должны отсеиваться, а IPv4, теги и
+// домены — нет.
+func TestIsIPv6Entry(t *testing.T) {
+	for in, want := range map[string]bool{
+		"2001:db8::/32":    true,
+		"2001:db8::1":      true,
+		" 2a00:1450::1 ":   true,
+		"fe80::/10":        true,
+		"::1":              true,
+		"::ffff:1.2.3.4":   false,
+		"10.0.0.0/8":       false,
+		"1.2.3.4":          false,
+		"example.com":      false,
+		".googlevideo.com": false,
+		"geoip:RU":         false,
+		"geosite:GOOGLE":   false,
+		"":                 false,
+	} {
+		if got := isIPv6Entry(in); got != want {
+			t.Errorf("isIPv6Entry(%q) = %v, want %v", in, got, want)
+		}
+	}
+}
