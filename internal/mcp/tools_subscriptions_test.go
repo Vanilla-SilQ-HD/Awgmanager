@@ -287,11 +287,6 @@ func TestTools_SubscriptionModeAndServerRejectNonsense(t *testing.T) {
 	s, fake := newTestSession(t)
 	selector := "1a00ae3b0011223344556677"
 
-	for name, mode := range map[string]string{"an empty mode": "", "an unknown mode": "fallback", "a loadbalance group": "loadbalance"} {
-		if res, _ := callTool(t, s, "set_singbox_subscription_mode", map[string]any{"subscriptionId": selector, "mode": mode}); !res.IsError {
-			t.Errorf("%s must be refused", name)
-		}
-	}
 	for name, tag := range map[string]string{
 		"an empty tag":        "",
 		"a control character": "sub-1a00ae3b\x1b-k2",
@@ -313,5 +308,21 @@ func TestTools_SubscriptionModeAndServerRejectNonsense(t *testing.T) {
 	}
 	if fake.ActiveMembers["sub-1a00ae3b"] != "sub-1a00ae3b-k1" || fake.Subscriptions[1].Mode != "selector" {
 		t.Fatal("a refused call changed something")
+	}
+}
+
+// TestTools_SubscriptionServerStoredButNotApplied — служба сохраняет выбор
+// раньше, чем переключает работающую группу. Пока sing-box не отвечает,
+// выбор остаётся сохранённым, а вызов — ошибкой, которая говорит именно это.
+func TestTools_SubscriptionServerStoredButNotApplied(t *testing.T) {
+	s, fake := newTestSession(t)
+	fake.ClashDown = true
+
+	res, _ := callTool(t, s, "set_singbox_subscription_active_member", map[string]any{"subscriptionId": "1a00ae3b0011223344556677", "memberTag": "sub-1a00ae3b-k2"})
+	if !res.IsError || !strings.Contains(toolText(res), "STORED") {
+		t.Fatalf("a failed live switch must be an error that says the choice is stored: %q", toolText(res))
+	}
+	if fake.ActiveMembers["sub-1a00ae3b"] != "sub-1a00ae3b-k2" {
+		t.Fatalf("the choice must be recorded before the switch fails: %v", fake.ActiveMembers["sub-1a00ae3b"])
 	}
 }

@@ -89,20 +89,6 @@ type setSubscriptionActiveMemberOut struct {
 	MemberTag      string `json:"memberTag" jsonschema:"the server the group was switched to"`
 }
 
-// requireSubscriptionMode accepts the two modes subscription.SubscriptionMode
-// knows. Anything else is refused before Deps, so a typo never reaches the
-// store.
-func requireSubscriptionMode(mode string) (string, error) {
-	switch m := strings.ToLower(strings.TrimSpace(mode)); m {
-	case "selector", "urltest":
-		return m, nil
-	case "":
-		return "", fmt.Errorf("mode is required: selector or urltest")
-	default:
-		return "", fmt.Errorf("mode must be selector or urltest")
-	}
-}
-
 // subscriptionModeNotice says in words what the mode means for the traffic,
 // and is just as true on a call that changed nothing.
 func subscriptionModeNotice(sub SingboxSubscription) string {
@@ -162,11 +148,9 @@ func registerSubscriptionTools(s *mcp.Server, d Deps) {
 		if err != nil {
 			return nil, SingboxSubscription{}, err
 		}
-		mode, err := requireSubscriptionMode(in.Mode)
-		if err != nil {
-			return nil, SingboxSubscription{}, err
-		}
-		updated, err := d.SetSingboxSubscriptionMode(ctx, id, mode)
+		// Deps validates the mode (one check, where it becomes a
+		// subscription.SubscriptionMode); the tool only normalises it.
+		updated, err := d.SetSingboxSubscriptionMode(ctx, id, strings.ToLower(strings.TrimSpace(in.Mode)))
 		if err != nil {
 			return nil, SingboxSubscription{}, err
 		}

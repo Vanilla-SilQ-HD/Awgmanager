@@ -1004,9 +1004,6 @@ func (f *Fake) SetSingboxSubscriptionMode(_ context.Context, id, mode string) (m
 	if f.Err != nil {
 		return mcpsrv.SingboxSubscription{}, f.Err
 	}
-	if mode != "selector" && mode != "urltest" {
-		return mcpsrv.SingboxSubscription{}, fmt.Errorf("mode must be selector or urltest")
-	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for i := range f.Subscriptions {
@@ -1028,8 +1025,10 @@ func (f *Fake) SetSingboxSubscriptionMode(_ context.Context, id, mode string) (m
 
 // SetSingboxSubscriptionActiveMember mirrors subscription.Service.SetActiveMember:
 // refused in urltest mode and for a tag outside the group; otherwise the
-// running group switches to the server (ActiveMembers). With ClashDown the
-// switch fails, as it does while sing-box is stopped.
+// choice is recorded (ActiveMembers) and the running group switches to it.
+// The service writes the choice before it switches, so with ClashDown the
+// choice is recorded first and the call fails after, as it does while
+// sing-box is stopped.
 func (f *Fake) SetSingboxSubscriptionActiveMember(_ context.Context, id, memberTag string) (mcpsrv.SingboxSubscription, error) {
 	if f.Err != nil {
 		return mcpsrv.SingboxSubscription{}, f.Err
@@ -1054,13 +1053,13 @@ func (f *Fake) SetSingboxSubscriptionActiveMember(_ context.Context, id, memberT
 		if !found {
 			return mcpsrv.SingboxSubscription{}, fmt.Errorf("%q is not a server of this subscription's group (get_singbox_outbound with tag %q lists them)", memberTag, sub.GroupTag)
 		}
-		if f.ClashDown {
-			return mcpsrv.SingboxSubscription{}, fmt.Errorf("the server is STORED as the active one, but switching the running sing-box failed")
-		}
 		if f.ActiveMembers == nil {
 			f.ActiveMembers = map[string]string{}
 		}
 		f.ActiveMembers[sub.GroupTag] = memberTag
+		if f.ClashDown {
+			return mcpsrv.SingboxSubscription{}, fmt.Errorf("the server is STORED as the active one, but switching the running sing-box failed")
+		}
 		sub.MemberCount = f.subscriptionMemberCount(sub)
 		return sub, nil
 	}

@@ -1222,6 +1222,21 @@ func TestLocal_SetSingboxSubscriptionActiveMemberReportsFailure(t *testing.T) {
 		}
 	})
 
+	// The server asked for was already the active one, and the service
+	// refused before writing (here: the subscription went to urltest
+	// meanwhile). The stored value equals the request, yet nothing was
+	// written, so "STORED" would be false.
+	t.Run("already active, refused before the write", func(t *testing.T) {
+		subs := subsHarness()
+		subs.activeErr = subscription.ErrActiveMemberOnURLTest
+		l := New(Config{Subscriptions: subs})
+
+		_, err := l.SetSingboxSubscriptionActiveMember(ctx, subPasteID, "sub-1a00ae3b-k1")
+		if err == nil || !strings.Contains(err.Error(), "unchanged") || strings.Contains(err.Error(), "STORED") {
+			t.Fatalf("err = %v, want it said that the subscription is unchanged", err)
+		}
+	})
+
 	t.Run("nothing was stored", func(t *testing.T) {
 		subs := subsHarness()
 		subs.activeErr = cause

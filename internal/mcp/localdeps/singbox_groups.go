@@ -521,6 +521,12 @@ func (l *Local) switchFailure(id string, before, wanted bool) error {
 // patch carrying Mode as a mode change and rebuilds the group with a reload
 // (subscription.Service.Update, "modeChanged"), which would interrupt
 // connections for nothing.
+//
+// This is the one place the mode is validated: the tool only trims and
+// lowercases it.
+//
+// No invalidation event is published, for the reason
+// SetSingboxSubscriptionEnabled gives: the REST handler publishes none.
 func (l *Local) SetSingboxSubscriptionMode(_ context.Context, id, mode string) (mcpsrv.SingboxSubscription, error) {
 	if l.c.Subscriptions == nil {
 		return mcpsrv.SingboxSubscription{}, errUnavailable("sing-box subscriptions")
@@ -580,6 +586,14 @@ func (l *Local) modeFailure(id string, before, wanted subscription.SubscriptionM
 // through the Clash API (subscription.Service.SetActiveMember), so a failure
 // can leave the choice stored and not applied; activeMemberFailure tells the
 // two apart.
+//
+// The record returned is the one read before the switch. SingboxSubscription
+// carries no active server (see its doc), so the switch changes none of its
+// fields, and a second read would only add a way to fail after the switch
+// succeeded.
+//
+// No invalidation event is published, for the reason
+// SetSingboxSubscriptionEnabled gives: the REST handler publishes none.
 func (l *Local) SetSingboxSubscriptionActiveMember(ctx context.Context, id, memberTag string) (mcpsrv.SingboxSubscription, error) {
 	if l.c.Subscriptions == nil {
 		return mcpsrv.SingboxSubscription{}, errUnavailable("sing-box subscriptions")
@@ -600,23 +614,33 @@ func (l *Local) SetSingboxSubscriptionActiveMember(ctx context.Context, id, memb
 	label := sanitizeLabel(current.Label)
 
 	if err := l.c.Subscriptions.SetActiveMember(ctx, id, memberTag); err != nil {
-		l.subLog.Warn("subscription-active-member", label, "Failed to choose the active server (MCP)")
-		return mcpsrv.SingboxSubscription{}, l.activeMemberFailure(id, memberTag)
+		return mcpsrv.SingboxSubscription{}, l.activeMemberFailure(id, label, memberTag, current.ActiveMember)
 	}
 	l.subLog.Info("subscription-active-member", label, "Active server chosen (MCP)")
 	return singboxSubscription(current), nil
 }
 
-// activeMemberFailure says what a failed choice left behind. The service
-// stores the choice before it switches the running group, and journals a
-// failed switch itself; anything that fails before the store write leaves
-// the subscription as it was.
-func (l *Local) activeMemberFailure(id, memberTag string) error {
+// activeMemberFailure says what a failed choice left behind, and journals
+// the attempt. The service stores the choice before it switches the running
+// group and journals a failed switch itself; anything that fails before the
+// store write leaves the subscription as it was and is journalled by no one
+// but this line.
+//
+// A stored value equal to the request proves a write only when the request
+// was not the active server already (before): otherwise a refusal before the
+// write would read as a write.
+func (l *Local) activeMemberFailure(id, label, memberTag, before string) error {
 	after, err := l.c.Subscriptions.Get(id)
+	stored := err == nil && after != nil && after.ActiveMember == memberTag && before != memberTag
+	if stored {
+		l.subLog.Warn("subscription-active-member", label, "Failed to switch the running group to the chosen server (MCP); the choice is stored; the service journalled the cause in bucket singbox")
+	} else {
+		l.subLog.Warn("subscription-active-member", label, "Failed to choose the active server (MCP)")
+	}
 	switch {
 	case err != nil || after == nil:
 		return fmt.Errorf("sing-box subscription %q not found (use list_singbox_subscriptions)", id)
-	case after.ActiveMember == memberTag:
+	case stored:
 		return fmt.Errorf("the server is STORED as the active one, but switching the running sing-box failed, so the group may still route through the previous server. The stored choice is applied when the subscription's group is next rebuilt, for example by a refresh; a sing-box restart before that starts from the previous server. Tell the user. The cause is in the journal — get_logs with bucket \"singbox\"")
 	}
 	return fmt.Errorf("the server could not be chosen and the subscription is unchanged. A refresh or another client may have changed the subscription meanwhile: check it with list_singbox_subscriptions and get_singbox_outbound, then try again")
