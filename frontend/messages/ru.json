@@ -4086,6 +4086,8 @@
 	"dns_routes_card_dedup_exact": "{domain} — дубль {coveredBy} ({list})",
 	"dns_routes_card_dedup_covered": "{domain} — покрыт {coveredBy} ({list})",
 	"dns_routes_card_removed": "{count} убрано",
+	"dns_routes_card_ipv6_only": "Только IPv6 — на роутер не отправлен",
+	"dns_routes_card_ipv6_only_title": "Все записи списка — IPv6, а включено «Не отправлять IPv6 на роутер». Список не попадает на роутер, хотя включён. Добавьте IPv4-записи или выключите эту настройку.",
 	"dns_routes_card_edit_title": "Изменить DNS-маршрут «{name}»",
 	"dns_routes_card_refresh_via_title": "Обновить подписки DNS-маршрута «{name}» через {route}",
 	"dns_routes_card_refresh_title": "Обновить подписки DNS-маршрута «{name}»",
@@ -4285,6 +4287,8 @@
 	"dns_routes_edit_excludes": "Исключения",
 	"dns_routes_edit_excludes_placeholder": "# Домены, которые НЕ маршрутизировать\nexample.com\n.local\n\n# Подсети, которые НЕ маршрутизировать\n10.0.0.0/8\n2001:db8::/32",
 	"dns_routes_edit_excludes_hint": "Эти домены будут исключены из маршрутизации через туннель.\nКомментарии начинаются с #\nCtrl+/ или Cmd+/ комментирует выбранные строки.",
+	"dns_routes_edit_skip_ipv6": "Не отправлять IPv6 на роутер",
+	"dns_routes_edit_skip_ipv6_hint": "IPv6-адреса и подсети из списка не попадают в маршруты роутера и не занимают место в лимите. В самом списке они остаются — выключите, чтобы вернуть.",
 	"dns_routes_edit_dedup_summary": [
 		{
 			"declarations": [

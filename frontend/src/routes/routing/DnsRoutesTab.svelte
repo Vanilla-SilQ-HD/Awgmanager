@@ -288,6 +288,7 @@
                     subnets: route.subnets,
                     enabled: route.enabled,
                     iconUrl: route.iconUrl,
+                    skipIPv6: route.skipIPv6 === true || undefined,
                     routes: route.tunnelId
                         ? [{ tunnelId: route.tunnelId, interface: route.tunnelId, fallback: 'auto' as const }]
                         : [],
