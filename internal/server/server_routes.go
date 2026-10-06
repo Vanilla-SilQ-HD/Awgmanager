@@ -332,6 +332,10 @@ func (s *Server) registerSystemRoutes(mux *http.ServeMux, h *routeHandlers) {
 		s.ScheduleRestart,
 		h.appLog,
 	)
+	backupHandler.SetEventBus(s.bus)
+	if s.updaterService != nil {
+		backupHandler.SetUpgradeGuard(s.updaterService.IsUpgrading)
+	}
 	mux.HandleFunc("/api/system/backup/export", h.guarded(backupHandler.Export))
 	mux.HandleFunc("/api/system/backup/import", h.guarded(backupHandler.Import))
 	mux.HandleFunc("/api/system/backup/snapshots", h.guarded(backupHandler.ListSnapshots))

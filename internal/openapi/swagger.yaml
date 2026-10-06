@@ -7823,25 +7823,18 @@ definitions:
         example: true
         type: boolean
     type: object
-  api.UpdateSnapshotDTO:
-    properties:
-      appVersion:
-        type: string
-      createdAt:
-        type: string
-      id:
-        type: string
-      size:
-        type: integer
-    type: object
   api.UpdateSnapshotsData:
     properties:
       keep:
         type: integer
       snapshots:
         items:
-          $ref: '#/definitions/api.UpdateSnapshotDTO'
+          $ref: '#/definitions/backup.Snapshot'
         type: array
+      ttlDays:
+        description: TTLDays — срок жизни снимка; самый новый живёт до следующего
+          обновления.
+        type: integer
     type: object
   api.UpdateSubscriptionGroupRequest:
     properties:
@@ -8140,6 +8133,17 @@ definitions:
     properties:
       enabled:
         type: boolean
+    type: object
+  backup.Snapshot:
+    properties:
+      appVersion:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      size:
+        type: integer
     type: object
   captcha.ClientStatus:
     properties:
@@ -19879,6 +19883,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.APIErrorEnvelope'
+        "409":
+          description: Идёт установка обновления
+          schema:
+            $ref: '#/definitions/api.APIErrorEnvelope'
         "500":
           description: Internal Server Error
           schema:
@@ -19998,6 +20006,10 @@ paths:
             $ref: '#/definitions/api.APIErrorEnvelope'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/api.APIErrorEnvelope'
+        "409":
+          description: Идёт установка обновления
           schema:
             $ref: '#/definitions/api.APIErrorEnvelope'
       security:

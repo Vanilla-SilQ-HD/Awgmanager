@@ -367,6 +367,8 @@ export interface UpdateSnapshotsData {
 	snapshots: UpdateSnapshot[];
 	/** Сколько последних снимков хранится. */
 	keep: number;
+	/** Срок жизни снимка в днях; самый новый живёт до следующего обновления. */
+	ttlDays: number;
 }
 
 export interface ChangelogGroup {

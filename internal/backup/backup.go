@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hoaxisr/awg-manager/internal/storage"
@@ -145,7 +146,15 @@ func Export(dataDir, appVersion string, w io.Writer) (err error) {
 // каталога. В архив не попадает и при очистке не трогается (shouldSkip).
 const restoreTmpDir = ".restore-tmp"
 
-var restoreMu sync.Mutex
+var (
+	restoreMu sync.Mutex
+	// restoring — идёт Restore. Обновление при нём не начинается: opkg с
+	// postinst и восстановление боролись бы за одни и те же данные.
+	restoring atomic.Bool
+)
+
+// Restoring сообщает, идёт ли сейчас восстановление.
+func Restoring() bool { return restoring.Load() }
 
 // Restore заменяет данные из архива r (gzip tar) на месте, не подменяя каталог:
 //  1. архив распаковывается в <dataDir>/.restore-tmp и проверяется манифест —
@@ -166,6 +175,8 @@ func Restore(dataDir string, r io.Reader) error {
 	// восстановления сносили бы распаковку друг друга.
 	restoreMu.Lock()
 	defer restoreMu.Unlock()
+	restoring.Store(true)
+	defer restoring.Store(false)
 	dataDir = filepath.Clean(strings.TrimSpace(dataDir))
 	if dataDir == "" {
 		return fmt.Errorf("data-dir не задан")

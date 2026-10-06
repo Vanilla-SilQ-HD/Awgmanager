@@ -2767,16 +2767,10 @@ const api_UpdateSettingsDTO: v.GenericSchema = v.looseObject({
 	statsEnabled: v.optional(v.nullable(v.boolean())),
 });
 
-const api_UpdateSnapshotDTO: v.GenericSchema = v.looseObject({
-	appVersion: v.optional(v.nullable(v.string())),
-	createdAt: v.optional(v.nullable(v.string())),
-	id: v.optional(v.nullable(v.string())),
-	size: v.optional(v.nullable(v.number())),
-});
-
 const api_UpdateSnapshotsData: v.GenericSchema = v.looseObject({
 	keep: v.optional(v.nullable(v.number())),
-	snapshots: v.optional(v.nullable(v.array(v.lazy(() => api_UpdateSnapshotDTO)))),
+	snapshots: v.optional(v.nullable(v.array(v.lazy(() => backup_Snapshot)))),
+	ttlDays: v.optional(v.nullable(v.number())),
 });
 
 const api_UserConfigApplyResponse: v.GenericSchema = v.looseObject({
@@ -2862,6 +2856,13 @@ const api_WireguardServerPeerDTO: v.GenericSchema = v.looseObject({
 	signatureProfile: v.optional(v.nullable(v.string())),
 	tunnelIP: v.optional(v.nullable(v.string())),
 	txBytes: v.optional(v.nullable(v.number())),
+});
+
+const backup_Snapshot: v.GenericSchema = v.looseObject({
+	appVersion: v.optional(v.nullable(v.string())),
+	createdAt: v.optional(v.nullable(v.string())),
+	id: v.optional(v.nullable(v.string())),
+	size: v.optional(v.nullable(v.number())),
 });
 
 const captcha_ClientStatus: v.GenericSchema = v.looseObject({

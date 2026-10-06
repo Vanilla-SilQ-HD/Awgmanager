@@ -19,19 +19,25 @@ const (
 	// снимке нет — их не несёт и обычный бэкап (hardwareBound).
 	SnapshotDir = "update-snapshots"
 	// SnapshotKeep — сколько последних снимков хранится; старшие удаляются
-	// после записи нового.
+	// после записи нового. Только что записанный остаётся всегда.
 	SnapshotKeep = 3
-	// snapshotSpareBytes — запас свободного места, который снимок обязан
-	// оставить: следом opkg распаковывает пакет на тот же раздел.
-	snapshotSpareBytes = 32 << 20
-	snapshotPrefix     = "before-update-"
-	snapshotStamp      = "20060102-150405"
+	// SnapshotTTL — срок жизни снимка: откат нужен, пока последствия
+	// обновления свежие, а копить архивы с ключами незачем. Неделя, а не
+	// сутки: автообновление в 05:00 субботы замечают и в понедельник.
+	SnapshotTTL = 7 * 24 * time.Hour
+	// MinSnapshotSpare — нижняя граница запаса места после снимка (см.
+	// TakeUpdateSnapshot); обычно запас считается от размера пакета.
+	MinSnapshotSpare = 8 << 20
+	snapshotPrefix   = "before-update-"
+	snapshotStamp    = "20060102-150405"
 )
 
 // ErrSnapshotNotFound — снимка с таким id нет (или id не похож на снимок).
 var ErrSnapshotNotFound = errors.New("снимок не найден")
 
-var snapshotName = regexp.MustCompile(`^before-update-\d{8}-\d{6}\.tar\.gz$`)
+// Суффикс -N — второй снимок с той же меткой времени: часы роутера до NTP
+// могут выдать уже занятую секунду, и прежний снимок перезаписывать нельзя.
+var snapshotName = regexp.MustCompile(`^before-update-(\d{8}-\d{6})(-\d+)?\.tar\.gz$`)
 
 // Snapshot описывает снимок каталога данных, снятый перед обновлением.
 type Snapshot struct {
@@ -48,14 +54,24 @@ var (
 )
 
 // TakeUpdateSnapshot сохраняет архив каталога данных (тот же, что отдаёт
-// экспорт) в <dataDir>/update-snapshots и оставляет SnapshotKeep последних.
-// Места мало — снимок не пишется вовсе, а не забивает раздел до отказа
-// следующей за ним установки пакета. Недописанный файл удаляется.
-func TakeUpdateSnapshot(dataDir, appVersion string, now time.Time) (Snapshot, error) {
+// экспорт) в <dataDir>/update-snapshots и оставляет SnapshotKeep последних,
+// причём только что записанный — всегда: порядок задаёт время в имени, и
+// при отстающих часах новый снимок иначе оказался бы «самым старым».
+//
+// spare — сколько места должно остаться ПОСЛЕ снимка (не меньше
+// MinSnapshotSpare): следом opkg распаковывает пакет на тот же раздел. Места
+// мало — снимок не пишется вовсе, а не забивает раздел до отказа установки.
+// Недописанный файл удаляется.
+//
+// Снимок берёт лок восстановления: архив, снятый посреди Restore, мог бы
+// застать каталог без settings.json и всё равно выглядеть удачным.
+func TakeUpdateSnapshot(dataDir, appVersion string, now time.Time, spare int64) (Snapshot, error) {
 	if err := CheckDataDir(dataDir); err != nil {
 		return Snapshot{}, err
 	}
 	dataDir = filepath.Clean(strings.TrimSpace(dataDir))
+	restoreMu.Lock()
+	defer restoreMu.Unlock()
 	snapshotMu.Lock()
 	defer snapshotMu.Unlock()
 
@@ -74,16 +90,17 @@ func TakeUpdateSnapshot(dataDir, appVersion string, now time.Time) (Snapshot, er
 	if err != nil {
 		return Snapshot{}, err
 	}
-	if avail, ok := availableBytesFunc(dir); ok && avail < need+snapshotSpareBytes {
-		return Snapshot{}, fmt.Errorf("мало места: снимку нужно до %d МБ с запасом, свободно %d МБ",
-			(need+snapshotSpareBytes)>>20, avail>>20)
+	spare = max(spare, MinSnapshotSpare)
+	if avail, ok := availableBytesFunc(dir); ok && avail < need+spare {
+		return Snapshot{}, fmt.Errorf("мало места: снимку нужно до %d МБ и ещё %d МБ под установку пакета, свободно %d МБ",
+			need>>20, spare>>20, avail>>20)
 	}
 
 	if now.IsZero() {
 		now = time.Now()
 	}
 	now = now.UTC()
-	id := snapshotPrefix + now.Format(snapshotStamp) + ".tar.gz"
+	id := freeSnapshotID(dir, now)
 	final := filepath.Join(dir, id)
 	tmp := final + ".tmp"
 	if err := writeSnapshot(dataDir, appVersion, tmp); err != nil {
@@ -94,7 +111,7 @@ func TakeUpdateSnapshot(dataDir, appVersion string, now time.Time) (Snapshot, er
 		_ = os.Remove(tmp)
 		return Snapshot{}, err
 	}
-	pruneSnapshots(dir, SnapshotKeep)
+	pruneSnapshots(dir, id, SnapshotKeep)
 
 	snap := Snapshot{ID: id, CreatedAt: now.Truncate(time.Second), AppVersion: strings.TrimSpace(appVersion)}
 	if info, err := os.Stat(final); err == nil {
@@ -148,6 +165,28 @@ func exportSize(dataDir string) (int64, error) {
 	return total, err
 }
 
+// freeSnapshotID — имя для снимка с меткой now, не занятое прежним снимком.
+func freeSnapshotID(dir string, now time.Time) string {
+	base := snapshotPrefix + now.Format(snapshotStamp)
+	id := base + ".tar.gz"
+	for n := 2; ; n++ {
+		if _, err := os.Lstat(filepath.Join(dir, id)); os.IsNotExist(err) {
+			return id
+		}
+		id = fmt.Sprintf("%s-%d.tar.gz", base, n)
+	}
+}
+
+// snapshotTime — метка времени из имени снимка.
+func snapshotTime(id string) (time.Time, bool) {
+	m := snapshotName.FindStringSubmatch(id)
+	if m == nil {
+		return time.Time{}, false
+	}
+	t, err := time.Parse(snapshotStamp, m[1])
+	return t, err == nil
+}
+
 // snapshotIDs возвращает имена снимков в dir, новые первыми (метка времени
 // в имени сортируется как строка).
 func snapshotIDs(dir string) ([]string, error) {
@@ -168,14 +207,49 @@ func snapshotIDs(dir string) ([]string, error) {
 	return ids, nil
 }
 
-func pruneSnapshots(dir string, keep int) {
+// pruneSnapshots оставляет fresh и keep-1 самых новых из остальных.
+func pruneSnapshots(dir, fresh string, keep int) {
 	ids, err := snapshotIDs(dir)
-	if err != nil || len(ids) <= keep {
+	if err != nil {
 		return
 	}
-	for _, id := range ids[keep:] {
+	kept := 1
+	for _, id := range ids {
+		if id == fresh {
+			continue
+		}
+		if kept < keep {
+			kept++
+			continue
+		}
 		_ = os.Remove(filepath.Join(dir, id))
 	}
+}
+
+// PruneExpiredSnapshots удаляет снимки старше SnapshotTTL и возвращает,
+// сколько удалено. Самый новый снимок по сроку не удаляется: это последняя
+// точка отката, а его возраст по часам роутера ненадёжен — снятый до NTP,
+// он выглядел бы старым сразу после синхронизации. Снимок «из будущего»
+// (часы отстают сейчас) тоже не трогается.
+func PruneExpiredSnapshots(dataDir string, now time.Time) int {
+	snapshotMu.Lock()
+	defer snapshotMu.Unlock()
+	dir := filepath.Join(filepath.Clean(strings.TrimSpace(dataDir)), SnapshotDir)
+	ids, err := snapshotIDs(dir)
+	if err != nil || len(ids) < 2 {
+		return 0
+	}
+	n := 0
+	for _, id := range ids[1:] {
+		t, ok := snapshotTime(id)
+		if !ok || t.After(now) || now.Sub(t) < SnapshotTTL {
+			continue
+		}
+		if os.Remove(filepath.Join(dir, id)) == nil {
+			n++
+		}
+	}
+	return n
 }
 
 // ListSnapshots возвращает снимки, новые первыми. Нечитаемый манифест не
@@ -194,8 +268,7 @@ func ListSnapshots(dataDir string) ([]Snapshot, error) {
 			continue
 		}
 		snap := Snapshot{ID: id, Size: info.Size()}
-		stamp := strings.TrimSuffix(strings.TrimPrefix(id, snapshotPrefix), ".tar.gz")
-		if t, err := time.Parse(snapshotStamp, stamp); err == nil {
+		if t, ok := snapshotTime(id); ok {
 			snap.CreatedAt = t
 		}
 		if f, err := os.Open(p); err == nil {

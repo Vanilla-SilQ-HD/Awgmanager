@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hoaxisr/awg-manager/internal/backup"
+	"github.com/hoaxisr/awg-manager/internal/events"
 	"github.com/hoaxisr/awg-manager/internal/logging"
 	"github.com/hoaxisr/awg-manager/internal/response"
 )
@@ -35,7 +36,17 @@ type BackupHandler struct {
 	resume     BackupResumer
 	restart    func()
 	log        *logging.ScopedLogger
+	// upgrading — идёт установка обновления; восстановление тогда
+	// запрещено: opkg с postinst и Restore боролись бы за одни данные.
+	upgrading func() bool
+	bus       *events.Bus
 }
+
+// SetUpgradeGuard подключает проверку «идёт обновление»; nil — без проверки (тесты).
+func (h *BackupHandler) SetUpgradeGuard(upgrading func() bool) { h.upgrading = upgrading }
+
+// SetEventBus подключает SSE-шину; nil — без событий (тесты).
+func (h *BackupHandler) SetEventBus(bus *events.Bus) { h.bus = bus }
 
 // NewBackupHandler creates a backup handler for dataDir (e.g. /opt/etc/awg-manager).
 func NewBackupHandler(dataDir, appVersion string, quiesce BackupQuiescer, resume BackupResumer, restart func(), appLogger logging.AppLogger) *BackupHandler {
@@ -121,6 +132,7 @@ func (h *BackupHandler) Export(w http.ResponseWriter, r *http.Request) {
 //	@Param			file	formData	file	true	"Архив .tar.gz, снятый экспортом"
 //	@Success		200		{object}	APIEnvelope
 //	@Failure		400		{object}	APIErrorEnvelope
+//	@Failure		409		{object}	APIErrorEnvelope	"Идёт установка обновления"
 //	@Failure		500		{object}	APIErrorEnvelope
 //	@Router			/system/backup/import [post]
 func (h *BackupHandler) Import(w http.ResponseWriter, r *http.Request) {
@@ -160,7 +172,15 @@ func (h *BackupHandler) Import(w http.ResponseWriter, r *http.Request) {
 // restoreFrom — общий путь восстановления из загрузки и из снимка: остановить
 // дочерние процессы, заменить данные, при отказе поднять процессы обратно, при
 // успехе запланировать перезапуск.
+//
+// SSE-подсказки здесь нет: успех кончается перезапуском демона, а на
+// переподключении SSE фронт перечитывает все сторы (invalidateAll).
 func (h *BackupHandler) restoreFrom(w http.ResponseWriter, r *http.Request, src io.Reader, op string) {
+	if h.upgrading != nil && h.upgrading() {
+		response.ErrorWithStatus(w, http.StatusConflict,
+			"идёт установка обновления — восстановление будет доступно после перезапуска AWG Manager", "BACKUP_UPGRADE_IN_PROGRESS")
+		return
+	}
 	quiesced := false
 	if h.quiesce != nil {
 		if err := h.quiesce(r.Context()); err != nil {
@@ -193,18 +213,12 @@ func (h *BackupHandler) restoreFrom(w http.ResponseWriter, r *http.Request, src 
 	})
 }
 
-// UpdateSnapshotDTO — снимок настроек, снятый перед обновлением.
-type UpdateSnapshotDTO struct {
-	ID         string    `json:"id"`
-	CreatedAt  time.Time `json:"createdAt"`
-	AppVersion string    `json:"appVersion,omitempty"`
-	Size       int64     `json:"size"`
-}
-
 // UpdateSnapshotsData — снимки, новые первыми, и сколько их хранится.
 type UpdateSnapshotsData struct {
-	Snapshots []UpdateSnapshotDTO `json:"snapshots"`
-	Keep      int                 `json:"keep"`
+	Snapshots []backup.Snapshot `json:"snapshots"`
+	Keep      int               `json:"keep"`
+	// TTLDays — срок жизни снимка; самый новый живёт до следующего обновления.
+	TTLDays int `json:"ttlDays"`
 }
 
 // ListSnapshots returns the settings snapshots taken before updates.
@@ -231,11 +245,11 @@ func (h *BackupHandler) writeSnapshots(w http.ResponseWriter) {
 		response.InternalError(w, err.Error())
 		return
 	}
-	out := make([]UpdateSnapshotDTO, 0, len(list))
-	for _, sn := range list {
-		out = append(out, UpdateSnapshotDTO{ID: sn.ID, CreatedAt: sn.CreatedAt, AppVersion: sn.AppVersion, Size: sn.Size})
-	}
-	response.Success(w, UpdateSnapshotsData{Snapshots: out, Keep: backup.SnapshotKeep})
+	response.Success(w, UpdateSnapshotsData{
+		Snapshots: response.MustNotNil(list),
+		Keep:      backup.SnapshotKeep,
+		TTLDays:   int(backup.SnapshotTTL / (24 * time.Hour)),
+	})
 }
 
 // snapshotError отвечает на отказ при работе со снимком: неизвестный id — 404.
@@ -292,6 +306,7 @@ func (h *BackupHandler) DownloadSnapshot(w http.ResponseWriter, r *http.Request)
 //	@Success		200	{object}	APIEnvelope
 //	@Failure		400	{object}	APIErrorEnvelope
 //	@Failure		404	{object}	APIErrorEnvelope
+//	@Failure		409	{object}	APIErrorEnvelope	"Идёт установка обновления"
 //	@Router			/system/backup/snapshots/restore [post]
 func (h *BackupHandler) RestoreSnapshot(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -338,5 +353,6 @@ func (h *BackupHandler) DeleteSnapshot(w http.ResponseWriter, r *http.Request) {
 	if h.log != nil {
 		h.log.Info("snapshot-delete", id, "снимок перед обновлением удалён")
 	}
+	h.bus.PublishInvalidated(events.ResourceUpdateSnapshots, "deleted")
 	h.writeSnapshots(w)
 }
