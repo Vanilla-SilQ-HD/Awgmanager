@@ -312,8 +312,11 @@ func TestApplyUpgrade_SnapshotsBeforeInstall(t *testing.T) {
 	s := New("2.11.0", nil, nil, t.TempDir(), nil)
 	s.SetDownloader(dl)
 	// Снимок, который не удался, не останавливает обновление.
-	s.snapshot = func() (backup.Snapshot, error) {
+	s.snapshot = func(spare int64) (backup.Snapshot, error) {
 		calls = append(calls, "snapshot")
+		if spare < backup.MinSnapshotSpare {
+			t.Errorf("spare = %d, want at least %d", spare, backup.MinSnapshotSpare)
+		}
 		return backup.Snapshot{}, errors.New("мало места")
 	}
 	s.cached = &UpdateInfo{DownloadURL: "http://repo.local/aarch64-k3.10/awg-manager_2.12.0_aarch64-3.10-kn.ipk"}
@@ -341,7 +344,7 @@ func TestUpgradeWithDownloader_NoSnapshotWhenPackageRejected(t *testing.T) {
 	called := false
 	url := "http://repo.local/aarch64-k3.10/awg-manager_2.12.0_aarch64-3.10-kn.ipk"
 	// Файла нет, контрольная сумма задана — проверка пакета не проходит.
-	if err := upgradeWithDownloader(context.Background(), url, strings.Repeat("0", 64), dl, func() { called = true }); err == nil {
+	if err := upgradeWithDownloader(context.Background(), url, strings.Repeat("0", 64), dl, func(string) { called = true }); err == nil {
 		t.Fatal("ожидалась ошибка проверки пакета")
 	}
 	if called {
@@ -368,7 +371,7 @@ func TestApplyUpgrade_SnapshotDisabledInSettings(t *testing.T) {
 	}
 	s := New("2.11.0", store, nil, dir, nil)
 	s.SetDownloader(dl)
-	s.snapshot = func() (backup.Snapshot, error) {
+	s.snapshot = func(int64) (backup.Snapshot, error) {
 		calls = append(calls, "snapshot")
 		return backup.Snapshot{}, nil
 	}
@@ -378,5 +381,27 @@ func TestApplyUpgrade_SnapshotDisabledInSettings(t *testing.T) {
 	}
 	if strings.Join(calls, ",") != "install" {
 		t.Fatalf("calls = %v, want install only", calls)
+	}
+}
+
+// Запас под установку считается от размера пакета, но не меньше нижней границы.
+func TestSnapshotSpare(t *testing.T) {
+	dir := t.TempDir()
+	small := filepath.Join(dir, "small.ipk")
+	big := filepath.Join(dir, "big.ipk")
+	if err := os.WriteFile(small, make([]byte, 1<<20), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(big, make([]byte, 10<<20), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := snapshotSpare(small); got != backup.MinSnapshotSpare {
+		t.Errorf("small: %d, want floor %d", got, backup.MinSnapshotSpare)
+	}
+	if got := snapshotSpare(big); got != 30<<20 {
+		t.Errorf("big: %d, want %d", got, 30<<20)
+	}
+	if got := snapshotSpare(filepath.Join(dir, "missing.ipk")); got != backup.MinSnapshotSpare {
+		t.Errorf("missing: %d, want floor", got)
 	}
 }

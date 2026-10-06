@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
+import { writable, type Readable } from 'svelte/store';
 import BackupRestoreCard from './BackupRestoreCard.svelte';
 import { api } from '$lib/api/client';
+import type { PollingState } from '$lib/stores/polling';
+import type { UpdateSnapshotsData } from '$lib/types';
 
 vi.mock('$lib/api/client', () => ({
 	api: {
-		listUpdateSnapshots: vi.fn(),
 		deleteUpdateSnapshot: vi.fn(),
 		restoreUpdateSnapshot: vi.fn(),
 		downloadUpdateSnapshot: vi.fn()
@@ -14,6 +16,31 @@ vi.mock('$lib/api/client', () => ({
 vi.mock('$lib/stores/notifications', () => ({
 	notifications: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
 }));
+
+// Стор подменяется: модульный синглтон кешировал бы данные между тестами.
+const { store, refetch, applyMutationResponse } = vi.hoisted(() => {
+	const store: { current: Readable<unknown> | null } = { current: null };
+	return { store, refetch: vi.fn(), applyMutationResponse: vi.fn() };
+});
+vi.mock('$lib/stores/updateSnapshots', () => ({
+	updateSnapshots: {
+		subscribe: (run: (v: unknown) => void) => store.current?.subscribe(run) ?? (() => {}),
+		refetch,
+		applyMutationResponse,
+		invalidate: vi.fn()
+	}
+}));
+
+function setState(s: Partial<PollingState<UpdateSnapshotsData>>) {
+	store.current = writable<PollingState<UpdateSnapshotsData>>({
+		data: null,
+		status: 'fresh',
+		error: null,
+		lastFetchedAt: 1,
+		consecutiveFailures: 0,
+		...s
+	});
+}
 
 const snap = {
 	id: 'before-update-20261006-123045.tar.gz',
@@ -25,18 +52,18 @@ const snap = {
 describe('BackupRestoreCard: снимки перед обновлением', () => {
 	beforeEach(() => vi.clearAllMocks());
 
-	it('без снимков говорит, когда появится первый', async () => {
-		vi.mocked(api.listUpdateSnapshots).mockResolvedValue({ snapshots: [], keep: 3 });
+	it('без снимков говорит, когда появится первый, и называет срок хранения', () => {
+		setState({ data: { snapshots: [], keep: 3, ttlDays: 7 } });
 		render(BackupRestoreCard);
-		expect(await screen.findByText(/Снимков пока нет/)).toBeTruthy();
-		expect(document.body.textContent).toMatch(/хранятся 3 последних/);
+		expect(screen.getByText(/Снимков пока нет/)).toBeTruthy();
+		expect(document.body.textContent).toMatch(/Хранятся 3 последних, каждый — не дольше 7 дн\./);
 	});
 
 	it('показывает версию снимка и удаляет его только после подтверждения', async () => {
-		vi.mocked(api.listUpdateSnapshots).mockResolvedValue({ snapshots: [snap], keep: 3 });
-		vi.mocked(api.deleteUpdateSnapshot).mockResolvedValue({ snapshots: [], keep: 3 });
+		setState({ data: { snapshots: [snap], keep: 3, ttlDays: 7 } });
+		vi.mocked(api.deleteUpdateSnapshot).mockResolvedValue({ snapshots: [], keep: 3, ttlDays: 7 });
 		render(BackupRestoreCard);
-		expect(await screen.findByText(/версия 2\.19\.9/)).toBeTruthy();
+		expect(screen.getByText(/версия 2\.19\.9/)).toBeTruthy();
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
 		expect(api.deleteUpdateSnapshot).not.toHaveBeenCalled();
@@ -45,13 +72,23 @@ describe('BackupRestoreCard: снимки перед обновлением', ()
 		const buttons = screen.getAllByRole('button', { name: 'Удалить' });
 		await fireEvent.click(buttons[buttons.length - 1]);
 		expect(api.deleteUpdateSnapshot).toHaveBeenCalledWith(snap.id);
-		expect(await screen.findByText(/Снимков пока нет/)).toBeTruthy();
+		await vi.waitFor(() =>
+			expect(applyMutationResponse).toHaveBeenCalledWith({ snapshots: [], keep: 3, ttlDays: 7 })
+		);
 	});
 
-	it('сбой списка не ломает карточку', async () => {
-		vi.mocked(api.listUpdateSnapshots).mockRejectedValue(new Error('boom'));
+	it('ошибку загрузки не выдаёт за «снимков нет» и даёт повторить', async () => {
+		setState({ status: 'error', error: 'boom' });
 		render(BackupRestoreCard);
-		expect(await screen.findByText(/Снимков пока нет/)).toBeTruthy();
-		expect(screen.getByText('Создать копию')).toBeTruthy();
+		expect(screen.getByText(/Не удалось загрузить список снимков: boom/)).toBeTruthy();
+		expect(screen.queryByText(/Снимков пока нет/)).toBeNull();
+		await fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+		expect(refetch).toHaveBeenCalled();
+	});
+
+	it('пока список грузится, пустым его не показывает', () => {
+		setState({ status: 'loading', lastFetchedAt: 0 });
+		render(BackupRestoreCard);
+		expect(screen.queryByText(/Снимков пока нет/)).toBeNull();
 	});
 });

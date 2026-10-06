@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { m } from '$lib/i18n';
-	import { onMount } from 'svelte';
 	import { Database } from 'lucide-svelte';
 	import { Button, ConfirmModal } from '$lib/components/ui';
 	import { api } from '$lib/api/client';
 	import { notifications } from '$lib/stores/notifications';
 	import { downloadBlob } from '$lib/utils/download';
 	import { formatBytes, formatDate } from '$lib/utils/format';
-	import type { UpdateSnapshot } from '$lib/types';
+	import { updateSnapshots } from '$lib/stores/updateSnapshots';
+	import type { PollingState } from '$lib/stores/polling';
+	import type { UpdateSnapshot, UpdateSnapshotsData } from '$lib/types';
 	import { waitForBackendRestart } from '$lib/restartRecovery';
 	import SettingsSectionLabel from './SettingsSectionLabel.svelte';
 
@@ -17,24 +18,20 @@
 	let pendingFile = $state<File | null>(null);
 	let fileInput = $state<HTMLInputElement | null>(null);
 
-	let snapshots = $state<UpdateSnapshot[]>([]);
-	let snapshotKeep = $state(3);
+	// Список — через стор: снимок, снятый автообновлением, и удаление в другой
+	// вкладке приходят SSE-подсказкой без перезагрузки страницы.
+	let snapshotsState = $state<PollingState<UpdateSnapshotsData> | null>(null);
+	$effect(() => updateSnapshots.subscribe((s) => (snapshotsState = s)));
+	let snapshots = $derived(snapshotsState?.data?.snapshots ?? []);
+	let snapshotKeep = $derived(snapshotsState?.data?.keep ?? 3);
+	let snapshotTtlDays = $derived(snapshotsState?.data?.ttlDays ?? 7);
+	// Ошибку загрузки не выдаём за «снимков нет».
+	let snapshotsError = $derived(snapshotsState?.status === 'error' ? snapshotsState.error : null);
+	let snapshotsLoaded = $derived(snapshotsState?.data != null);
 	let snapshotBusy = $state<string | null>(null);
 	let pendingSnapshot = $state<UpdateSnapshot | null>(null);
 	let deleteSnapshotTarget = $state<UpdateSnapshot | null>(null);
 
-	async function loadSnapshots() {
-		try {
-			const data = await api.listUpdateSnapshots();
-			snapshots = data.snapshots ?? [];
-			snapshotKeep = data.keep || snapshotKeep;
-		} catch {
-			// Список снимков вторичен: без него карточка работает как прежде.
-			snapshots = [];
-		}
-	}
-
-	onMount(loadSnapshots);
 
 	async function readBackendInstanceId(): Promise<string | null> {
 		const res = await fetch('/api/health', {
@@ -140,8 +137,7 @@
 		if (!snap) return;
 		snapshotBusy = snap.id;
 		try {
-			const data = await api.deleteUpdateSnapshot(snap.id);
-			snapshots = data.snapshots ?? [];
+			updateSnapshots.applyMutationResponse(await api.deleteUpdateSnapshot(snap.id));
 			deleteSnapshotTarget = null;
 		} catch (e) {
 			notifications.error(e instanceof Error ? e.message : m.settings_backup_snapshot_delete_failed());
@@ -201,10 +197,17 @@
 		<div class="flex flex-col gap-1">
 			<span class="font-medium">{m.settings_backup_snapshots_label()}</span>
 			<span class="setting-description">
-				{m.settings_backup_snapshots_description({ keep: snapshotKeep })}
+				{m.settings_backup_snapshots_description({ keep: snapshotKeep, days: snapshotTtlDays })}
 			</span>
 		</div>
-		{#if snapshots.length === 0}
+		{#if snapshotsError}
+			<div class="snapshots-error">
+				<p class="setting-description">{m.settings_backup_snapshots_load_failed({ error: snapshotsError })}</p>
+				<Button variant="ghost" size="sm" onclick={() => updateSnapshots.refetch()}>{m.common_retry()}</Button>
+			</div>
+		{:else if !snapshotsLoaded}
+			<!-- Пока список грузится, пустым его не показываем. -->
+		{:else if snapshots.length === 0}
 			<p class="setting-description snapshots-empty">{m.settings_backup_snapshots_empty()}</p>
 		{:else}
 			<ul class="snapshot-list">
@@ -322,6 +325,18 @@
 
 	.snapshots-empty {
 		margin: 0;
+	}
+
+	.snapshots-error {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.snapshots-error p {
+		margin: 0;
+		color: var(--warning, var(--color-warning));
 	}
 
 	.snapshot-list {
