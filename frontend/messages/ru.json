@@ -7622,5 +7622,16 @@
 	"subscriptions_wizard_config_whole_only": "JSON/YAML-конфиг импортируется только целиком: очистите поле перед загрузкой файла или создайте отдельную подписку",
 	"settings_date_format_label": "Формат даты и времени",
 	"settings_date_format_description": "«Авто» — по языку интерфейса, для английского — по языку браузера. Сохраняется локально в этом браузере.",
-	"settings_date_format_auto": "Авто ({example})"
+	"settings_date_format_auto": "Авто ({example})",
+	"proxy_exit_params_auto_reconnect": "Автопереподключение",
+	"proxy_exit_params_auto_reconnect_hint": "Перезапуск при 401 Unauthorized / сбое TURN или по интервалу",
+	"proxy_exit_params_auto_reconnect_interval": "Интервал",
+	"proxy_auto_reconnect_on_failure": "Только при сбое сессии",
+	"proxy_auto_reconnect_30m": "Каждые 30 минут",
+	"proxy_auto_reconnect_1h": "Каждый час",
+	"proxy_auto_reconnect_2h": "Каждые 2 часа",
+	"proxy_auto_reconnect_4h": "Каждые 4 часа",
+	"proxy_auto_reconnect_8h": "Каждые 8 часов",
+	"proxy_auto_reconnect_12h": "Каждые 12 часов",
+	"proxy_auto_reconnect_24h": "Каждые 24 часа"
 }
