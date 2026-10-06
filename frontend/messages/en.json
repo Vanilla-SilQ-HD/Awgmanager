@@ -322,8 +322,6 @@
 	"settings_backup_snapshots_empty": "No snapshots yet — the first one will be taken at the next update.",
 	"settings_backup_snapshots_load_failed": "Failed to load snapshots: {error}",
 	"settings_backup_snapshot_name": "{date} · version {version}",
-	"settings_backup_snapshot_download": "Download",
-	"settings_backup_snapshot_delete": "Delete",
 	"settings_backup_snapshot_confirm_message": "Data will be rolled back to the snapshot \"{name}\". Current data will be replaced, then AWG Manager will restart. The program version itself will not change. Continue?",
 	"settings_backup_snapshot_delete_title": "Delete snapshot?",
 	"settings_backup_snapshot_delete_message": "The snapshot \"{name}\" will be permanently deleted.",

@@ -328,8 +328,6 @@
 	"settings_backup_snapshots_empty": "Снимков пока нет — первый появится при следующем обновлении.",
 	"settings_backup_snapshots_load_failed": "Не удалось загрузить список снимков: {error}",
 	"settings_backup_snapshot_name": "{date} · версия {version}",
-	"settings_backup_snapshot_download": "Скачать",
-	"settings_backup_snapshot_delete": "Удалить",
 	"settings_backup_snapshot_confirm_message": "Данные будут возвращены к снимку «{name}». Текущие данные будут заменены, затем AWG Manager перезапустится. Версия самой программы не изменится. Продолжить?",
 	"settings_backup_snapshot_delete_title": "Удалить снимок?",
 	"settings_backup_snapshot_delete_message": "Снимок «{name}» будет удалён без возможности восстановления.",
