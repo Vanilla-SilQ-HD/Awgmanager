@@ -337,12 +337,15 @@
 
 	// Open edit modal when a search result is clicked on the routing page.
 	// Capture counter at mount to skip the initial value on tab re-mount.
+	// The handled request is remembered: a later refresh of the list (SSE)
+	// must not reopen a modal the user has already closed.
 	// svelte-ignore state_referenced_locally
-	const initialEditCounter = editRuleCounter;
+	let handledEditCounter = editRuleCounter;
 	$effect(() => {
-		if (editRuleCounter > initialEditCounter && editRuleId) {
+		if (editRuleCounter > handledEditCounter && editRuleId) {
 			const rule = hrRules.find((r) => r.id === editRuleId);
 			if (rule) {
+				handledEditCounter = editRuleCounter;
 				// Auto-select the rule's target so when the modal closes the
 				// user lands on the right pane instead of the first target.
 				const t = targetOf(rule);
