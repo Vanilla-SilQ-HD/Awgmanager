@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/hoaxisr/awg-manager/internal/singbox"
 )
 
 // groupTagRe — допустимый пользовательский outbound-тег группы (#572):
@@ -295,9 +297,16 @@ func (s *Service) CreateGroup(ctx context.Context, in GroupCreateInput) (*Aggreg
 			s.groups.Delete(g.ID)
 			return nil, err
 		}
-		proxyIdx = idx
-		if err := s.mutator.EnsureProxy(ctx, idx, int(port), g.Label); err != nil {
-			_ = s.mutator.RemoveProxy(ctx, idx)
+		// Откат сносит ProxyN только созданный этой командой (F574): индекс
+		// мог занять чужой, ещё не видимый ProxyN.
+		ours, err := s.mutator.CreateProxy(ctx, idx, int(port), g.Label)
+		if ours {
+			proxyIdx = idx
+		}
+		if err != nil {
+			if ours {
+				_ = s.mutator.RemoveProxy(ctx, idx, g.Label)
+			}
 			s.groups.Delete(g.ID)
 			return nil, fmt.Errorf("subscription group: register NDMS proxy: %w", err)
 		}
@@ -314,7 +323,7 @@ func (s *Service) CreateGroup(ctx context.Context, in GroupCreateInput) (*Aggreg
 		return nil
 	}); err != nil {
 		if proxyIdx >= 0 {
-			_ = s.mutator.RemoveProxy(ctx, proxyIdx)
+			_ = s.mutator.RemoveProxy(ctx, proxyIdx, g.Label)
 		}
 		s.groups.Delete(g.ID)
 		return nil, fmt.Errorf("subscription group: materialize: %w", err)
@@ -361,6 +370,12 @@ func (s *Service) UpdateGroup(ctx context.Context, id string, patch GroupUpdateP
 			return nil, err
 		}
 	}
+	// Label ProxyN группы — его description на роутере: в store он пишется
+	// только после того, как роутер его принял (F577, как у подписки).
+	var proxyLabel *string
+	if patch.Label != nil && s.proxyEnabled() && current.ProxyIndex >= 0 {
+		proxyLabel, patch.Label = patch.Label, nil
+	}
 	g, err := s.groups.Update(id, patch)
 	if err != nil {
 		return nil, err
@@ -369,10 +384,17 @@ func (s *Service) UpdateGroup(ctx context.Context, id string, patch GroupUpdateP
 	if err := s.withTx(func() error { return s.reloadWithGroups(ctx) }); err != nil {
 		return g, fmt.Errorf("subscription group: reload: %w", err)
 	}
-	if patch.Label != nil && s.proxyEnabled() && g.ProxyIndex >= 0 {
-		// EnsureProxy идемпотентен — обновляет описание ProxyN «на месте».
-		if err := s.mutator.EnsureProxy(ctx, g.ProxyIndex, int(g.ListenPort), g.Label); err != nil {
+	if proxyLabel != nil {
+		// EnsureProxy обновляет описание ProxyN «на месте»; отказ — Label в
+		// store прежний, слот чужой — переименовывать на роутере нечего.
+		err := s.mutator.EnsureProxy(ctx, g.ProxyIndex, int(g.ListenPort), *proxyLabel, current.Label)
+		if errors.Is(err, singbox.ErrProxyForeign) {
+			s.logWarn("subscription-group-update", id, "proxy description not synced: "+err.Error())
+		} else if err != nil {
 			return g, fmt.Errorf("subscription group: sync proxy description: %w", err)
+		}
+		if g, err = s.groups.Update(id, GroupUpdatePatch{Label: proxyLabel}); err != nil {
+			return nil, err
 		}
 	}
 	s.logInfo("subscription-group-update", id, "updated")
@@ -410,7 +432,7 @@ func (s *Service) DeleteGroup(ctx context.Context, id string) error {
 	// Ошибка снятия прокси не блокирует удаление строки (симметрично
 	// Service.Delete для подписок): осиротевший ProxyN подберёт cleanup-свип.
 	if g.ProxyIndex >= 0 {
-		if err := s.mutator.RemoveProxy(ctx, g.ProxyIndex); err != nil {
+		if err := s.mutator.RemoveProxy(ctx, g.ProxyIndex, g.Label); err != nil {
 			s.logWarn("subscription-group-delete", id, "remove proxy failed: "+err.Error())
 		}
 	}

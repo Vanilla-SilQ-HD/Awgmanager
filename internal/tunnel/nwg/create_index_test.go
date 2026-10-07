@@ -10,8 +10,10 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/hoaxisr/awg-manager/internal/logging"
+	"github.com/hoaxisr/awg-manager/internal/ndms/command"
 	"github.com/hoaxisr/awg-manager/internal/ndms/query"
 	"github.com/hoaxisr/awg-manager/internal/ndms/transport"
 	"github.com/hoaxisr/awg-manager/internal/storage"
@@ -65,41 +67,23 @@ func (f *fakeNDMS) handle(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(trimmed, "[") {
 		var arr []map[string]any
 		_ = json.Unmarshal(body, &arr)
+		out := make([]map[string]any, len(arr))
 		f.mu.Lock()
-		for _, cmd := range arr {
-			f.applyInterfaceCmd(cmd)
+		for i, cmd := range arr {
+			out[i] = map[string]any{}
+			if name := f.applyInterfaceCmd(cmd); name != "" {
+				// Ответ NDMS на создание записи (стенд 5.01, code 6553601).
+				out[i]["status"] = []map[string]any{{"status": "message", "code": "6553601", "message": `"` + name + `" interface created.`}}
+			}
 		}
 		f.mu.Unlock()
-		out := make([]map[string]any, len(arr))
-		for i := range out {
-			out[i] = map[string]any{}
-		}
 		_ = json.NewEncoder(w).Encode(out)
 		return
 	}
 
-	// Single POST: either a fetchOne show query, or CmdInterfaceDelete.
+	// Single POST: снос из команд {"interface":{X:{"no":true}}} (F546, П24).
 	var single map[string]any
 	_ = json.Unmarshal(body, &single)
-
-	if showRaw, ok := single["show"]; ok {
-		show, _ := showRaw.(map[string]any)
-		ifaceQ, _ := show["interface"].(map[string]any)
-		name, _ := ifaceQ["name"].(string)
-		f.mu.Lock()
-		exists := f.known[name]
-		f.mu.Unlock()
-		if !exists {
-			_, _ = w.Write([]byte(`{}`)) // NDMS-side absence
-			return
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"show": map[string]any{
-				"interface": map[string]any{"id": name, "type": "Wireguard"},
-			},
-		})
-		return
-	}
 
 	f.mu.Lock()
 	f.applyInterfaceCmd(single)
@@ -108,21 +92,31 @@ func (f *fakeNDMS) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 // applyInterfaceCmd mutates known-interface state from an {"interface":{...}}
-// command. Caller holds f.mu.
-func (f *fakeNDMS) applyInterfaceCmd(cmd map[string]any) {
+// command; created — имя, если команда создала запись. Caller holds f.mu.
+func (f *fakeNDMS) applyInterfaceCmd(cmd map[string]any) (created string) {
 	iface, ok := cmd["interface"].(map[string]any)
 	if !ok {
-		return
+		return ""
 	}
 	name, _ := iface["name"].(string)
 	if name == "" {
-		return
+		// command-форма сноса: {"interface":{X:{"no":true}}}
+		for n, body := range iface {
+			if b, _ := body.(map[string]any); b["no"] == true {
+				delete(f.known, n)
+			}
+		}
+		return ""
 	}
 	if no, _ := iface["no"].(bool); no {
 		delete(f.known, name)
-		return
+		return ""
+	}
+	if !f.known[name] {
+		created = name
 	}
 	f.known[name] = true
+	return created
 }
 
 func newCreateTestOperator(t *testing.T, f *fakeNDMS) *OperatorNativeWG {
@@ -130,8 +124,14 @@ func newCreateTestOperator(t *testing.T, f *fakeNDMS) *OperatorNativeWG {
 	ndmsinfo.Reset() // Get()==nil -> Supports{HRanges,WireguardASC}() == false
 	sem := transport.NewSemaphore(4)
 	tr := transport.NewWithURL(f.srv.URL, sem)
+	q := query.NewQueries(query.Deps{Getter: tr, Logger: query.NopLogger()})
+	// Создание и снос — через команды над тем же транспортом (П24); save —
+	// debounce час: в тестах не летит.
+	sc := command.NewSaveCoordinator(tr, nil, time.Hour, time.Hour, 0, nil)
+	sc.SetSaveTimings(command.SaveEventCap, 0, command.SaveAfterRemoval) // без шины событий
 	o := &OperatorNativeWG{
-		queries:     &query.Queries{Interfaces: query.NewInterfaceStore(tr, nil)},
+		queries:     q,
+		commands:    command.NewCommands(command.Deps{Poster: tr, Save: sc, Queries: q}),
 		transport:   tr,
 		kmod:        NewKmodManager(nil),
 		appLog:      logging.NewScopedLogger(nil, logging.GroupTunnel, logging.SubOps),

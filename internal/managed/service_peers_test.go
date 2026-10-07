@@ -14,7 +14,8 @@ import (
 )
 
 // withPeerRouter — DeletePeer сверяет маршруты с меткой пира на роутере
-// (#713): Commands над пустым /show/rc/ip/route.
+// (#713): Commands над пустым /show/rc/ip/route. Интерфейс сервера
+// подтверждается списком из newTestService (F546).
 func withPeerRouter(svc *Service, poster *fakePoster) {
 	q := &query.Queries{StaticRoutes: query.NewStaticRouteStore(&fakePolicyGetter{body: []byte(`[]`)}, query.NopLogger())}
 	sc := command.NewSaveCoordinator(poster, nil, time.Hour, time.Hour, 0, nil)

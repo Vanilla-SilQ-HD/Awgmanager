@@ -389,6 +389,7 @@
 		<TunnelEditHeader
 			tunnelName={tunnel.name ?? ''}
 			tunnelState={tunnel.state ?? 'stopped'}
+			enabled={tunnel.enabled}
 			{saving}
 			{actionStatus}
 			onReplace={() => replaceModalOpen = true}

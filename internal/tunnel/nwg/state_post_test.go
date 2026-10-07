@@ -2,60 +2,38 @@ package nwg
 
 import (
 	"context"
-	"io"
-	"net/http"
-	"net/http/httptest"
-	"strings"
+	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/hoaxisr/awg-manager/internal/logging"
-	"github.com/hoaxisr/awg-manager/internal/ndms/transport"
+	"github.com/hoaxisr/awg-manager/internal/ndms"
+	"github.com/hoaxisr/awg-manager/internal/ndms/query"
 	"github.com/hoaxisr/awg-manager/internal/storage"
 	"github.com/hoaxisr/awg-manager/internal/tunnel"
 )
 
-// rciStubServer replies with a fixed body to every POST and records the
-// last request body — enough to assert GetState/ResolveActiveWAN use the
-// batch-POST form ({"show":{"interface":{"name":…}}}) instead of GET.
-type rciStubServer struct {
-	srv      *httptest.Server
-	response string
-	status   int
-	lastBody string
-}
-
-func newRCIStubServer(t *testing.T, response string) *rciStubServer {
+// newStateTestOperator — оператор, читающий интерфейс из снимка списка.
+// Wireguard5 есть в списке NDMS; поля записи сверх базовых (summary,
+// wireguard) задаёт тест через FakeNDMS.SetDetail.
+func newStateTestOperator(t *testing.T) (*OperatorNativeWG, *query.FakeNDMS) {
 	t.Helper()
-	s := &rciStubServer{response: response, status: http.StatusOK}
-	s.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		s.lastBody = string(body)
-		w.WriteHeader(s.status)
-		_, _ = w.Write([]byte(s.response))
-	}))
-	t.Cleanup(s.srv.Close)
-	return s
-}
-
-func newStateTestOperator(t *testing.T, srvURL string) *OperatorNativeWG {
-	t.Helper()
+	f := query.NewFakeNDMS(ndms.Interface{ID: "Wireguard5", Type: "Wireguard"})
 	o := &OperatorNativeWG{
-		transport:    transport.NewWithURL(srvURL, transport.NewSemaphore(2)),
+		queries:      query.NewQueries(query.Deps{Getter: f, Logger: query.NopLogger(), IsOS5: func() bool { return true }}),
 		appLog:       logging.NewScopedLogger(nil, logging.GroupTunnel, logging.SubOps),
 		supportsASC:  func() bool { return true },
 		hasProxySlot: func(int) bool { return false },
 	}
 	t.Cleanup(o.Close)
-	return o
+	return o, f
 }
 
-func TestGetState_ViaPost_Running(t *testing.T) {
-	s := newRCIStubServer(t, `{"show":{"interface":{
-		"id":"Wireguard5","link":"up",
+func TestGetState_FromSnapshot_Running(t *testing.T) {
+	op, f := newStateTestOperator(t)
+	f.SetDetail("Wireguard5", json.RawMessage(`{"link":"up",
 		"summary":{"layer":{"conf":"running"}},
-		"wireguard":{"status":"up","peer":[{"online":true,"last-handshake":12,"rxbytes":100,"txbytes":200,"via":"PPPoE0"}]}
-	}}}`)
-	op := newStateTestOperator(t, s.srv.URL)
+		"wireguard":{"status":"up","peer":[{"online":true,"last-handshake":12,"rxbytes":100,"txbytes":200,"via":"PPPoE0"}]}}`))
 
 	info := op.GetState(context.Background(), &storage.AWGTunnel{NWGIndex: 5})
 
@@ -65,48 +43,56 @@ func TestGetState_ViaPost_Running(t *testing.T) {
 	if !info.InterfaceUp || info.RxBytes != 100 || info.TxBytes != 200 || !info.HasHandshake {
 		t.Fatalf("unexpected StateInfo: %+v", info)
 	}
-	// The request must be the POST form with the name in the body.
-	if !strings.Contains(s.lastBody, `"show"`) || !strings.Contains(s.lastBody, `"name":"Wireguard5"`) {
-		t.Fatalf("request is not batch-POST show.interface form:\n%s", s.lastBody)
+	// Один список (bootstrap), ни одного POST по имени.
+	if f.ListCalls() != 1 || len(f.Posts) != 0 {
+		t.Fatalf("ListCalls=%d Posts=%v, want 1/none", f.ListCalls(), f.Posts)
 	}
 }
 
-func TestGetState_StatusErrorWithoutID_NotCreated(t *testing.T) {
-	// NDMS replies HTTP 200 + status-error object (no "id") for a missing
-	// interface — same semantics the old GET path had with {}.
-	s := newRCIStubServer(t, `{"show":{"interface":{
-		"status":[{"status":"error","code":"6553619","message":"unable to find"}]
-	}}}`)
-	op := newStateTestOperator(t, s.srv.URL)
+// Записи нет в списке — «не создан», запроса по имени нет.
+func TestGetState_NotInSnapshot_NotCreated(t *testing.T) {
+	op, f := newStateTestOperator(t)
+	f.Remove("Wireguard5")
 
 	info := op.GetState(context.Background(), &storage.AWGTunnel{NWGIndex: 5})
-	if info.State != tunnel.StateNotCreated {
-		t.Fatalf("State = %v, want %v", info.State, tunnel.StateNotCreated)
+	if info.State != tunnel.StateNotCreated || f.E != 0 || len(f.Posts) != 0 {
+		t.Fatalf("State = %v E=%d Posts=%v, want %v/0/none", info.State, f.E, f.Posts, tunnel.StateNotCreated)
 	}
 }
 
-func TestGetState_TransportError_NotCreated(t *testing.T) {
-	s := newRCIStubServer(t, `boom`)
-	s.status = http.StatusInternalServerError
-	op := newStateTestOperator(t, s.srv.URL)
+// Список не прочитан — «не создан»; чтения по имени взамен нет (решение 4).
+func TestGetState_ListError_NotCreated(t *testing.T) {
+	op, f := newStateTestOperator(t)
+	f.FailList(errors.New("boom"))
 
 	info := op.GetState(context.Background(), &storage.AWGTunnel{NWGIndex: 5})
-	if info.State != tunnel.StateNotCreated {
-		t.Fatalf("State = %v, want %v", info.State, tunnel.StateNotCreated)
+	if info.State != tunnel.StateNotCreated || len(f.Posts) != 0 {
+		t.Fatalf("State = %v Posts=%v, want %v/none", info.State, f.Posts, tunnel.StateNotCreated)
+	}
+}
+
+// Интерфейса нет в NDMS: состояние — «не создан», и ни одного точечного
+// чтения по отсутствующему имени (каждое — E «unable to find» в журнале, F546).
+func TestGetState_AbsentInterface_NoRCI(t *testing.T) {
+	f := query.NewFakeNDMS() // Wireguard0 нет
+	q := query.NewQueries(query.Deps{Getter: f, Logger: query.NopLogger(), IsOS5: func() bool { return true }})
+	o := &OperatorNativeWG{queries: q, appLog: logging.NewScopedLogger(nil, logging.GroupTunnel, logging.SubOps)}
+	st := o.GetState(context.Background(), nwgStored(storage.AWGInterface{}))
+	if st.State != tunnel.StateNotCreated || f.E != 0 {
+		t.Fatalf("state=%v E=%d", st.State, f.E)
 	}
 }
 
 func TestResolveActiveWAN_NoVia_ReturnsEmpty(t *testing.T) {
-	s := newRCIStubServer(t, `{"show":{"interface":{
-		"id":"Wireguard5","link":"up",
-		"wireguard":{"status":"up","peer":[{"online":true}]}
-	}}}`)
-	op := newStateTestOperator(t, s.srv.URL)
+	op, f := newStateTestOperator(t)
+	f.SetDetail("Wireguard5", json.RawMessage(`{"link":"up",
+		"wireguard":{"status":"up","peer":[{"online":true}]}}`))
 
 	if got := op.ResolveActiveWAN(context.Background(), &storage.AWGTunnel{NWGIndex: 5}); got != "" {
 		t.Fatalf("ResolveActiveWAN = %q, want empty", got)
 	}
-	if !strings.Contains(s.lastBody, `"name":"Wireguard5"`) {
-		t.Fatalf("request is not batch-POST show.interface form:\n%s", s.lastBody)
+	// Снимок не старше 2 с (bootstrap), без POST.
+	if f.ListCalls() != 1 || len(f.Posts) != 0 {
+		t.Fatalf("ListCalls=%d Posts=%v, want 1/none", f.ListCalls(), f.Posts)
 	}
 }

@@ -2,6 +2,7 @@ package singbox
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -50,7 +51,7 @@ func NewMigrator(op *Operator, settings SettingsToggler, appLogger logging.AppLo
 //     чтобы при обрыве в шаге 2 next-start подобрал orphan-cleanup.
 //  2. Для каждого туннеля с ненулевым ProxyInterface — RemoveProxy(idx).
 //     Best-effort, ошибки только в лог.
-//  3. MarkNeedsOrphanCleanup — Reconcile дочистит остатки на следующем тике.
+//  3. MarkNeedsOrphanCleanup — тик сторожа дочистит остатки.
 //  4. SSE invalidate.
 //
 // config.json не правится: ProxyInterface/KernelInterface — derived в
@@ -74,10 +75,20 @@ func (m *Migrator) MigrateOff(ctx context.Context) error {
 			if perr != nil || idx < 0 {
 				continue
 			}
-			if rerr := m.op.proxyMgr.RemoveProxy(ctx, idx); rerr != nil {
+			// Уже ждёт снос — попытку делает тик по выдержке, MigrateOff её
+			// не сбрасывает (F562 ревью F2).
+			if m.op.proxyRemovalDeferred(t.ProxyInterface) {
+				continue
+			}
+			if rerr := m.op.proxyMgr.RemoveProxy(ctx, idx, t.Tag); rerr != nil {
 				m.log.Warn("MigrateOff: RemoveProxy failed",
 					"tag", t.Tag, "iface", t.ProxyInterface, "err", rerr)
 				m.appLog.Warn("ndms-proxy-migrate", t.Tag, fmt.Sprintf("remove %s failed: %v", t.ProxyInterface, rerr))
+				// Метка добирается тиком сторожа с выдержкой (F562); чужую
+				// запись не метим — сносить её нельзя (F577).
+				if !errors.Is(rerr, ErrProxyForeign) {
+					m.op.deferProxyRemoval(t.ProxyInterface, t.Tag)
+				}
 			}
 		}
 	}
@@ -86,10 +97,16 @@ func (m *Migrator) MigrateOff(ctx context.Context) error {
 	// Tunnels() — remove them explicitly so disabling NDMS Proxy also tears
 	// down the ProxyN behind selector/urltest subscriptions.
 	for _, sp := range m.op.subscriptionProxies() {
-		if rerr := m.op.proxyMgr.RemoveProxy(ctx, sp.Index); rerr != nil {
+		if m.op.proxyRemovalDeferred(proxyName(sp.Index)) {
+			continue
+		}
+		if rerr := m.op.proxyMgr.RemoveProxy(ctx, sp.Index, sp.Label); rerr != nil {
 			m.log.Warn("MigrateOff: RemoveProxy (subscription) failed",
 				"label", sp.Label, "idx", sp.Index, "err", rerr)
 			m.appLog.Warn("ndms-proxy-migrate", sp.Label, fmt.Sprintf("remove Proxy%d failed: %v", sp.Index, rerr))
+			if !errors.Is(rerr, ErrProxyForeign) {
+				m.op.deferProxyRemoval(proxyName(sp.Index), sp.Label)
+			}
 		}
 	}
 
@@ -138,7 +155,7 @@ func (m *Migrator) MigrateOn(ctx context.Context) error {
 		}
 	} else {
 		for _, sp := range m.op.subscriptionProxies() {
-			if eerr := m.op.proxyMgr.EnsureProxy(ctx, sp.Index, sp.Port, sp.Label); eerr != nil {
+			if eerr := m.op.proxyMgr.EnsureProxy(ctx, sp.Index, sp.Port, sp.Label, sp.Label); eerr != nil {
 				m.log.Warn("MigrateOn: EnsureProxy (subscription) failed",
 					"label", sp.Label, "idx", sp.Index, "err", eerr)
 				m.appLog.Warn("ndms-proxy-migrate", sp.Label, fmt.Sprintf("ensure Proxy%d failed: %v", sp.Index, eerr))

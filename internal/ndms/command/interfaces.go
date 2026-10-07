@@ -2,38 +2,60 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/hoaxisr/awg-manager/internal/ndms"
 	"github.com/hoaxisr/awg-manager/internal/ndms/query"
+	"github.com/hoaxisr/awg-manager/internal/netdev"
 )
 
 // InterfaceCommands performs write operations on NDMS Interface objects.
 type InterfaceCommands struct {
-	poster       Poster
-	save         *SaveCoordinator
-	queries      *query.Queries
-	hookNotifier HookNotifier
+	ndmsMutator
 }
 
-func NewInterfaceCommands(p Poster, s *SaveCoordinator, q *query.Queries, hn HookNotifier) *InterfaceCommands {
-	return &InterfaceCommands{poster: p, save: s, queries: q, hookNotifier: hn}
+// NewInterfaceCommands паникует на nil s (newMutator).
+func NewInterfaceCommands(p Poster, s *SaveCoordinator, q *query.Queries) *InterfaceCommands {
+	return &InterfaceCommands{ndmsMutator: newMutator(p, s, q)}
 }
 
-// SetHookNotifier replaces the HookNotifier after construction. Used to
-// break the construction cycle between Commands and the Orchestrator
-// (Commands are needed to build the Operator, which feeds the Orchestrator,
-// which is then the HookNotifier for Commands).
-func (c *InterfaceCommands) SetHookNotifier(hn HookNotifier) { c.hookNotifier = hn }
+// CreateInterface — createInterface для пакетов, собирающих payload создания
+// сами (managed, nwg): координатор и кэши — из конструктора команд.
+func (c *InterfaceCommands) CreateInterface(ctx context.Context, payload any, name string, existingOK bool, after ...func()) (query.Confirmed, CreateReply, error) {
+	return c.createInterface(ctx, payload, name, existingOK, after...)
+}
 
 // CreateOpkgTunWithSecurityLevel creates an OpkgTun with an explicit security
 // level ("public" or "private"). fakeip-tun mode requires "private" so
 // segment→tun forwarding is permitted by default; non-global keeps traffic
 // un-masqueraded only when the segment is in a no-masquerade NAT mode (see
 // fakeip-tun spec §2 fact 3 — source-preservation depends on segment NAT mode).
-func (c *InterfaceCommands) CreateOpkgTunWithSecurityLevel(ctx context.Context, name, description, securityLevel string) error {
-	payload := map[string]any{
+//
+// Созданное подтверждается свежим списком (Confirm): он же кладёт запись в
+// кэш, и дальнейшие команды по интерфейсу идут с доказательством (F546).
+//
+// F569: NDMS не создаёт запись OpkgTunN, пока живо устройство opkgtunN
+// (C 0xcffd00a9), — free доказывает, что его нет (имя сверяется с именем ядра
+// записи). Создание — голое, настройки — отдельным POST по Confirmed: отказ
+// создания не размножается в E по ключам, адресованным несозданной записи.
+func (c *InterfaceCommands) CreateOpkgTunWithSecurityLevel(ctx context.Context, name, description, securityLevel string, free netdev.Free) (query.Confirmed, error) {
+	if kernel, ok := ndms.KernelName(name); !ok || free.Name() != kernel {
+		return query.Confirmed{}, fmt.Errorf("create opkgtun %s: нет доказательства отсутствия устройства ядра (есть для %q)", name, free.Name())
+	}
+	create := map[string]any{"interface": map[string]any{name: map[string]any{}}}
+	reply, err := PostCreate(ctx, c.poster, create, "create opkgtun "+name, name,
+		c.save.Request, c.queries.RunningConfig.InvalidateAll)
+	if err != nil {
+		return query.Confirmed{}, err
+	}
+	conf, err := c.confirmCreated(ctx, name, reply.Proven())
+	if err != nil {
+		return query.Confirmed{}, fmt.Errorf("create opkgtun: %w", err) // имя уже в ошибке подтверждения
+	}
+	settings := map[string]any{
 		"interface": map[string]any{
-			name: map[string]any{
+			conf.Name(): map[string]any{
 				"description": description,
 				"security-level": map[string]any{
 					securityLevel: true,
@@ -41,36 +63,40 @@ func (c *InterfaceCommands) CreateOpkgTunWithSecurityLevel(ctx context.Context, 
 			},
 		},
 	}
-	return postMutationChecked(ctx, c.poster, c.save, payload, "create opkgtun "+name,
-		c.queries.Interfaces.InvalidateAll,
-		c.queries.RunningConfig.InvalidateAll)
+	if err := postMutationChecked(ctx, c.poster, c.save, settings, "configure opkgtun "+name,
+		func() { c.queries.Interfaces.Invalidate(name) },
+		c.queries.RunningConfig.InvalidateAll); err != nil {
+		// Запись без нашего описания — тупик: kernel-старт сочтёт её чужой
+		// (ForeignRecordError), sing-box не найдёт как сироту по описанию, номер
+		// занят навсегда. Сносим её по тому же Confirmed; свой ifdestroyed
+		// оркестратор узнает по карте (RemovalToken, П20). Частичное применение
+		// настроек тогда не важно.
+		return query.Confirmed{}, errors.Join(err, c.DeleteOpkgTun(ctx, conf))
+	}
+	return conf, nil
 }
 
 // CreateOpkgTun creates an OpkgTun interface in NDMS (public by default,
 // preserving existing callers).
-func (c *InterfaceCommands) CreateOpkgTun(ctx context.Context, name, description string) error {
-	return c.CreateOpkgTunWithSecurityLevel(ctx, name, description, "public")
+func (c *InterfaceCommands) CreateOpkgTun(ctx context.Context, name, description string, free netdev.Free) (query.Confirmed, error) {
+	return c.CreateOpkgTunWithSecurityLevel(ctx, name, description, "public", free)
 }
 
-// DeleteOpkgTun removes an interface (any type — NDMS accepts "no": true for any).
-func (c *InterfaceCommands) DeleteOpkgTun(ctx context.Context, name string) error {
-	payload := map[string]any{
-		"interface": map[string]any{
-			name: map[string]any{"no": true},
-		},
-	}
-	// InvalidateAll already drops the deleted interface from the
-	// rebuilt map; a per-name Invalidate would issue a now-pointless
-	// GET that 404s for the just-deleted resource.
-	return postMutationCheckedTolerant(ctx, c.poster, c.save, payload, "delete interface "+name,
-		isMissingInterface,
-		c.queries.Interfaces.InvalidateAll,
-		func() { c.queries.Peers.Invalidate(name) },
-		c.queries.RunningConfig.InvalidateAll)
+// DeleteOpkgTun removes an interface (any type — NDMS accepts "no": true for any)
+// через deleteInterface. invalidators — кэши вызывающего сверх своих (managed:
+// WGServers, StaticRoutes).
+func (c *InterfaceCommands) DeleteOpkgTun(ctx context.Context, iface query.Confirmed, invalidators ...func()) error {
+	name := iface.Name()
+	return c.deleteInterface(ctx, iface, "delete interface "+name,
+		append([]func(){
+			func() { c.queries.Peers.Invalidate(name) },
+			c.queries.RunningConfig.InvalidateAll,
+		}, invalidators...)...)
 }
 
 // SetSecurityLevel switches interface between public (egress) and private (LAN).
-func (c *InterfaceCommands) SetSecurityLevel(ctx context.Context, name, level string) error {
+func (c *InterfaceCommands) SetSecurityLevel(ctx context.Context, iface query.Confirmed, level string) error {
+	name := iface.Name()
 	switch level {
 	case "public", "private":
 	default:
@@ -89,7 +115,8 @@ func (c *InterfaceCommands) SetSecurityLevel(ctx context.Context, name, level st
 }
 
 // SetIPGlobal enables auto-global IP assignment on the interface.
-func (c *InterfaceCommands) SetIPGlobal(ctx context.Context, name string) error {
+func (c *InterfaceCommands) SetIPGlobal(ctx context.Context, iface query.Confirmed) error {
+	name := iface.Name()
 	payload := map[string]any{
 		"interface": map[string]any{
 			name: map[string]any{
@@ -108,7 +135,8 @@ func (c *InterfaceCommands) SetIPGlobal(ctx context.Context, name string) error 
 // Форма и ответ («global priority cleared») сняты со стенда 5.01 2026-09-06;
 // security-level от неё не зависит (private принимается и при стоящем
 // global — и наоборот).
-func (c *InterfaceCommands) ClearIPGlobal(ctx context.Context, name string) error {
+func (c *InterfaceCommands) ClearIPGlobal(ctx context.Context, iface query.Confirmed) error {
+	name := iface.Name()
 	return postMutationChecked(ctx, c.poster, c.save,
 		map[string]any{"parse": fmt.Sprintf("interface %s no ip global", name)},
 		"clear ip global "+name,
@@ -132,7 +160,8 @@ func clearAddressPayload(name string) map[string]any {
 
 // SetAddress sets the IPv4 address on the interface. Composite: clears
 // any existing address first (best-effort), then sets the new one.
-func (c *InterfaceCommands) SetAddress(ctx context.Context, name, address, mask string) error {
+func (c *InterfaceCommands) SetAddress(ctx context.Context, iface query.Confirmed, address, mask string) error {
+	name := iface.Name()
 	_, _ = c.poster.Post(ctx, clearAddressPayload(name))
 
 	setPayload := map[string]any{
@@ -152,7 +181,8 @@ func (c *InterfaceCommands) SetAddress(ctx context.Context, name, address, mask 
 
 // ClearAddress removes the configured IPv4 address from the interface.
 // Idempotent: NDMS accepts no:true when no address is set.
-func (c *InterfaceCommands) ClearAddress(ctx context.Context, name string) error {
+func (c *InterfaceCommands) ClearAddress(ctx context.Context, iface query.Confirmed) error {
+	name := iface.Name()
 	return postMutationChecked(ctx, c.poster, c.save, clearAddressPayload(name), "clear address "+name,
 		func() { c.queries.Interfaces.Invalidate(name) },
 		c.queries.Routes.InvalidateAll,
@@ -167,7 +197,8 @@ func (c *InterfaceCommands) ClearAddress(ctx context.Context, name string) error
 // though the address itself was applied. Both forms verified on the stand
 // (KeeneticOS 5.01): `no:true` answers "cleared addresses" and is idempotent
 // on an interface with no addresses.
-func (c *InterfaceCommands) SetIPv6Address(ctx context.Context, name, address string) error {
+func (c *InterfaceCommands) SetIPv6Address(ctx context.Context, iface query.Confirmed, address string) error {
+	name := iface.Name()
 	payload := map[string]any{
 		"interface": map[string]any{
 			name: map[string]any{
@@ -186,7 +217,8 @@ func (c *InterfaceCommands) SetIPv6Address(ctx context.Context, name, address st
 }
 
 // ClearIPv6Address removes the IPv6 address from the interface.
-func (c *InterfaceCommands) ClearIPv6Address(ctx context.Context, name string) error {
+func (c *InterfaceCommands) ClearIPv6Address(ctx context.Context, iface query.Confirmed) error {
+	name := iface.Name()
 	payload := map[string]any{
 		"interface": map[string]any{
 			name: map[string]any{
@@ -202,7 +234,8 @@ func (c *InterfaceCommands) ClearIPv6Address(ctx context.Context, name string) e
 }
 
 // SetMTU sets the interface MTU and auto-adjusts TCP MSS.
-func (c *InterfaceCommands) SetMTU(ctx context.Context, name string, mtu int) error {
+func (c *InterfaceCommands) SetMTU(ctx context.Context, iface query.Confirmed, mtu int) error {
+	name := iface.Name()
 	payload := map[string]any{
 		"interface": map[string]any{
 			name: map[string]any{
@@ -221,7 +254,8 @@ func (c *InterfaceCommands) SetMTU(ctx context.Context, name string, mtu int) er
 }
 
 // SetDescription updates the NDMS description of the interface.
-func (c *InterfaceCommands) SetDescription(ctx context.Context, name, description string) error {
+func (c *InterfaceCommands) SetDescription(ctx context.Context, iface query.Confirmed, description string) error {
+	name := iface.Name()
 	payload := map[string]any{
 		"interface": map[string]any{
 			name: map[string]any{"description": description},
@@ -233,7 +267,15 @@ func (c *InterfaceCommands) SetDescription(ctx context.Context, name, descriptio
 }
 
 // SetDNS sets DNS name-servers for the interface. One POST per server.
-func (c *InterfaceCommands) SetDNS(ctx context.Context, name string, servers []string) error {
+func (c *InterfaceCommands) SetDNS(ctx context.Context, iface query.Confirmed, servers []string) error {
+	return c.SetDNSByKernelName(ctx, iface.Name(), servers)
+}
+
+// SetDNSByKernelName — SetDNS по голому имени. Единственное исключение из
+// правила «команды по интерфейсу — только по query.Confirmed» (F546, R17):
+// на OS4 туннель адресуется именем ядра (awgm<N>), записи в списке NDMS у
+// него нет, и подтверждать её нечем (см. OperatorOS4Impl.dnsByKernelName).
+func (c *InterfaceCommands) SetDNSByKernelName(ctx context.Context, name string, servers []string) error {
 	for _, dns := range servers {
 		payload := map[string]any{
 			"ip": map[string]any{
@@ -253,7 +295,13 @@ func (c *InterfaceCommands) SetDNS(ctx context.Context, name string, servers []s
 }
 
 // ClearDNS removes DNS name-servers for the interface. One best-effort POST per server.
-func (c *InterfaceCommands) ClearDNS(ctx context.Context, name string, servers []string) error {
+func (c *InterfaceCommands) ClearDNS(ctx context.Context, iface query.Confirmed, servers []string) error {
+	return c.ClearDNSByKernelName(ctx, iface.Name(), servers)
+}
+
+// ClearDNSByKernelName — ClearDNS по голому имени; исключение R17, см.
+// SetDNSByKernelName.
+func (c *InterfaceCommands) ClearDNSByKernelName(ctx context.Context, name string, servers []string) error {
 	for _, dns := range servers {
 		payload := map[string]any{
 			"ip": map[string]any{
@@ -272,39 +320,16 @@ func (c *InterfaceCommands) ClearDNS(ctx context.Context, name string, servers [
 }
 
 // InterfaceUp brings the interface administratively up.
-// Registers expected hook if notifier is set.
 // RunningConfig invalidation is deliberately skipped — Plan 4's
 // events.Dispatcher invalidates RunningConfig on iflayerchanged hooks,
 // which fire on every interface up/down.
-func (c *InterfaceCommands) InterfaceUp(ctx context.Context, name string) error {
-	if c.hookNotifier != nil {
-		c.hookNotifier.ExpectHook(name, "running")
-	}
-	payload := map[string]any{
-		"interface": map[string]any{
-			name: map[string]any{"up": true},
-		},
-	}
-	return postMutationChecked(ctx, c.poster, c.save, payload, "interface up "+name,
-		func() { c.queries.Interfaces.Invalidate(name) },
-		func() { c.queries.Peers.Invalidate(name) })
+func (c *InterfaceCommands) InterfaceUp(ctx context.Context, iface query.Confirmed) error {
+	name := iface.Name()
+	return c.setUp(ctx, iface, true, "interface up "+name, func() { c.queries.Peers.Invalidate(name) })
 }
 
-// InterfaceDown brings the interface administratively down.
-// Registers expected hook if notifier is set.
-// RunningConfig invalidation is deliberately skipped — Plan 4's
-// events.Dispatcher invalidates RunningConfig on iflayerchanged hooks,
-// which fire on every interface up/down.
-func (c *InterfaceCommands) InterfaceDown(ctx context.Context, name string) error {
-	if c.hookNotifier != nil {
-		c.hookNotifier.ExpectHook(name, "disabled")
-	}
-	payload := map[string]any{
-		"interface": map[string]any{
-			name: map[string]any{"up": false},
-		},
-	}
-	return postMutationChecked(ctx, c.poster, c.save, payload, "interface down "+name,
-		func() { c.queries.Interfaces.Invalidate(name) },
-		func() { c.queries.Peers.Invalidate(name) })
+// InterfaceDown brings the interface administratively down. См. InterfaceUp.
+func (c *InterfaceCommands) InterfaceDown(ctx context.Context, iface query.Confirmed) error {
+	name := iface.Name()
+	return c.setUp(ctx, iface, false, "interface down "+name, func() { c.queries.Peers.Invalidate(name) })
 }

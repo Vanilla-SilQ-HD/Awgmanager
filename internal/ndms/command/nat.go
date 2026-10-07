@@ -20,26 +20,26 @@ func NewNATCommands(p Poster, s *SaveCoordinator, q *query.Queries) *NATCommands
 }
 
 // SetSegmentNAT enables dynamic NAT (masquerade) for a segment.
-func (c *NATCommands) SetSegmentNAT(ctx context.Context, seg string) error {
-	return c.mutate(ctx, map[string]any{"ip": map[string]any{"nat": map[string]any{"interface": seg}}}, "ip nat "+seg)
+func (c *NATCommands) SetSegmentNAT(ctx context.Context, seg query.Confirmed) error {
+	return c.mutate(ctx, map[string]any{"ip": map[string]any{"nat": map[string]any{"interface": seg.Name()}}}, "ip nat "+seg.Name())
 }
 
 // RemoveSegmentNAT disables dynamic NAT for a segment.
-func (c *NATCommands) RemoveSegmentNAT(ctx context.Context, seg string) error {
-	return c.mutate(ctx, map[string]any{"ip": map[string]any{"nat": []map[string]any{{"no": true, "interface": seg}}}}, "no ip nat "+seg)
+func (c *NATCommands) RemoveSegmentNAT(ctx context.Context, seg query.Confirmed) error {
+	return c.mutate(ctx, map[string]any{"ip": map[string]any{"nat": []map[string]any{{"no": true, "interface": seg.Name()}}}}, "no ip nat "+seg.Name())
 }
 
 // SetStaticNAT adds Static NAT (SNAT-only) from a segment to a WAN interface.
-func (c *NATCommands) SetStaticNAT(ctx context.Context, seg, wan string) error {
-	return c.mutate(ctx, map[string]any{"ip": map[string]any{"static": map[string]any{"interface": seg, "to-interface": wan}}}, "ip static "+seg+" "+wan)
+func (c *NATCommands) SetStaticNAT(ctx context.Context, seg, wan query.Confirmed) error {
+	return c.mutate(ctx, map[string]any{"ip": map[string]any{"static": map[string]any{"interface": seg.Name(), "to-interface": wan.Name()}}}, "ip static "+seg.Name()+" "+wan.Name())
 }
 
 // RemoveStaticNAT removes Static NAT from a segment to a WAN interface.
 //
 // Снятие терпит «unknown interface»: сегмент или WAN-выход мог исчезнуть раньше
 // правила (проверено на роутере — NDMS отвечает ошибкой на обе стороны пары).
-func (c *NATCommands) RemoveStaticNAT(ctx context.Context, seg, wan string) error {
-	return c.mutateTolerant(ctx, map[string]any{"ip": map[string]any{"static": []map[string]any{{"no": true, "interface": seg, "to-interface": wan}}}}, "no ip static "+seg+" "+wan, isUnknownInterface)
+func (c *NATCommands) RemoveStaticNAT(ctx context.Context, seg, wan query.Confirmed) error {
+	return c.mutateTolerant(ctx, map[string]any{"ip": map[string]any{"static": []map[string]any{{"no": true, "interface": seg.Name(), "to-interface": wan.Name()}}}}, "no ip static "+seg.Name()+" "+wan.Name(), isUnknownInterface)
 }
 
 // mutate posts the payload, schedules a save, and invalidates the caches

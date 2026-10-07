@@ -2,6 +2,9 @@ package events
 
 import (
 	"context"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,10 +18,6 @@ const sampleList = `{"Wireguard0": {"id":"Wireguard0","interface-name":"nwg0","t
 func primedQueries(_ *testing.T) (*query.Queries, *query.FakeGetter) {
 	fg := query.NewFakeGetter()
 	fg.SetJSON(ifaceListPath, sampleList)
-	// Per-interface fetches go through POST — fixture body must include
-	// the {"show":{"interface":…}} envelope NDMS returns over the wire.
-	fg.SetPostInterface("Wireguard0", `{"show":{"interface":{"id":"Wireguard0","interface-name":"nwg0","type":"Wireguard","state":"up"}}}`)
-	fg.SetPostInterface("Wireguard1", `{"show":{"interface":{"id":"Wireguard1","interface-name":"nwg1","type":"Wireguard","state":"up"}}}`)
 	fg.SetJSON("/show/ip/route", `[]`)
 	fg.SetRaw("/show/running-config", []byte(`{"message":["!"]}`))
 	q := query.NewQueries(query.Deps{Getter: fg, Logger: query.NopLogger(), IsOS5: func() bool { return true }})
@@ -27,11 +26,12 @@ func primedQueries(_ *testing.T) (*query.Queries, *query.FakeGetter) {
 
 // === Event-sourced InterfaceStore behaviour ===
 
-// IfCreated must apply via OnCreated which fetches ONLY the new id —
-// it must NOT re-fetch the full list.
-func TestDispatcher_IfCreated_FetchesOnlyNewID(t *testing.T) {
+// IfCreated неизвестного id не читает его точечно (по снятому к этому
+// моменту имени NDMS пишет E, F546) — пачка кончается ОДНИМ полным списком.
+func TestDispatcher_IfCreated_OneListNoPointRead(t *testing.T) {
 	q, fg := primedQueries(t)
 	d := NewDispatcher(q, NopLogger())
+	listed := listedBarrier(d)
 	d.Start()
 	defer d.Stop()
 
@@ -39,58 +39,45 @@ func TestDispatcher_IfCreated_FetchesOnlyNewID(t *testing.T) {
 		t.Fatalf("prime: %v", err)
 	}
 	primeList := fg.Calls(ifaceListPath)
+	fg.SetJSON(ifaceListPath, `{
+		"Wireguard0": {"id":"Wireguard0","interface-name":"nwg0","type":"Wireguard","state":"up"},
+		"Wireguard1": {"id":"Wireguard1","interface-name":"nwg1","type":"Wireguard","state":"up"}}`)
 
 	d.Enqueue(Event{Type: EventIfCreated, ID: "Wireguard1"})
+	waitListed(t, listed)
 
-	// Ждём ИСХОД (запись видна), а не POST в фейке: счётчик растёт до того,
-	// как OnCreated положит ответ в стор, и под нагрузкой Get ниже видел nil.
-	// Get при промахе HTTP не делает — счётчик fetch'ей не искажает.
-	waitFor(t, 200*time.Millisecond, func() bool {
-		got, _ := q.Interfaces.Get(context.Background(), "Wireguard1")
-		return got != nil
-	})
-
-	if got := fg.PostInterfaceCalls("Wireguard1"); got != 1 {
-		t.Errorf("after IfCreated: want 1 fetch of new id, got %d", got)
+	if got := fg.Calls(ifaceListPath); got != primeList+1 {
+		t.Errorf("want exactly one list after IfCreated, before=%d after=%d", primeList, got)
 	}
-	// Critical: list endpoint must NOT have been re-fetched.
-	if got := fg.Calls(ifaceListPath); got != primeList {
-		t.Errorf("list must NOT be re-fetched after IfCreated, before=%d after=%d", primeList, got)
-	}
-	// And the new entry must now be visible from Get without further HTTP.
-	if got, _ := q.Interfaces.Get(context.Background(), "Wireguard1"); got == nil {
-		t.Errorf("Wireguard1 must be queryable after OnCreated")
+	if got, _ := q.Interfaces.Get(context.Background(), "Wireguard1"); got == nil || got.SystemName != "nwg1" {
+		t.Errorf("Wireguard1 must come from the list, got %#v", got)
 	}
 }
 
-// IfDestroyed must be a pure in-memory delete — no HTTP, no list refetch.
-func TestDispatcher_IfDestroyed_NoHTTP(t *testing.T) {
+// IfDestroyed известного id карту не меняет — ставит «грязно» (П6′): пачка
+// кончается ОДНИМ списком, запись уходит по нему; точечных чтений нет.
+func TestDispatcher_IfDestroyed_KnownID_OneListThenAbsent(t *testing.T) {
 	q, fg := primedQueries(t)
 	d := NewDispatcher(q, NopLogger())
+	listed := listedBarrier(d)
 	d.Start()
 	defer d.Stop()
 
 	_, _ = q.Interfaces.List(context.Background())
 	primeList := fg.Calls(ifaceListPath)
-	primeItem := fg.PostInterfaceCalls("Wireguard0")
+	fg.SetJSON(ifaceListPath, `{}`)
 
 	d.Enqueue(Event{Type: EventIfDestroyed, ID: "Wireguard0"})
+	waitListed(t, listed)
 
-	// Wait for the entry to disappear from cache (via OnDestroyed).
-	waitFor(t, 200*time.Millisecond, func() bool {
-		got, _ := q.Interfaces.Get(context.Background(), "Wireguard0")
-		return got == nil
-	})
-
+	if got := fg.Calls(ifaceListPath); got != primeList+1 {
+		t.Errorf("want exactly one list after IfDestroyed, before=%d after=%d", primeList, got)
+	}
 	if got, _ := q.Interfaces.Get(context.Background(), "Wireguard0"); got != nil {
-		t.Errorf("Wireguard0 must be removed from cache, got %#v", got)
+		t.Errorf("Wireguard0 must be gone after the list, got %#v", got)
 	}
-	// No HTTP for the destroy path on InterfaceStore.
-	if got := fg.Calls(ifaceListPath); got != primeList {
-		t.Errorf("list must NOT be re-fetched on IfDestroyed, before=%d after=%d", primeList, got)
-	}
-	if got := fg.PostInterfaceCalls("Wireguard0"); got != primeItem {
-		t.Errorf("item must NOT be re-fetched on IfDestroyed, before=%d after=%d", primeItem, got)
+	if got := fg.Calls("/show/interface/Wireguard0"); got != 0 {
+		t.Errorf("IfDestroyed must not probe, got %d calls", got)
 	}
 }
 
@@ -103,7 +90,6 @@ func TestDispatcher_IfLayerChanged_NoHTTPOnInterfaces(t *testing.T) {
 
 	_, _ = q.Interfaces.List(context.Background())
 	primeList := fg.Calls(ifaceListPath)
-	primeItem := fg.PostInterfaceCalls("Wireguard0")
 
 	d.Enqueue(Event{Type: EventIfLayerChanged, ID: "Wireguard0", Layer: "conf", Level: "disabled"})
 
@@ -115,9 +101,6 @@ func TestDispatcher_IfLayerChanged_NoHTTPOnInterfaces(t *testing.T) {
 	if got := fg.Calls(ifaceListPath); got != primeList {
 		t.Errorf("list re-fetched on IfLayerChanged, before=%d after=%d", primeList, got)
 	}
-	if got := fg.PostInterfaceCalls("Wireguard0"); got != primeItem {
-		t.Errorf("item re-fetched on IfLayerChanged, before=%d after=%d", primeItem, got)
-	}
 }
 
 // === Legacy InvalidateAll path for non-Interface stores ===
@@ -125,19 +108,23 @@ func TestDispatcher_IfLayerChanged_NoHTTPOnInterfaces(t *testing.T) {
 func TestDispatcher_IfDestroyed_InvalidatesWGServers(t *testing.T) {
 	q, fg := primedQueries(t)
 	d := NewDispatcher(q, NopLogger())
+	drained := drainBarrier(d)
 	d.Start()
 	defer d.Stop()
 
 	_, _ = q.WGServers.List(context.Background())
-	primed := fg.Calls(peersPath)
 
 	d.Enqueue(Event{Type: EventIfDestroyed, ID: "Wireguard1"})
-	waitFor(t, 200*time.Millisecond, func() bool {
-		_, _ = q.WGServers.List(context.Background())
-		return fg.Calls(peersPath) > primed
-	})
+	waitDrain(t, drained)
+	// Отсчёт после прохода: сам диспетчер тоже может читать список
+	// (ifcreated неизвестного id), а проверяется сброс кэша серверов. Метка
+	// «грязно» делает пересборку видимой: снимок моложе SnapshotRecent
+	// иначе отдаётся из памяти без чтения списка.
+	q.Interfaces.Invalidate("Wireguard0")
+	primed := fg.Calls(ifaceListPath)
+	_, _ = q.WGServers.List(context.Background())
 
-	if fg.Calls(peersPath) <= primed {
+	if fg.Calls(ifaceListPath) <= primed {
 		t.Errorf("WGServer list not re-fetched after IfDestroyed")
 	}
 }
@@ -145,19 +132,23 @@ func TestDispatcher_IfDestroyed_InvalidatesWGServers(t *testing.T) {
 func TestDispatcher_IfCreated_InvalidatesWGServers(t *testing.T) {
 	q, fg := primedQueries(t)
 	d := NewDispatcher(q, NopLogger())
+	drained := drainBarrier(d)
 	d.Start()
 	defer d.Stop()
 
 	_, _ = q.WGServers.List(context.Background())
-	primed := fg.Calls(peersPath)
 
 	d.Enqueue(Event{Type: EventIfCreated, ID: "Wireguard5"})
-	waitFor(t, 200*time.Millisecond, func() bool {
-		_, _ = q.WGServers.List(context.Background())
-		return fg.Calls(peersPath) > primed
-	})
+	waitDrain(t, drained)
+	// Отсчёт после прохода: сам диспетчер тоже может читать список
+	// (ifcreated неизвестного id), а проверяется сброс кэша серверов. Метка
+	// «грязно» делает пересборку видимой: снимок моложе SnapshotRecent
+	// иначе отдаётся из памяти без чтения списка.
+	q.Interfaces.Invalidate("Wireguard0")
+	primed := fg.Calls(ifaceListPath)
+	_, _ = q.WGServers.List(context.Background())
 
-	if fg.Calls(peersPath) <= primed {
+	if fg.Calls(ifaceListPath) <= primed {
 		t.Errorf("WGServer list not re-fetched after IfCreated")
 	}
 }
@@ -206,39 +197,32 @@ func TestDispatcher_Stop_WithoutStart_ReturnsImmediately(t *testing.T) {
 
 // === Порядок пакета, слушатель маршрутизации, соседние кэши ===
 
-// peersPath — точечное чтение WG-интерфейса. Им же читают пиров и списки
-// серверов/системных туннелей (состав — из InterfaceStore), поэтому сброс их
-// кэша виден по этому пути, а не по полному списку.
-const peersPath = ifaceListPath + "Wireguard0"
-
 const samplePeers = `{"wireguard":{"peer":[{"public-key":"KEY","online":true}]}}`
 
-// Пакет применяется В ПОРЯДКЕ ПРИХОДА — то самое, что обещает докстрока
-// Dispatcher («ifcreated → conf=running → link=running»). Все прежние тесты
-// слали ОДНО событие, поэтому итерация пакета задом наперёд проходила
-// зелёной. Здесь пара «создан → снесён» приходит одним пакетом: события
-// кладутся в очередь ДО Start, поэтому воркер разгребает их одним проходом.
-// В обратном порядке снос применился бы к ещё отсутствующей записи, и
-// интерфейс остался бы в кэше живым.
-func TestDispatcher_BatchAppliesInArrivalOrder(t *testing.T) {
+// Пара «создан → снесён» незнакомого id одним пакетом (события кладутся в
+// очередь ДО Start — один проход): ifcreated расходится с картой — пачка стоит
+// ОДИН список (дизайн §5), записи по нему нет. Порядок пачки здесь не
+// наблюдаем: хуки существования карту не меняют, обратный порядок даёт то же.
+func TestDispatcher_BatchUnknownCreatedDestroyed_OneList(t *testing.T) {
 	q, fg := primedQueries(t)
 	d := NewDispatcher(q, NopLogger())
-	drained := drainBarrier(d)
+	listed := listedBarrier(d)
 
 	if _, err := q.Interfaces.List(context.Background()); err != nil {
 		t.Fatalf("prime: %v", err)
 	}
+	primeList := fg.Calls(ifaceListPath)
 	d.Enqueue(Event{Type: EventIfCreated, ID: "Wireguard1"})
 	d.Enqueue(Event{Type: EventIfDestroyed, ID: "Wireguard1"})
 
 	d.Start()
 	defer d.Stop()
-	waitDrain(t, drained)
+	// Барьер взводится только после списка пачки существования — «пакет
+	// вовсе не разобран» сюда не доходит.
+	waitListed(t, listed)
 
-	// Создание действительно применилось: за новым id сходили в NDMS. Без
-	// этой проверки тест был бы зелёным и на «пакет вовсе не разобран».
-	if got := fg.PostInterfaceCalls("Wireguard1"); got != 1 {
-		t.Fatalf("создание не применилось: запросов за Wireguard1 %d, ждали 1", got)
+	if got := fg.Calls(ifaceListPath); got != primeList+1 {
+		t.Fatalf("пачка created→destroyed: списков +%d, want 1", got-primeList)
 	}
 	if got, _ := q.Interfaces.Get(context.Background(), "Wireguard1"); got != nil {
 		t.Errorf("после пары «создан → снесён» записи быть не должно, получили %#v", got)
@@ -250,7 +234,7 @@ func TestDispatcher_BatchAppliesInArrivalOrder(t *testing.T) {
 // (dispatcher.go:146-148) проходил зелёным. Слушатель взводится ПОСЛЕ разбора
 // пакета, поэтому к моменту вызова состояние уже применено — это и проверяем.
 func TestDispatcher_RoutingListenerFiresAfterDrain(t *testing.T) {
-	q, _ := primedQueries(t)
+	q, fg := primedQueries(t)
 	d := NewDispatcher(q, NopLogger())
 
 	seen := make(chan bool, 4)
@@ -264,6 +248,11 @@ func TestDispatcher_RoutingListenerFiresAfterDrain(t *testing.T) {
 	if _, err := q.Interfaces.List(context.Background()); err != nil {
 		t.Fatalf("prime: %v", err)
 	}
+	// Wireguard1 появляется в NDMS; в кэш его кладёт список после пачки —
+	// слушатель обязан сработать уже после него.
+	fg.SetJSON(ifaceListPath, `{
+		"Wireguard0": {"id":"Wireguard0","interface-name":"nwg0","type":"Wireguard","state":"up"},
+		"Wireguard1": {"id":"Wireguard1","interface-name":"nwg1","type":"Wireguard","state":"up"}}`)
 	d.Enqueue(Event{Type: EventIfCreated, ID: "Wireguard1"})
 
 	select {
@@ -325,7 +314,8 @@ func TestDispatcher_InvalidatesPeersOnDestroyAndLayerChange(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			q, fg := primedQueries(t)
-			fg.SetJSON(peersPath, samplePeers)
+			// Пиры — в записи полного списка (F546).
+			fg.SetJSON(ifaceListPath, `{"Wireguard0":{"id":"Wireguard0","interface-name":"nwg0","type":"Wireguard","state":"up",`+samplePeers[1:]+`}`)
 			d := NewDispatcher(q, NopLogger())
 			drained := drainBarrier(d)
 			d.Start()
@@ -334,10 +324,15 @@ func TestDispatcher_InvalidatesPeersOnDestroyAndLayerChange(t *testing.T) {
 			if _, err := q.Peers.GetPeers(context.Background(), "Wireguard0"); err != nil {
 				t.Fatalf("prime peers: %v", err)
 			}
-			primed := fg.Calls(peersPath)
-
 			d.Enqueue(tc.ev)
 			waitDrain(t, drained)
+			if tc.ev.Type == EventIfDestroyed {
+				fg.SetJSON(ifaceListPath, `{}`) // снятого нет и в NDMS
+			}
+			// Пиры читаются из снимка списка (F546): метим его грязным — тогда
+			// промах кэша пиров виден как один список, попадание — как ноль.
+			q.Interfaces.Invalidate("Wireguard0")
+			lists := fg.Calls(ifaceListPath)
 
 			peers, err := q.Peers.GetPeers(context.Background(), "Wireguard0")
 			if err != nil {
@@ -351,8 +346,8 @@ func TestDispatcher_InvalidatesPeersOnDestroyAndLayerChange(t *testing.T) {
 				}
 				return
 			}
-			if after := fg.Calls(peersPath); after <= primed {
-				t.Errorf("кэш пиров не сброшен: запросов было %d, стало %d", primed, after)
+			if after := fg.Calls(ifaceListPath); after <= lists {
+				t.Errorf("кэш пиров не сброшен: списков было %d, стало %d", lists, after)
 			}
 		})
 	}
@@ -395,19 +390,189 @@ func waitDrain(t *testing.T, ch <-chan struct{}) {
 func TestDispatcher_IfLayerChanged_InvalidatesSystemTunnelList(t *testing.T) {
 	q, fg := primedQueries(t)
 	d := NewDispatcher(q, NopLogger())
+	drained := drainBarrier(d)
 	d.Start()
 	defer d.Stop()
 
 	_, _ = q.WGServers.ListSystemTunnels(context.Background())
-	primed := fg.Calls(peersPath)
 
 	d.Enqueue(Event{Type: EventIfLayerChanged, ID: "Wireguard1", Layer: "link", Level: "running"})
-	waitFor(t, 300*time.Millisecond, func() bool {
-		_, _ = q.WGServers.ListSystemTunnels(context.Background())
-		return fg.Calls(peersPath) > primed
-	})
+	waitDrain(t, drained)
+	// Отсчёт после прохода: сам диспетчер тоже может читать список
+	// (ifcreated неизвестного id), а проверяется сброс кэша серверов. Метка
+	// «грязно» делает пересборку видимой (см. выше).
+	q.Interfaces.Invalidate("Wireguard0")
+	primed := fg.Calls(ifaceListPath)
+	_, _ = q.WGServers.ListSystemTunnels(context.Background())
 
-	if fg.Calls(peersPath) <= primed {
+	if fg.Calls(ifaceListPath) <= primed {
 		t.Errorf("состав системных туннелей не перечитан после iflayerchanged")
+	}
+}
+
+// Хук слоя конфигурацию не меняет: дерево rc (~90 тиков ndm) на нём не
+// перечитывается; создание/снятие интерфейса — перечитывается (F546, Task 44).
+func TestDispatcher_LayerHookKeepsRC(t *testing.T) {
+	const rcTree = "/show/rc/interface/"
+	q, fg := primedQueries(t)
+	fg.SetRC("Wireguard0", `{"wireguard":{"peer":[]}}`)
+	d := NewDispatcher(q, NopLogger())
+	drained := drainBarrier(d)
+	d.Start()
+	defer d.Stop()
+
+	ctx := context.Background()
+	if _, err := q.WGServers.List(ctx); err != nil {
+		t.Fatal(err)
+	}
+	primed := fg.Calls(rcTree)
+	if primed != 1 {
+		t.Fatalf("чтений дерева rc при первом List = %d, want 1", primed)
+	}
+
+	d.Enqueue(Event{Type: EventIfLayerChanged, ID: "Wireguard0", Layer: "link", Level: "running"})
+	waitDrain(t, drained)
+	if _, err := q.WGServers.List(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := fg.Calls(rcTree); got != primed {
+		t.Fatalf("iflayerchanged перечитал дерево rc: %d → %d", primed, got)
+	}
+
+	d.Enqueue(Event{Type: EventIfDestroyed, ID: "Wireguard5"})
+	waitDrain(t, drained)
+	if _, err := q.WGServers.List(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := fg.Calls(rcTree); got != primed+1 {
+		t.Fatalf("ifdestroyed: чтений дерева rc %d, want %d", got, primed+1)
+	}
+}
+
+// listedBarrier вешает слушателя существования как барьер конца списка пачки:
+// он взводится ПОСЛЕ списка каждой пачки с хуками существования и отдаёт
+// publish. Проход (drainBarrier) список больше не ждёт — тесты, считающие
+// списки после такой пачки, ждут этот барьер.
+func listedBarrier(d *Dispatcher) <-chan bool {
+	ch := make(chan bool, 8)
+	d.SetExistenceListed(func(publish bool) { ch <- publish })
+	return ch
+}
+
+func waitListed(t *testing.T, ch <-chan bool) bool {
+	t.Helper()
+	select {
+	case p := <-ch:
+		return p
+	case <-time.After(2 * time.Second):
+		t.Fatalf("список пачки существования не завершился за 2 с")
+		return false
+	}
+}
+
+// listBlockingGetter держит запрос списка интерфейсов, пока тест не закроет
+// gate (nil — не держит).
+type listBlockingGetter struct {
+	query.Getter
+	gate    chan struct{}
+	entered chan struct{}
+	lists   atomic.Int32 // запросов списка, считая удержанные
+}
+
+func (b *listBlockingGetter) Get(ctx context.Context, path string, dst any) error {
+	if path == ifaceListPath && b.gate != nil {
+		b.lists.Add(1)
+		select {
+		case b.entered <- struct{}{}:
+		default:
+		}
+		<-b.gate
+	}
+	return b.Getter.Get(ctx, path, dst)
+}
+
+// Список пачки существования идёт вне прохода: пока он висит, следующая пачка
+// применяется. Синхронный список держал бы воркер — второй проход не случился
+// бы до открытия гейта.
+func TestDispatcher_NextBatchNotBlockedByList(t *testing.T) {
+	fg := query.NewFakeGetter()
+	fg.SetJSON(ifaceListPath, sampleList)
+	bg := &listBlockingGetter{Getter: fg, entered: make(chan struct{}, 1)}
+	q := query.NewQueries(query.Deps{Getter: bg, Logger: query.NopLogger(), IsOS5: func() bool { return true }})
+	if _, err := q.Interfaces.List(context.Background()); err != nil {
+		t.Fatalf("prime: %v", err)
+	}
+	bg.gate = make(chan struct{})
+
+	d := NewDispatcher(q, NopLogger())
+	drained := drainBarrier(d)
+	listed := listedBarrier(d)
+	d.Start()
+	defer d.Stop()
+	release := sync.OnceFunc(func() { close(bg.gate) })
+	defer release() // до Stop: синхронный список держал бы воркер вечно
+
+	d.Enqueue(Event{Type: EventIfCreated, ID: "Wireguard1"}) // неизвестный id — список
+	select {
+	case <-bg.entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("список пачки не начат")
+	}
+	waitDrain(t, drained)
+
+	d.Enqueue(Event{Type: EventIfLayerChanged, ID: "Wireguard0", Layer: "link", Level: "running"})
+	waitDrain(t, drained) // вторая пачка применена, список первой ещё держится
+
+	release()
+	waitListed(t, listed)
+}
+
+// I1: пачки существования, пришедшие за время списка, склеиваются в ОДИН
+// следующий список: 4 пачки при удержанном списке → 2 списка всего, без
+// параллельных запросов; оба круга — с publish=true (чужие создания).
+func TestDispatcher_BatchesDuringList_CoalesceIntoOneRerun(t *testing.T) {
+	fg := query.NewFakeGetter()
+	fg.SetJSON(ifaceListPath, sampleList)
+	bg := &listBlockingGetter{Getter: fg, entered: make(chan struct{}, 1)}
+	q := query.NewQueries(query.Deps{Getter: bg, Logger: query.NopLogger(), IsOS5: func() bool { return true }})
+	if _, err := q.Interfaces.List(context.Background()); err != nil {
+		t.Fatalf("prime: %v", err)
+	}
+	bg.gate = make(chan struct{})
+
+	d := NewDispatcher(q, NopLogger())
+	drained := drainBarrier(d)
+	listed := listedBarrier(d)
+	d.Start()
+	defer d.Stop()
+	release := sync.OnceFunc(func() { close(bg.gate) })
+	defer release()
+
+	d.Enqueue(Event{Type: EventIfCreated, ID: "Wireguard1"})
+	select {
+	case <-bg.entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("список пачки не начат")
+	}
+	waitDrain(t, drained)
+	for i := range 4 {
+		d.Enqueue(Event{Type: EventIfCreated, ID: fmt.Sprintf("Wireguard%d", i+2)})
+		waitDrain(t, drained)
+	}
+	// Горутина на пачку успела бы войти в геттер за это время.
+	time.Sleep(100 * time.Millisecond)
+	if n := bg.lists.Load(); n != 1 {
+		t.Fatalf("при удержанном списке запросов %d, want 1: пачки не склеены", n)
+	}
+
+	release()
+	if p := waitListed(t, listed); !p {
+		t.Fatalf("первый круг: publish=false, want true (чужое создание)")
+	}
+	if p := waitListed(t, listed); !p {
+		t.Fatalf("повтор: publish=false, want true (чужие создания склеены)")
+	}
+	if n := bg.lists.Load(); n != 2 {
+		t.Fatalf("списков всего %d, want 2 (в полёте + один повтор)", n)
 	}
 }

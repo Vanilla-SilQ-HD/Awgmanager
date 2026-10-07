@@ -3,12 +3,15 @@ package singbox
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/hoaxisr/awg-manager/internal/ndms/command"
 	"github.com/hoaxisr/awg-manager/internal/singbox/orchestrator"
 	"github.com/hoaxisr/awg-manager/internal/singbox/vlink"
 	"github.com/hoaxisr/awg-manager/internal/sys/perftrace"
@@ -319,6 +322,12 @@ func (o *Operator) AddTunnels(ctx context.Context, linksText string) ([]TunnelIn
 	all := cfg.Tunnels()
 
 	// Create NDMS Proxy interfaces for new tunnels (skipped when toggle is off).
+	// Слот занят чужой записью (ErrProxyForeign, в т.ч. NDMS не создал) или
+	// созданное осталось на роутере ненастроенным — туннель снимается из
+	// конфига: иначе он держал бы этот индекс, и Up/Remove по слоту трогали бы
+	// чужое или вечно упирались в сироту. Следующая попытка выберет индекс по
+	// свежему списку; оставленное уходит в метку отложенного сноса (F577).
+	var unslotted []string
 	if ndmsProxyEnabled {
 		for _, t := range all {
 			for _, newTag := range addedTags {
@@ -331,12 +340,31 @@ func (o *Operator) AddTunnels(ctx context.Context, linksText string) ([]TunnelIn
 					parseErrs = append(parseErrs, BatchError{Input: t.Tag, Err: fmt.Errorf("ndms proxy setup: %w", err)})
 					continue
 				}
-				if err := o.proxyMgr.EnsureProxy(ctx, idx, t.ListenPort, t.Tag); err != nil {
+				if err := o.proxyMgr.EnsureProxy(ctx, idx, t.ListenPort, t.Tag, t.Tag); err != nil {
 					o.log.Warn("create proxy failed", "tag", t.Tag, "err", err)
 					parseErrs = append(parseErrs, BatchError{Input: t.Tag, Err: fmt.Errorf("ndms proxy setup for %s: %w", t.Tag, err)})
+					var left *command.LeftCreatedError
+					if errors.Is(err, ErrProxyForeign) || errors.As(err, &left) {
+						unslotted = append(unslotted, t.Tag)
+					}
 				}
 			}
 		}
+	}
+	if len(unslotted) > 0 {
+		for _, tag := range unslotted {
+			if err := cfg.RemoveTunnel(tag); err != nil {
+				o.log.Error("unslot tunnel", "tag", tag, "err", err)
+			}
+		}
+		// Без merged-валидации, как RemoveTunnel: снимаются только что
+		// добавленные туннели.
+		if err := o.writeTunnelsSlot(cfg, len(cfg.Tunnels()) > 0); err != nil {
+			o.log.Error("unslot tunnels: write config", "tags", unslotted, "err", err)
+			return nil, parseErrs, fmt.Errorf("apply after proxy failure: %w", err)
+		}
+		addedTags = slices.DeleteFunc(addedTags, func(tag string) bool { return slices.Contains(unslotted, tag) })
+		all = cfg.Tunnels()
 	}
 
 	added := make([]TunnelInfo, 0, len(addedTags))
@@ -419,8 +447,11 @@ func (o *Operator) RemoveTunnel(ctx context.Context, tag string) error {
 
 	// NDMS teardown last — if it fails, Reconcile/retry can clean up later.
 	if proxyIdx >= 0 {
-		if err := o.proxyMgr.RemoveProxy(ctx, proxyIdx); err != nil {
-			o.log.Warn("remove proxy failed", "tag", tag, "err", err)
+		if err := o.proxyMgr.RemoveProxy(ctx, proxyIdx, tag); errors.Is(err, ErrProxyForeign) {
+			o.log.Warn("remove proxy skipped: not ours", "tag", tag, "err", err)
+		} else if err != nil {
+			o.log.Warn("remove proxy failed, deferred", "tag", tag, "err", err)
+			o.deferProxyRemoval(proxyName(proxyIdx), tag)
 		}
 	}
 	if o.bus != nil {
@@ -527,12 +558,45 @@ func (o *Operator) RenameTunnel(ctx context.Context, oldTag, newTag string) erro
 		return fmt.Errorf("%w: %q", ErrTunnelTagConflict, newTag)
 	}
 
+	// Роутер — ДО конфига (F577 R2): тег — ключ владения ProxyN
+	// (description), и при отказе роутера локально не меняется ничего —
+	// откатывать нечего. Цена: без RCI в режиме NDMS Proxy туннель не
+	// переименовать (осознанная потеря).
+	proxyIdx := -1
+	if o.isNDMSProxyEnabled() && renamed.ProxyInterface != "" {
+		if idx, err := parseProxyIdx(renamed.ProxyInterface); err == nil && idx >= 0 {
+			proxyIdx = idx
+		}
+	}
+	if proxyIdx >= 0 {
+		if err := o.proxyMgr.EnsureProxy(ctx, proxyIdx, renamed.ListenPort, newTag, oldTag); err != nil {
+			var left *command.LeftCreatedError
+			if !errors.Is(err, ErrProxyForeign) && !errors.As(err, &left) {
+				o.log.Warn("rename proxy description failed, rename aborted", "old", oldTag, "new", newTag, "err", err)
+				o.restoreProxyDesc(ctx, proxyIdx, renamed.ListenPort, oldTag, newTag)
+				return fmt.Errorf("rename proxy %s: %w", renamed.ProxyInterface, err)
+			}
+			// Слот не наш (или нашего там не было и созданное осталось
+			// голой сиротой с меткой — её усыновит Sync) — на роутере
+			// переименовывать и возвращать нечего.
+			o.log.Warn("rename proxy description skipped", "old", oldTag, "new", newTag, "err", err)
+			proxyIdx = -1
+		}
+	}
+	restore := func() {
+		if proxyIdx >= 0 {
+			o.restoreProxyDesc(ctx, proxyIdx, renamed.ListenPort, oldTag, newTag)
+		}
+	}
+
 	if err := cfg.RenameTunnel(oldTag, newTag); err != nil {
+		restore()
 		return err
 	}
 	refsRenamed := false
 	if o.outboundRefs != nil {
 		if err := o.outboundRefs.RenameExternalOutboundTag(ctx, oldTag, newTag); err != nil {
+			restore()
 			return err
 		}
 		refsRenamed = true
@@ -541,15 +605,8 @@ func (o *Operator) RenameTunnel(ctx context.Context, oldTag, newTag string) erro
 		if refsRenamed {
 			_ = o.outboundRefs.RenameExternalOutboundTag(context.Background(), newTag, oldTag)
 		}
+		restore()
 		return err
-	}
-
-	if o.isNDMSProxyEnabled() && renamed.ProxyInterface != "" {
-		if idx, err := parseProxyIdx(renamed.ProxyInterface); err == nil && idx >= 0 {
-			if err := o.proxyMgr.EnsureProxy(ctx, idx, renamed.ListenPort, newTag); err != nil {
-				o.log.Warn("rename proxy description failed", "old", oldTag, "new", newTag, "err", err)
-			}
-		}
 	}
 	if o.bus != nil {
 		o.bus.Publish("singbox:tunnels-changed", nil)
@@ -558,6 +615,17 @@ func (o *Operator) RenameTunnel(ctx context.Context, oldTag, newTag string) erro
 		o.runtimeLogger.Info("single-rename", oldTag, "done new="+newTag)
 	}
 	return nil
+}
+
+// restoreProxyDesc — одна попытка вернуть ProxyN description oldTag после
+// провала переименования: роутер мог применить новый частично (ответ
+// потерян). Наша запись — с oldTag или newTag; записи нет — ничего. Отказ —
+// Warn и принятый остаток: на роутере newTag, в конфиге oldTag, Sync/Remove
+// сочтут её чужой до повтора переименования (F577 R2).
+func (o *Operator) restoreProxyDesc(ctx context.Context, idx, port int, oldTag, newTag string) {
+	if err := o.proxyMgr.RelabelProxy(ctx, idx, port, oldTag, newTag); err != nil {
+		o.log.Warn("rename: proxy description not restored", "idx", idx, "old", oldTag, "new", newTag, "err", err)
+	}
 }
 
 func (o *Operator) loadConfig() (*Config, error) {

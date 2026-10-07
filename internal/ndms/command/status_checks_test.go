@@ -49,61 +49,62 @@ func TestMutators_SurfaceNestedErrors(t *testing.T) {
 		call func(*fakePoster) error
 	}{
 		{"CreatePolicy", respNoInput, func(p *fakePoster) error {
-			c, _, _, _ := newTestPolicyCommandsWith(p)
+			c, _, _ := newTestPolicyCommandsWith(p)
 			return c.CreatePolicy(ctx, "P", "d")
 		}},
 		{"PermitInterface", respPermitNoIface, func(p *fakePoster) error {
-			c, _, _, _ := newTestPolicyCommandsWith(p)
-			return c.PermitInterface(ctx, "P", "OpkgTun42", 0)
+			c, _, _ := newTestPolicyCommandsWith(p)
+			return c.PermitInterface(ctx, "P", confirmed(t, "OpkgTun42"), 0)
 		}},
 		{"DenyInterface", respPermitNoIface, func(p *fakePoster) error {
-			c, _, _, _ := newTestPolicyCommandsWith(p)
-			return c.DenyInterface(ctx, "P", "OpkgTun42")
+			c, _, _ := newTestPolicyCommandsWith(p)
+			return c.DenyInterface(ctx, "P", confirmed(t, "OpkgTun42"))
 		}},
 		{"SetStandalone", respPermitNoIface, func(p *fakePoster) error {
-			c, _, _, _ := newTestPolicyCommandsWith(p)
+			c, _, _ := newTestPolicyCommandsWith(p)
 			return c.SetStandalone(ctx, "P", true)
 		}},
 		{"SetPolicyDescription", respPermitNoIface, func(p *fakePoster) error {
-			c, _, _, _ := newTestPolicyCommandsWith(p)
+			c, _, _ := newTestPolicyCommandsWith(p)
 			return c.SetDescription(ctx, "P", "d")
 		}},
 		{"AssignDevice", respHostUnregistered, func(p *fakePoster) error {
-			c, _, _, _ := newTestPolicyCommandsWith(p)
+			c, _, _ := newTestPolicyCommandsWith(p)
 			return c.AssignDevice(ctx, "00:00:00:00:00:01", "P")
 		}},
 		{"UnassignDevice", respHostUnregistered, func(p *fakePoster) error {
-			c, _, _, _ := newTestPolicyCommandsWith(p)
+			c, _, _ := newTestPolicyCommandsWith(p)
 			return c.UnassignDevice(ctx, "00:00:00:00:00:01")
 		}},
 		{"AddStaticRoute", respRouteNoIface, func(p *fakePoster) error {
 			c := newRouteCommandsWith(p)
-			return c.AddStaticRoute(ctx, StaticRouteSpec{Network: "203.0.113.0", Mask: "255.255.255.0", Interface: "OpkgTun42"})
+			return c.AddStaticRoute(ctx, StaticRouteSpec{Network: "203.0.113.0", Mask: "255.255.255.0", Interface: confirmed(t, "OpkgTun42")})
 		}},
 		{"SetSegmentNAT", respNATNoIface, func(p *fakePoster) error {
-			return newNATCommandsWith(p).SetSegmentNAT(ctx, "AwgmNoSeg")
+			return newNATCommandsWith(p).SetSegmentNAT(ctx, confirmed(t, "AwgmNoSeg"))
 		}},
 		{"SetStaticNAT", respStaticNATUnknown, func(p *fakePoster) error {
-			return newNATCommandsWith(p).SetStaticNAT(ctx, "AwgmNoSeg", "ISP")
+			return newNATCommandsWith(p).SetStaticNAT(ctx, confirmed(t, "AwgmNoSeg"), confirmed(t, "ISP"))
 		}},
 		{"ReplaceDNSRoutes", respDNSRouteNoIface, func(p *fakePoster) error {
-			return newDNSRouteCommandsWith(p).ReplaceRoutes(ctx, nil, []DNSRouteSpec{{Group: "g", Interface: "OpkgTun42"}})
+			return newDNSRouteCommandsWith(p).ReplaceRoutes(ctx, nil, []DNSRouteSpec{{Group: "g", Interface: confirmed(t, "OpkgTun42")}})
 		}},
 		{"UpsertFQDNGroup", respGroupNoInput, func(p *fakePoster) error {
 			return newObjectGroupCommandsWith(p).UpsertGroup(ctx, FQDNGroupMutation{Name: "g", AddIncludes: []string{"example.com"}})
 		}},
 		{"CreateProxy", respProxyMissing, func(p *fakePoster) error {
-			return newProxyCommandsWith(p).CreateProxy(ctx, "Proxy9", "d", "127.0.0.1", 1080, false)
+			_, _, err := newProxyCommandsWith(p).CreateProxy(ctx, "Proxy9", "d", "127.0.0.1", 1080, false)
+			return err
 		}},
 		{"ProxyUp", respProxyMissing, func(p *fakePoster) error {
-			return newProxyCommandsWith(p).ProxyUp(ctx, "Proxy9")
+			return newProxyCommandsWith(p).ProxyUp(ctx, confirmed(t, "Proxy9"))
 		}},
 		{"ProxyDown", respProxyMissing, func(p *fakePoster) error {
-			return newProxyCommandsWith(p).ProxyDown(ctx, "Proxy9")
+			return newProxyCommandsWith(p).ProxyDown(ctx, confirmed(t, "Proxy9"))
 		}},
 		{"SetASCParams", respASCRejected, func(p *fakePoster) error {
 			return NewWireguardCommands(p, newSaveFor(p), testQueries()).
-				SetASCParams(ctx, "Wireguard42", json.RawMessage(`{"jc":"5"}`))
+				SetASCParams(ctx, confirmed(t, "Wireguard42"), json.RawMessage(`{"jc":"5"}`))
 		}},
 	}
 	for _, c := range cases {
@@ -126,21 +127,21 @@ func TestRemovals_TolerateMissingTarget(t *testing.T) {
 		call func(*fakePoster) error
 	}{
 		{"DeletePolicy", respNoInput, func(p *fakePoster) error {
-			c, _, _, _ := newTestPolicyCommandsWith(p)
+			c, _, _ := newTestPolicyCommandsWith(p)
 			return c.DeletePolicy(ctx, "P")
 		}},
 		{"DeleteProxy", respProxyMissing, func(p *fakePoster) error {
-			return newProxyCommandsWith(p).DeleteProxy(ctx, "Proxy9")
+			return newProxyCommandsWith(p).DeleteProxy(ctx, confirmed(t, "Proxy9"))
 		}},
 		{"RemoveStaticRoute", respRouteNoIface, func(p *fakePoster) error {
 			return newRouteCommandsWith(p).RemoveStaticRoute(ctx, StaticRouteSpec{
-				Network: "203.0.113.0", Mask: "255.255.255.0", Interface: "OpkgTun42"})
+				Network: "203.0.113.0", Mask: "255.255.255.0", Interface: confirmed(t, "OpkgTun42")})
 		}},
 		{"RemoveStaticNAT", respStaticNATUnknown, func(p *fakePoster) error {
-			return newNATCommandsWith(p).RemoveStaticNAT(ctx, "AwgmNoSeg", "ISP")
+			return newNATCommandsWith(p).RemoveStaticNAT(ctx, confirmed(t, "AwgmNoSeg"), confirmed(t, "ISP"))
 		}},
 		{"DeleteDNSRoutes", respDNSRuleMissing, func(p *fakePoster) error {
-			return newDNSRouteCommandsWith(p).DeleteRoutes(ctx, []DNSRouteSpec{{Group: "g", Interface: "OpkgTun10"}})
+			return newDNSRouteCommandsWith(p).DeleteRoutes(ctx, []DNSRouteRef{{Group: "g", Interface: "OpkgTun10"}})
 		}},
 		{"DeleteFQDNGroups", respGroupNoInput, func(p *fakePoster) error {
 			return newObjectGroupCommandsWith(p).DeleteGroups(ctx, []string{"g"})
@@ -164,7 +165,7 @@ func TestRemovals_SurfaceRealErrors(t *testing.T) {
 		`"ident":"Network::PolicyTable","message":"policy is in use."}]}}}}`
 	poster := &fakePoster{}
 	poster.SetResponse(busy)
-	c, _, _, _ := newTestPolicyCommandsWith(poster)
+	c, _, _ := newTestPolicyCommandsWith(poster)
 	err := c.DeletePolicy(ctx, "P")
 	if err == nil {
 		t.Fatal("реальный отказ сноса проглочен")
@@ -177,12 +178,12 @@ func TestRemovals_SurfaceRealErrors(t *testing.T) {
 // ── конструкторы поверх заданного постера ───────────────────────────────────
 
 func newSaveFor(p Poster) *SaveCoordinator {
-	return NewSaveCoordinator(p, &fakePublisher{}, 500*time.Millisecond, 5*time.Second, 0, nil)
+	return noBusSave(NewSaveCoordinator(p, &fakePublisher{}, 500*time.Millisecond, 5*time.Second, 0, nil))
 }
 
-func newTestPolicyCommandsWith(p Poster) (*PolicyCommands, *SaveCoordinator, *query.Queries, *spyHookNotifier) {
-	sc, q, hn := newSaveFor(p), testQueries(), &spyHookNotifier{}
-	return NewPolicyCommands(p, sc, q, hn), sc, q, hn
+func newTestPolicyCommandsWith(p Poster) (*PolicyCommands, *SaveCoordinator, *query.Queries) {
+	sc, q := newSaveFor(p), testQueries()
+	return NewPolicyCommands(p, sc, q), sc, q
 }
 
 func newRouteCommandsWith(p Poster) *RouteCommands {

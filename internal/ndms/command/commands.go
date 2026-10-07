@@ -4,16 +4,11 @@ import (
 	"github.com/hoaxisr/awg-manager/internal/ndms/query"
 )
 
-// HookNotifier is the subset of the existing tunnel.HookNotifier used by
-// Commands that change interface state. Commands call ExpectHook before
-// the mutating POST so the orchestrator can filter the self-triggered
-// hook event. Optional — nil means no hook filtering.
-type HookNotifier interface {
-	ExpectHook(ndmsName, level string)
-}
-
 // Commands bundles every NDMS Command group.
 type Commands struct {
+	// Save — координатор сохранений тех же команд: пакеты, шлющие батчи мимо
+	// групп команд (nwg), заказывают сохранение через него (П24).
+	Save         *SaveCoordinator
 	Interfaces   *InterfaceCommands
 	Proxies      *ProxyCommands
 	Wireguard    *WireguardCommands
@@ -27,32 +22,21 @@ type Commands struct {
 
 // Deps groups the non-Command dependencies NewCommands needs.
 type Deps struct {
-	Poster       Poster
-	Save         *SaveCoordinator
-	Queries      *query.Queries
-	HookNotifier HookNotifier
-	IsOS5        func() bool
+	Poster  Poster
+	Save    *SaveCoordinator
+	Queries *query.Queries
+	IsOS5   func() bool
 }
 
-// SetHookNotifier fans the HookNotifier out to every Command group that
-// uses it (currently Interfaces + Policies). Used to break the construction
-// cycle between Commands and the Orchestrator.
-func (c *Commands) SetHookNotifier(hn HookNotifier) {
-	if c.Interfaces != nil {
-		c.Interfaces.SetHookNotifier(hn)
-	}
-	if c.Policies != nil {
-		c.Policies.SetHookNotifier(hn)
-	}
-}
-
-// NewCommands constructs the full Command registry.
+// NewCommands constructs the full Command registry. Паникует на nil d.Save
+// (newMutator через автономные конструкторы).
 func NewCommands(d Deps) *Commands {
 	return &Commands{
-		Interfaces:   NewInterfaceCommands(d.Poster, d.Save, d.Queries, d.HookNotifier),
+		Save:         d.Save,
+		Interfaces:   NewInterfaceCommands(d.Poster, d.Save, d.Queries),
 		Proxies:      NewProxyCommands(d.Poster, d.Save, d.Queries),
 		Wireguard:    NewWireguardCommands(d.Poster, d.Save, d.Queries),
-		Policies:     NewPolicyCommands(d.Poster, d.Save, d.Queries, d.HookNotifier),
+		Policies:     NewPolicyCommands(d.Poster, d.Save, d.Queries),
 		Routes:       NewRouteCommands(d.Poster, d.Save, d.Queries),
 		NAT:          NewNATCommands(d.Poster, d.Save, d.Queries),
 		DNSRoutes:    NewDNSRouteCommands(d.Poster, d.Save, d.Queries, d.IsOS5),

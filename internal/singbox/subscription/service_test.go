@@ -11,9 +11,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/hoaxisr/awg-manager/internal/ndms"
+	"github.com/hoaxisr/awg-manager/internal/ndms/command"
+	"github.com/hoaxisr/awg-manager/internal/ndms/query"
+	"github.com/hoaxisr/awg-manager/internal/singbox"
 	"github.com/hoaxisr/awg-manager/internal/singbox/vlink"
 	sysfiles "github.com/hoaxisr/awg-manager/internal/sys/files"
+	"github.com/hoaxisr/awg-manager/internal/sys/ndmsinfo"
 )
 
 func withLegacySetupNoop(svc *Service) {
@@ -25,6 +31,7 @@ type ensuredProxyCall struct {
 	idx         int
 	port        int
 	description string
+	ownedDesc   string
 }
 
 // fakeMutator records what the service tries to commit.
@@ -47,6 +54,9 @@ type fakeMutator struct {
 	reloads          int               // сколько раз вызывался Reload (батч-коммит)
 	rollbacks        int               // сколько раз вызывался Rollback (сброс батча)
 	reloadErr        error             // если задан, Reload возвращает эту ошибку
+	createNotOurs    bool              // CreateProxy: индекс занят чужим (ours=false)
+	createErr        error             // CreateProxy возвращает эту ошибку
+	ensureErrs       map[int]error     // EnsureProxy по индексу возвращает эту ошибку
 }
 
 func (m *fakeMutator) reset() {
@@ -168,11 +178,15 @@ func (f *fakeMutator) RemoveRouteRule(inboundTag, outboundTag string) error {
 	f.removedRules++
 	return nil
 }
-func (f *fakeMutator) EnsureProxy(_ context.Context, idx, port int, description string) error {
-	f.ensuredProxies = append(f.ensuredProxies, ensuredProxyCall{idx: idx, port: port, description: description})
-	return nil
+func (f *fakeMutator) EnsureProxy(_ context.Context, idx, port int, description, ownedDesc string) error {
+	f.ensuredProxies = append(f.ensuredProxies, ensuredProxyCall{idx: idx, port: port, description: description, ownedDesc: ownedDesc})
+	return f.ensureErrs[idx]
 }
-func (f *fakeMutator) RemoveProxy(_ context.Context, idx int) error {
+func (f *fakeMutator) CreateProxy(ctx context.Context, idx, port int, description string) (bool, error) {
+	_ = f.EnsureProxy(ctx, idx, port, description, description)
+	return !f.createNotOurs, f.createErr
+}
+func (f *fakeMutator) RemoveProxy(_ context.Context, idx int, _ string) error {
 	f.removedProxies = append(f.removedProxies, idx)
 	return nil
 }
@@ -250,7 +264,10 @@ func (m *scanMutator) AllocProxyIndex(_ context.Context) (int, error) {
 		}
 	}
 }
-func (m *scanMutator) EnsureProxy(_ context.Context, idx, port int, description string) error {
+func (m *scanMutator) CreateProxy(ctx context.Context, idx, port int, description string) (bool, error) {
+	return true, m.EnsureProxy(ctx, idx, port, description, description)
+}
+func (m *scanMutator) EnsureProxy(_ context.Context, idx, port int, description, ownedDesc string) error {
 	if m.live == nil {
 		m.live = map[int]bool{}
 	}
@@ -1443,6 +1460,10 @@ func TestUpdate_LabelChangeUpdatesProxyDescription(t *testing.T) {
 	if got.description != newLabel {
 		t.Errorf("EnsureProxy description=%q want %q", got.description, newLabel)
 	}
+	// F577: запись наша по прежнему Label — на роутере стоит он.
+	if got.ownedDesc != "Original Label" {
+		t.Errorf("EnsureProxy ownedDesc=%q want %q", got.ownedDesc, "Original Label")
+	}
 	if got.idx != sub.ProxyIndex {
 		t.Errorf("EnsureProxy idx=%d want %d", got.idx, sub.ProxyIndex)
 	}
@@ -2598,5 +2619,177 @@ func TestService_Refresh_DropsStaleActiveMemberFromSelectorDefault(t *testing.T)
 	}
 	if def != members[0] {
 		t.Errorf("selector default=%q want %q (первый член)", def, members[0])
+	}
+}
+
+// F574 M2: откат Create сносит ProxyN только созданный этой командой. Индекс
+// занят чужим, ещё не видимым ProxyN (ours=false) — ни на отказе
+// CreateProxy, ни на отказе первичной загрузки RemoveProxy не зовётся.
+func TestService_Create_RollbackOnlyOwnProxy(t *testing.T) {
+	failFetch := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200) // пусто — 0 серверов, Create падает
+	}))
+	defer failFetch.Close()
+	cases := []struct {
+		name      string
+		notOurs   bool
+		createErr error
+		wantRm    int
+	}{
+		{"чужой, отказ CreateProxy", true, errors.New("injected: create"), 0},
+		{"чужой, отказ загрузки", true, nil, 0},
+		{"свой, отказ CreateProxy", false, errors.New("injected: create"), 1},
+		{"свой, отказ загрузки", false, nil, 1},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			store, _ := NewStore(filepath.Join(t.TempDir(), "sub.json"))
+			mutator := &fakeMutator{createNotOurs: c.notOurs, createErr: c.createErr}
+			svc := NewService(store, mutator)
+			withLegacySetupNoop(svc)
+			if _, err := svc.Create(context.Background(), CreateInput{Label: "x", URL: failFetch.URL, Enabled: true}); err == nil {
+				t.Fatal("Create must fail")
+			}
+			if len(mutator.removedProxies) != c.wantRm {
+				t.Fatalf("removedProxies=%v want %d", mutator.removedProxies, c.wantRm)
+			}
+		})
+	}
+}
+
+// ndmsProxyMutator — fakeMutator, у которого ProxyN — настоящий
+// singbox.ProxyManager поверх оракула NDMS; AllocProxyIndex отдаёт idx (индекс
+// выбран свободным, а чужой занял его до создания).
+type ndmsProxyMutator struct {
+	*fakeMutator
+	pm  *singbox.ProxyManager
+	idx int
+}
+
+func (m *ndmsProxyMutator) AllocProxyIndex(context.Context) (int, error) { return m.idx, nil }
+func (m *ndmsProxyMutator) CreateProxy(ctx context.Context, idx, port int, d string) (bool, error) {
+	return m.pm.CreateProxy(ctx, idx, port, d)
+}
+func (m *ndmsProxyMutator) EnsureProxy(ctx context.Context, idx, port int, d, owned string) error {
+	return m.pm.EnsureProxy(ctx, idx, port, d, owned)
+}
+func (m *ndmsProxyMutator) RemoveProxy(ctx context.Context, idx int, desc string) error {
+	return m.pm.RemoveProxy(ctx, idx, desc)
+}
+
+// F577 (д), ревью F574 N2: на 5.01+ индекс подписки/группы занят чужим
+// ProxyN (NDMS не ответил «created») — создание отказывает, к чужому ничего
+// не привязано, его description цел.
+func TestService_Create_ForeignProxyIndex_NotBound(t *testing.T) {
+	ndmsinfo.Reset()
+	t.Cleanup(ndmsinfo.Reset)
+	sys := query.NewSystemInfoStore(nil, nil)
+	sys.Adopt(ndms.Version{Release: "5.01.C.6.0-0", Components: []string{"proxy"}}, "test")
+	if err := ndmsinfo.Init(context.Background(), sys, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	for _, kind := range []string{"subscription", "group"} {
+		t.Run(kind, func(t *testing.T) {
+			f := query.NewFakeNDMS(ndms.Interface{ID: "Proxy0", Type: "Proxy", Description: "Work", State: "up"})
+			q := query.NewQueries(query.Deps{Getter: f, Logger: query.NopLogger(), IsOS5: func() bool { return true }})
+			c := command.NewCommands(command.Deps{
+				Poster:  f,
+				Queries: q,
+				Save:    command.NewSaveCoordinator(f, nil, time.Hour, time.Hour, 0, q.RunningConfig),
+				IsOS5:   func() bool { return true },
+			})
+			svc, fm, gs := newTestServiceWithGroups(t)
+			svc.mutator = &ndmsProxyMutator{fakeMutator: fm, pm: singbox.NewProxyManager(q, c)}
+			var err error
+			if kind == "subscription" {
+				_, err = svc.Create(context.Background(), CreateInput{Label: "x", Inline: "vless://3a3b1c2e-9999-4321-aaaa-1234567890a1@a.example:443#A"})
+			} else {
+				_, err = svc.CreateGroup(context.Background(), GroupCreateInput{Label: "x", Enabled: true})
+			}
+			if !errors.Is(err, command.ErrNotCreated) {
+				t.Fatalf("err=%v", err)
+			}
+			if n, g := len(svc.store.List()), len(gs.List()); n != 0 || g != 0 {
+				t.Fatalf("привязано: подписок=%d групп=%d", n, g)
+			}
+			_, rec, ok, err := q.Interfaces.Confirm(context.Background(), "Proxy0")
+			if err != nil || !ok || rec.Description != "Work" || f.E != 0 {
+				t.Fatalf("Proxy0: rec=%+v ok=%v err=%v E=%d posts=%v", rec, ok, err, f.E, f.Posts)
+			}
+		})
+	}
+}
+
+// F577 (опасение 1): Label подписки пишется в store только после того, как
+// роутер принял description: отказ — Label прежний и ошибка; слот чужой —
+// переименовывать на роутере нечего, Label пишется.
+func TestService_Update_LabelAfterRouter(t *testing.T) {
+	for _, c := range []struct {
+		name      string
+		ensureErr error
+		wantErr   bool
+		wantLabel string
+	}{
+		{"отказ роутера", errors.New("rci down"), true, "old"},
+		{"чужой слот", singbox.ErrProxyForeign, false, "new"},
+		{"принято", nil, false, "new"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			svc, mut := newTestService(t)
+			sub := createInlineSubWithTwoMembers(t, svc)
+			old := "old"
+			if _, err := svc.Update(sub.ID, UpdatePatch{Label: &old}); err != nil {
+				t.Fatal(err)
+			}
+			mut.ensureErrs = map[int]error{sub.ProxyIndex: c.ensureErr}
+			label := "new"
+			_, err := svc.Update(sub.ID, UpdatePatch{Label: &label})
+			if (err != nil) != c.wantErr {
+				t.Fatalf("err=%v", err)
+			}
+			got, _ := svc.store.Get(sub.ID)
+			if got.Label != c.wantLabel {
+				t.Fatalf("Label=%q want %q", got.Label, c.wantLabel)
+			}
+		})
+	}
+}
+
+// F577 (опасение 1): чужая запись на индексе первой подписки не обрывает
+// SyncProxies — вторая подписка обслужена, ошибки нет.
+func TestService_SyncProxies_ForeignSkippedContinues(t *testing.T) {
+	svc, mut := newTestService(t)
+	a := createInlineSubWithTwoMembers(t, svc)
+	b, err := svc.Create(context.Background(), CreateInput{Label: "y", Inline: "vless://3a3b1c2e-9999-4321-aaaa-1234567890a3@c.example:443#C"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mut.ensuredProxies = nil
+	mut.ensureErrs = map[int]error{a.ProxyIndex: singbox.ErrProxyForeign, b.ProxyIndex: nil}
+	if err := svc.SyncProxies(context.Background()); err != nil {
+		t.Fatalf("SyncProxies: %v", err)
+	}
+	if len(mut.ensuredProxies) != 2 {
+		t.Fatalf("EnsureProxy: %+v", mut.ensuredProxies)
+	}
+}
+
+// F577 N3: созданное и оставленное на роутере (метку поставил ProxyManager)
+// не обрывает SyncProxies — вторая подписка обслужена, ошибки нет.
+func TestService_SyncProxies_LeftCreatedContinues(t *testing.T) {
+	svc, mut := newTestService(t)
+	a := createInlineSubWithTwoMembers(t, svc)
+	b, err := svc.Create(context.Background(), CreateInput{Label: "y", Inline: "vless://3a3b1c2e-9999-4321-aaaa-1234567890a3@c.example:443#C"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mut.ensuredProxies = nil
+	left := &command.LeftCreatedError{Name: "Proxy1", Err: errors.New("not seen")}
+	mut.ensureErrs = map[int]error{a.ProxyIndex: fmt.Errorf("create proxy: %w", left), b.ProxyIndex: nil}
+	if err := svc.SyncProxies(context.Background()); err != nil {
+		t.Fatalf("SyncProxies: %v", err)
+	}
+	if len(mut.ensuredProxies) != 2 {
+		t.Fatalf("EnsureProxy: %+v", mut.ensuredProxies)
 	}
 }

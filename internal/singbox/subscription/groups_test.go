@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -701,5 +702,66 @@ func TestService_ResolveGroupMembers_SkipsDisabledSub(t *testing.T) {
 	members, err = svc.ResolveGroupMembers(*g)
 	if err != nil || len(members) != 0 {
 		t.Fatalf("disabled subscription must be excluded from group, got %v", members)
+	}
+}
+
+// F574 M2: откат CreateGroup сносит ProxyN только созданный этой командой.
+func TestService_CreateGroup_RollbackOnlyOwnProxy(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		notOurs bool
+		wantRm  int
+	}{{"чужой", true, 0}, {"свой", false, 1}} {
+		t.Run(c.name, func(t *testing.T) {
+			svc, mut, _ := newTestServiceWithGroups(t)
+			mut.createNotOurs, mut.createErr = c.notOurs, errors.New("injected: create")
+			if _, err := svc.CreateGroup(context.Background(), GroupCreateInput{Label: "grp", Enabled: true}); err == nil {
+				t.Fatal("CreateGroup must fail")
+			}
+			if len(mut.removedProxies) != c.wantRm {
+				t.Fatalf("removedProxies=%v want %d", mut.removedProxies, c.wantRm)
+			}
+		})
+	}
+}
+
+// F577: переименование группы перенастраивает ProxyN, наш по прежнему Label.
+func TestService_UpdateGroup_LabelOwnedByPrevious(t *testing.T) {
+	svc, mut, _ := newTestServiceWithGroups(t)
+	g, err := svc.CreateGroup(context.Background(), GroupCreateInput{Label: "grp", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mut.ensuredProxies = nil
+	label := "grp2"
+	if _, err := svc.UpdateGroup(context.Background(), g.ID, GroupUpdatePatch{Label: &label}); err != nil {
+		t.Fatal(err)
+	}
+	if want := []ensuredProxyCall{{idx: g.ProxyIndex, port: int(g.ListenPort), description: "grp2", ownedDesc: "grp"}}; !slices.Equal(mut.ensuredProxies, want) {
+		t.Fatalf("EnsureProxy: %+v, want %+v", mut.ensuredProxies, want)
+	}
+}
+
+// F577 (опасение 1): Label группы — в store только после роутера.
+func TestService_UpdateGroup_LabelAfterRouter(t *testing.T) {
+	svc, mut, gs := newTestServiceWithGroups(t)
+	g, err := svc.CreateGroup(context.Background(), GroupCreateInput{Label: "grp", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mut.ensureErrs = map[int]error{g.ProxyIndex: errors.New("rci down")}
+	label := "grp2"
+	if _, err := svc.UpdateGroup(context.Background(), g.ID, GroupUpdatePatch{Label: &label}); err == nil {
+		t.Fatal("отказ роутера без ошибки")
+	}
+	if got, _ := gs.Get(g.ID); got.Label != "grp" {
+		t.Fatalf("Label=%q", got.Label)
+	}
+	mut.ensureErrs = nil
+	if _, err := svc.UpdateGroup(context.Background(), g.ID, GroupUpdatePatch{Label: &label}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := gs.Get(g.ID); got.Label != "grp2" {
+		t.Fatalf("Label=%q", got.Label)
 	}
 }

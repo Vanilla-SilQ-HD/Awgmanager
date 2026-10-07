@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/hoaxisr/awg-manager/internal/ndms"
+	"github.com/hoaxisr/awg-manager/internal/ndms/query"
 	"github.com/hoaxisr/awg-manager/internal/peersubnet"
 )
 
@@ -163,12 +164,79 @@ func subnetsOverlap(a, b *net.IPNet) bool {
 // server's own current subnet without flagging it as a conflict.
 // On RCI failure returns (nil, error); the caller decides whether
 // to degrade gracefully.
+//
+// Снимок, а не карта: адрес/маску нашего только что созданного сервера хуки
+// приносят не целиком (ifipchanged — без маски), а Invalidate после команды
+// лишь метит карту грязной — снимок по метке читает свежий список (F546).
 func (s *Service) listUsedSubnets(ctx context.Context, excludeIface string) ([]usedSubnet, error) {
-	all, err := s.queries.Interfaces.List(ctx)
+	snap, err := s.queries.Interfaces.Snapshot(ctx, query.SnapshotRecent)
 	if err != nil {
 		return nil, err
 	}
-	return usedSubnetsOf(all, excludeIface), nil
+	return usedSubnetsOf(snap.Records(), excludeIface), nil
+}
+
+// reserveServerSubnet — validateServerParams и резервация подсети и порта
+// одним шагом (F554): два параллельных создания (или правка) проверяли
+// параметры до того, как любое из них ставило адрес на роутере и запись в
+// хранилище, и оба проходили с одной подсетью или портом. serverSubnetMu
+// делает «проверка + резервация» атомарными: вторая проверка видит
+// резервацию первой. Снятие безопасно и без него — проверка снимает
+// резервации ДО списка, а release зовётся после Invalidate (адрес на роутере
+// или интерфейс снесён) и после записи в хранилище; лок release берёт только
+// ради карты. excludeIface — сервер правки ("" — создание). release вызвать
+// ровно один раз.
+func (s *Service) reserveServerSubnet(ctx context.Context, address, mask string, port int, excludeIface string) (release func(), err error) {
+	s.serverSubnetMu.Lock()
+	defer s.serverSubnetMu.Unlock()
+	subs, ports := s.reservationsLocked()
+	if err := s.validateServerParams(ctx, address, mask, port, excludeIface, subs, ports); err != nil {
+		return nil, err
+	}
+	cidr, err := parseManagedSubnet(address, mask)
+	if err != nil {
+		return nil, err
+	}
+	// Подпись — описание сервера, а не интерфейса: в тексте ошибки она стоит
+	// и после «с интерфейсом», и в сетях за клиентом без префикса.
+	label := "создаваемый сервер"
+	if excludeIface != "" {
+		label = "сервер " + excludeIface + " (правка)"
+	}
+	u := &usedSubnet{label: label, cidr: cidr}
+	pt := &usedPort{iface: label, port: port}
+	if s.inflight == nil {
+		s.inflight = make(map[*usedSubnet]struct{})
+		s.inflightPorts = make(map[*usedPort]struct{})
+	}
+	s.inflight[u] = struct{}{}
+	s.inflightPorts[pt] = struct{}{}
+	return func() {
+		s.serverSubnetMu.Lock()
+		delete(s.inflight, u)
+		delete(s.inflightPorts, pt)
+		s.serverSubnetMu.Unlock()
+	}, nil
+}
+
+// reservations — подсети и порты серверов в создании или правке (см.
+// reserveServerSubnet).
+func (s *Service) reservations() ([]usedSubnet, []usedPort) {
+	s.serverSubnetMu.Lock()
+	defer s.serverSubnetMu.Unlock()
+	return s.reservationsLocked()
+}
+
+func (s *Service) reservationsLocked() ([]usedSubnet, []usedPort) {
+	subs := make([]usedSubnet, 0, len(s.inflight))
+	for u := range s.inflight {
+		subs = append(subs, *u)
+	}
+	ports := make([]usedPort, 0, len(s.inflightPorts))
+	for p := range s.inflightPorts {
+		ports = append(ports, *p)
+	}
+	return subs, ports
 }
 
 // usedSubnetsOf — разбор listUsedSubnets над уже прочитанным списком.

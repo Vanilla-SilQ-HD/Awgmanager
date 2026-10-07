@@ -233,12 +233,26 @@ type Operator struct {
 	// nil means "treat as enabled" for back-compat (pre-dates this field).
 	ndmsProxyEnabledFn func() bool
 
-	// needsOrphanCleanup сигналит Reconcile запустить one-shot sweep
-	// орфанных ProxyN. CAS-флаг — после consume сбрасывается, следующие
-	// тики не делают повторных NDMS-вызовов. Поднимается из MigrateOff
-	// (best-effort fallback) и из main.go при старте, если settings уже
-	// в disabled-режиме (предыдущая сессия не успела дочистить).
+	// needsOrphanCleanup сигналит тику сторожа пометить наши ProxyN к сносу
+	// (orphanCleanupIfFlagged). Снимается после прочитанного списка, отказ
+	// его возвращает. Поднимается из MigrateOff (best-effort fallback) и из
+	// main.go при старте, если settings уже в disabled-режиме (предыдущая
+	// сессия не успела дочистить).
 	needsOrphanCleanup atomic.Bool
+
+	// deferredProxies — ProxyN (ключ — имя, плюс description на момент
+	// метки), который снять не удалось (список не прочитан — решение 4, или
+	// отказ сноса, F562), с выдержкой повтора. Добирает retryDeferredProxyRemovals
+	// с тика сторожа; пусто — ни одного чтения списка. Метки (без
+	// выдержки) переживают рестарт в deferredProxiesFile (R38).
+	// deferredNow — шов часов для тестов.
+	deferredProxyMu sync.Mutex
+	deferredProxies map[string]*deferredProxy
+	deferredNow     func() time.Time
+	// cleanupNext/cleanupDelay — общая выдержка тика уборки ProxyN при
+	// непрочитанном списке (F597, proxyCleanupTick). Под deferredProxyMu.
+	cleanupNext  time.Time
+	cleanupDelay time.Duration
 
 	// installBusy guards Install/Update against interleaving with each
 	// other — manual (UI) and scheduled (auto-update) calls both go
@@ -288,7 +302,7 @@ type Operator struct {
 	uptimeFn func() (float64, error)
 
 	// migrationMu serialises all lifecycle ops that touch ProxyManager:
-	// AddTunnels, RemoveTunnel, MigrateOff/On, Reconcile orphan cleanup.
+	// AddTunnels, RemoveTunnel, MigrateOff/On, уборка ProxyN с тика сторожа (F562).
 	// Required because toggle and tunnel lifecycle race — a flag flip
 	// during AddTunnels could leave a tunnel with NDMS state inconsistent
 	// with the new mode.
@@ -415,6 +429,10 @@ func NewOperator(d OperatorDeps) *Operator {
 	}
 	op.manuallyStopped.Store(d.InitialManuallyStopped)
 	op.ndmsProxyEnabledFn = d.IsNDMSProxyEnabled
+	op.loadDeferredProxies()
+	if pm, ok := op.proxyMgr.(*ProxyManager); ok {
+		pm.marks = op
+	}
 	op.proc.OnStderrLine = op.handleStderrLine
 	op.proc.OnStdoutLine = op.handleStdoutLine
 	op.proc.OnExit = op.handleExit
@@ -539,7 +557,7 @@ func (o *Operator) Cleanup(ctx context.Context) error {
 				o.log.Warn("cleanup: bad proxy iface", "tag", t.Tag, "iface", t.ProxyInterface, "err", perr)
 				continue
 			}
-			if err := o.proxyMgr.RemoveProxy(ctx, idx); err != nil {
+			if err := o.proxyMgr.RemoveProxy(ctx, idx, t.Tag); err != nil {
 				o.log.Warn("cleanup: remove proxy failed", "tag", t.Tag, "err", err)
 			}
 		}

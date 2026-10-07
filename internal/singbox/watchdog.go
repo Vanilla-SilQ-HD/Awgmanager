@@ -93,6 +93,10 @@ func (w *Watchdog) tick(ctx context.Context) {
 		}
 		running, _ = w.op.proc.IsRunning()
 	}
+	// Уборка ProxyN (F562) — на каждом тике, от живости sing-box и раннего
+	// выхода Reconcile не зависит: флаг режима off превращается в метки,
+	// метки сносятся с выдержкой. Без флага и меток — ни одного чтения.
+	w.op.proxyCleanupTick(ctx)
 	w.publishIfFlipped(running)
 }
 

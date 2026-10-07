@@ -20,9 +20,9 @@ const (
 // Отказ в создании интерфейса обязан всплыть здесь, а не превратиться в
 // «no "OpkgTun0" IP interface found» шагом позже (issue #768).
 func TestCreateOpkgTun_SurfacesNestedError(t *testing.T) {
-	cmds, poster, _, _, _ := newTestInterfaceCommands(t)
+	cmds, poster, _, _ := newTestInterfaceCommands(t)
 	poster.SetResponse(respCreateRejected)
-	err := cmds.CreateOpkgTunWithSecurityLevel(context.Background(), "OpkgTun20", "d", "private")
+	_, err := cmds.CreateOpkgTunWithSecurityLevel(context.Background(), "OpkgTun20", "d", "private", freeFor(t, "opkgtun20"))
 	if err == nil {
 		t.Fatal("ожидалась ошибка создания")
 	}
@@ -37,27 +37,27 @@ func TestInterfaceSetters_SurfaceNestedError(t *testing.T) {
 		call func(*InterfaceCommands) error
 	}{
 		{"SetAddress", func(c *InterfaceCommands) error {
-			return c.SetAddress(context.Background(), "OpkgTun20", "10.0.0.1", "255.255.255.0")
+			return c.SetAddress(context.Background(), confirmed(t, "OpkgTun20"), "10.0.0.1", "255.255.255.0")
 		}},
 		{"SetIPv6Address", func(c *InterfaceCommands) error {
-			return c.SetIPv6Address(context.Background(), "OpkgTun20", "fd00::1")
+			return c.SetIPv6Address(context.Background(), confirmed(t, "OpkgTun20"), "fd00::1")
 		}},
 		{"SetMTU", func(c *InterfaceCommands) error {
-			return c.SetMTU(context.Background(), "OpkgTun20", 1280)
+			return c.SetMTU(context.Background(), confirmed(t, "OpkgTun20"), 1280)
 		}},
 		{"SetDescription", func(c *InterfaceCommands) error {
-			return c.SetDescription(context.Background(), "OpkgTun20", "d")
+			return c.SetDescription(context.Background(), confirmed(t, "OpkgTun20"), "d")
 		}},
 		{"SetSecurityLevel", func(c *InterfaceCommands) error {
-			return c.SetSecurityLevel(context.Background(), "OpkgTun20", "private")
+			return c.SetSecurityLevel(context.Background(), confirmed(t, "OpkgTun20"), "private")
 		}},
 		{"InterfaceUp", func(c *InterfaceCommands) error {
-			return c.InterfaceUp(context.Background(), "OpkgTun20")
+			return c.InterfaceUp(context.Background(), confirmed(t, "OpkgTun20"))
 		}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			cmds, poster, _, _, _ := newTestInterfaceCommands(t)
+			cmds, poster, _, _ := newTestInterfaceCommands(t)
 			poster.SetResponse(respCreateRejected)
 			if err := c.call(cmds); err == nil {
 				t.Error("отказ роутера проглочен")
@@ -69,18 +69,18 @@ func TestInterfaceSetters_SurfaceNestedError(t *testing.T) {
 // Снос идемпотентен по замыслу: реап и откат зовут его на интерфейсе, которого
 // уже может не быть.
 func TestDeleteOpkgTun_TolerantToMissing(t *testing.T) {
-	cmds, poster, _, _, _ := newTestInterfaceCommands(t)
+	cmds, poster, _, _ := newTestInterfaceCommands(t)
 	poster.SetResponse(respDeleteMissing)
-	if err := cmds.DeleteOpkgTun(context.Background(), "OpkgTun9"); err != nil {
+	if err := cmds.DeleteOpkgTun(context.Background(), confirmed(t, "OpkgTun9")); err != nil {
 		t.Errorf("отсутствующий интерфейс — не ошибка сноса: %v", err)
 	}
 }
 
 // Прочие отказы сноса обязаны всплывать: сирота лучше видимая, чем тихая.
 func TestDeleteOpkgTun_SurfacesRealError(t *testing.T) {
-	cmds, poster, _, _, _ := newTestInterfaceCommands(t)
+	cmds, poster, _, _ := newTestInterfaceCommands(t)
 	poster.SetResponse(respBusy)
-	if err := cmds.DeleteOpkgTun(context.Background(), "OpkgTun9"); err == nil {
+	if err := cmds.DeleteOpkgTun(context.Background(), confirmed(t, "OpkgTun9")); err == nil {
 		t.Error("реальный отказ сноса проглочен")
 	}
 }

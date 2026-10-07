@@ -2,17 +2,19 @@ package api
 
 import (
 	"context"
-	"io"
-	"net/http"
-	"net/http/httptest"
+	"net/url"
+	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/hoaxisr/awg-manager/internal/logging"
 	"github.com/hoaxisr/awg-manager/internal/ndms/events"
+	"github.com/hoaxisr/awg-manager/internal/orchestrator"
+	"github.com/hoaxisr/awg-manager/internal/storage"
+	"github.com/hoaxisr/awg-manager/internal/tunnel"
+	"github.com/hoaxisr/awg-manager/internal/tunnel/wan"
 )
 
 type spyDispatcher struct {
@@ -34,6 +36,20 @@ func (s *spyDispatcher) Events() []events.Event {
 	return out
 }
 
+// handleForm подаёт строку spool так же, как SpoolReader: ParseHookForm → Handle.
+func handleForm(t *testing.T, h *HookHandler, form string) {
+	t.Helper()
+	v, err := url.ParseQuery(form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev, err := events.ParseHookForm(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Handle(ev)
+}
+
 func newTestHookHandler(disp HookDispatcher) *HookHandler {
 	return &HookHandler{
 		dispatcher: disp,
@@ -41,20 +57,12 @@ func newTestHookHandler(disp HookDispatcher) *HookHandler {
 	}
 }
 
-func TestHookHandler_HandleNDMS_LayerChanged(t *testing.T) {
+func TestHookHandler_Handle_LayerChanged(t *testing.T) {
 	disp := &spyDispatcher{}
 	h := newTestHookHandler(disp)
 
-	body := strings.NewReader("type=iflayerchanged&id=Wireguard0&layer=conf&level=running")
-	req := httptest.NewRequest(http.MethodPost, "/api/hook/ndms", body)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
+	handleForm(t, h, "type=iflayerchanged&id=Wireguard0&layer=conf&level=running")
 
-	h.HandleNDMS(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: want 200, got %d — body: %s", w.Code, readBody(w))
-	}
 	got := disp.Events()
 	if len(got) != 1 {
 		t.Fatalf("events: want 1, got %d", len(got))
@@ -65,130 +73,22 @@ func TestHookHandler_HandleNDMS_LayerChanged(t *testing.T) {
 	}
 }
 
-func TestHookHandler_HandleNDMS_UnknownType(t *testing.T) {
+func TestHookHandler_Handle_IfCreated(t *testing.T) {
 	disp := &spyDispatcher{}
 	h := newTestHookHandler(disp)
 
-	body := strings.NewReader("type=bogus&id=x")
-	req := httptest.NewRequest(http.MethodPost, "/api/hook/ndms", body)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-
-	h.HandleNDMS(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("unknown type: want 400, got %d", w.Code)
-	}
-	if len(disp.Events()) != 0 {
-		t.Errorf("events on bad request: want 0, got %d", len(disp.Events()))
-	}
-}
-
-func TestHookHandler_HandleNDMS_IfCreated(t *testing.T) {
-	disp := &spyDispatcher{}
-	h := newTestHookHandler(disp)
-
-	body := strings.NewReader("type=ifcreated&id=Wireguard1&system_name=nwg1")
-	req := httptest.NewRequest(http.MethodPost, "/api/hook/ndms", body)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-
-	h.HandleNDMS(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: %d, body: %s", w.Code, readBody(w))
-	}
+	handleForm(t, h, "type=ifcreated&id=Wireguard1&system_name=nwg1")
 	got := disp.Events()
 	if len(got) != 1 || got[0].Type != events.EventIfCreated {
 		t.Errorf("event: %#v", got)
 	}
 }
 
-func TestHookHandler_TunnelRefresher_FiresOnCreateAndDestroy(t *testing.T) {
-	// Regression: user reported a system-tunnel card staying visible
-	// after NDMS fired ifdestroyed. The hook handler must call the
-	// tunnel-snapshot refresher so the UI re-renders.
-	var calls int32
-	refreshed := make(chan struct{}, 4)
-
-	h := newTestHookHandler(&spyDispatcher{})
-	h.SetTunnelRefresher(func(ctx context.Context) {
-		atomic.AddInt32(&calls, 1)
-		refreshed <- struct{}{}
-	})
-
-	for _, typ := range []string{"ifcreated", "ifdestroyed"} {
-		body := strings.NewReader("type=" + typ + "&id=Wireguard1")
-		req := httptest.NewRequest(http.MethodPost, "/api/hook/ndms", body)
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-		h.HandleNDMS(w, req)
-		if w.Code != http.StatusOK {
-			t.Fatalf("%s: status %d", typ, w.Code)
-		}
-	}
-
-	// Refresher runs async in a goroutine; wait for both firings.
-	for i := 0; i < 2; i++ {
-		select {
-		case <-refreshed:
-		case <-time.After(500 * time.Millisecond):
-			t.Fatalf("refresher call %d did not fire within 500ms", i+1)
-		}
-	}
-	if got := atomic.LoadInt32(&calls); got != 2 {
-		t.Errorf("refresher calls: want 2, got %d", got)
-	}
-}
-
-func TestHookHandler_TunnelRefresher_NotFiredOnLayerChange(t *testing.T) {
-	var calls int32
-	h := newTestHookHandler(&spyDispatcher{})
-	h.SetTunnelRefresher(func(ctx context.Context) {
-		atomic.AddInt32(&calls, 1)
-	})
-
-	body := strings.NewReader("type=iflayerchanged&id=Wireguard0&layer=conf&level=running")
-	req := httptest.NewRequest(http.MethodPost, "/api/hook/ndms", body)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-	h.HandleNDMS(w, req)
-
-	time.Sleep(50 * time.Millisecond)
-	if got := atomic.LoadInt32(&calls); got != 0 {
-		t.Errorf("refresher must only fire on create/destroy, fired %d times on layerchanged", got)
-	}
-}
-
-func TestHookHandler_HandleNDMS_MethodNotAllowed(t *testing.T) {
-	disp := &spyDispatcher{}
-	h := newTestHookHandler(disp)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/hook/ndms", nil)
-	w := httptest.NewRecorder()
-
-	h.HandleNDMS(w, req)
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Errorf("GET: want 405, got %d", w.Code)
-	}
-}
-
-func TestHookHandler_HandleNDMS_NilDispatcher_NoPanic(t *testing.T) {
+func TestHookHandler_Handle_NilDispatcher_NoPanic(t *testing.T) {
 	h := newTestHookHandler(nil) // nil dispatcher
 
-	body := strings.NewReader("type=ifcreated&id=X")
-	req := httptest.NewRequest(http.MethodPost, "/api/hook/ndms", body)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-
 	// Should not panic even if dispatcher is nil.
-	h.HandleNDMS(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("nil dispatcher: want 200 (silent drop), got %d", w.Code)
-	}
-}
-
-func readBody(w *httptest.ResponseRecorder) string {
-	b, _ := io.ReadAll(w.Result().Body)
-	return string(b)
+	handleForm(t, h, "type=ifcreated&id=X")
 }
 
 // fakeWANModel records SetUp calls for the ipv4-layer hook path.
@@ -217,7 +117,7 @@ func (f *fakeWANModel) Calls() []fakeWANSetUp {
 	return out
 }
 
-func TestHookHandler_HandleNDMS_IPv4Up_NudgesProxyRuntime(t *testing.T) {
+func TestHookHandler_Handle_IPv4Up_NudgesProxyRuntime(t *testing.T) {
 	h := newTestHookHandler(&spyDispatcher{})
 	h.SetWANModel(&fakeWANModel{})
 	done := make(chan string, 1)
@@ -225,15 +125,7 @@ func TestHookHandler_HandleNDMS_IPv4Up_NudgesProxyRuntime(t *testing.T) {
 		done <- reason
 	})
 
-	body := strings.NewReader("type=iflayerchanged&id=PPPoE0&system_name=ppp0&layer=ipv4&level=running")
-	req := httptest.NewRequest(http.MethodPost, "/api/hook/ndms", body)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-
-	h.HandleNDMS(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: want 200, got %d — body: %s", w.Code, readBody(w))
-	}
+	handleForm(t, h, "type=iflayerchanged&id=PPPoE0&system_name=ppp0&layer=ipv4&level=running")
 
 	select {
 	case reason := <-done:
@@ -245,21 +137,13 @@ func TestHookHandler_HandleNDMS_IPv4Up_NudgesProxyRuntime(t *testing.T) {
 	}
 }
 
-func TestHookHandler_HandleNDMS_IPv4Up_UpdatesWANModel(t *testing.T) {
+func TestHookHandler_Handle_IPv4Up_UpdatesWANModel(t *testing.T) {
 	disp := &spyDispatcher{}
 	h := newTestHookHandler(disp)
 	wm := &fakeWANModel{}
 	h.SetWANModel(wm)
 
-	body := strings.NewReader("type=iflayerchanged&id=PPPoE0&system_name=ppp0&layer=ipv4&level=running")
-	req := httptest.NewRequest(http.MethodPost, "/api/hook/ndms", body)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-
-	h.HandleNDMS(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: want 200, got %d — body: %s", w.Code, readBody(w))
-	}
+	handleForm(t, h, "type=iflayerchanged&id=PPPoE0&system_name=ppp0&layer=ipv4&level=running")
 
 	// Dispatcher still sees the event (cache invalidation is independent).
 	if got := disp.Events(); len(got) != 1 || got[0].Type != events.EventIfLayerChanged {
@@ -275,21 +159,13 @@ func TestHookHandler_HandleNDMS_IPv4Up_UpdatesWANModel(t *testing.T) {
 	}
 }
 
-func TestHookHandler_HandleNDMS_IPv4Down_EmitsWANDown(t *testing.T) {
+func TestHookHandler_Handle_IPv4Down_EmitsWANDown(t *testing.T) {
 	disp := &spyDispatcher{}
 	h := newTestHookHandler(disp)
 	wm := &fakeWANModel{}
 	h.SetWANModel(wm)
 
-	body := strings.NewReader("type=iflayerchanged&id=PPPoE0&system_name=ppp0&layer=ipv4&level=disabled")
-	req := httptest.NewRequest(http.MethodPost, "/api/hook/ndms", body)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-
-	h.HandleNDMS(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: want 200, got %d — body: %s", w.Code, readBody(w))
-	}
+	handleForm(t, h, "type=iflayerchanged&id=PPPoE0&system_name=ppp0&layer=ipv4&level=disabled")
 
 	calls := wm.Calls()
 	if len(calls) != 1 {
@@ -300,22 +176,14 @@ func TestHookHandler_HandleNDMS_IPv4Down_EmitsWANDown(t *testing.T) {
 	}
 }
 
-func TestHookHandler_HandleNDMS_IPv4_VPNInterface_Skipped(t *testing.T) {
+func TestHookHandler_Handle_IPv4_VPNInterface_Skipped(t *testing.T) {
 	disp := &spyDispatcher{}
 	h := newTestHookHandler(disp)
 	wm := &fakeWANModel{}
 	h.SetWANModel(wm)
 
 	// nwg0 matches the IsNonISPInterface filter — must NOT touch WAN model.
-	body := strings.NewReader("type=iflayerchanged&id=Wireguard0&system_name=nwg0&layer=ipv4&level=running")
-	req := httptest.NewRequest(http.MethodPost, "/api/hook/ndms", body)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-
-	h.HandleNDMS(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: want 200, got %d", w.Code)
-	}
+	handleForm(t, h, "type=iflayerchanged&id=Wireguard0&system_name=nwg0&layer=ipv4&level=running")
 
 	if calls := wm.Calls(); len(calls) != 0 {
 		t.Errorf("wan SetUp: want 0 (VPN filtered), got %#v", calls)
@@ -326,22 +194,14 @@ func TestHookHandler_HandleNDMS_IPv4_VPNInterface_Skipped(t *testing.T) {
 	}
 }
 
-func TestHookHandler_HandleNDMS_IPv4_EmptySystemName_Skipped(t *testing.T) {
+func TestHookHandler_Handle_IPv4_EmptySystemName_Skipped(t *testing.T) {
 	disp := &spyDispatcher{}
 	h := newTestHookHandler(disp)
 	wm := &fakeWANModel{}
 	h.SetWANModel(wm)
 
 	// No system_name → no kernel name → cannot update WAN model.
-	body := strings.NewReader("type=iflayerchanged&id=PPPoE0&layer=ipv4&level=running")
-	req := httptest.NewRequest(http.MethodPost, "/api/hook/ndms", body)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-
-	h.HandleNDMS(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("status: want 200, got %d", w.Code)
-	}
+	handleForm(t, h, "type=iflayerchanged&id=PPPoE0&layer=ipv4&level=running")
 	if calls := wm.Calls(); len(calls) != 0 {
 		t.Errorf("wan SetUp: want 0 (empty system_name), got %#v", calls)
 	}
@@ -354,10 +214,7 @@ func TestHookHandler_IPChanged_NudgesEndpointGuard(t *testing.T) {
 	nudged := make(chan struct{}, 1)
 	h.SetEndpointGuardNudge(func() { nudged <- struct{}{} })
 
-	body := strings.NewReader("type=ifipchanged&id=PPPoE0&address=203.0.113.9")
-	req := httptest.NewRequest(http.MethodPost, "/api/hook/ndms", body)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	h.HandleNDMS(httptest.NewRecorder(), req)
+	handleForm(t, h, "type=ifipchanged&id=PPPoE0&address=203.0.113.9")
 
 	select {
 	case <-nudged:
@@ -373,10 +230,7 @@ func TestHookHandler_LayerChanged_DoesNotNudgeGuard(t *testing.T) {
 	nudged := make(chan struct{}, 1)
 	h.SetEndpointGuardNudge(func() { nudged <- struct{}{} })
 
-	body := strings.NewReader("type=iflayerchanged&id=Wireguard0&layer=conf&level=running")
-	req := httptest.NewRequest(http.MethodPost, "/api/hook/ndms", body)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	h.HandleNDMS(httptest.NewRecorder(), req)
+	handleForm(t, h, "type=iflayerchanged&id=Wireguard0&layer=conf&level=running")
 
 	select {
 	case <-nudged:
@@ -393,10 +247,7 @@ func TestHookHandler_IPv4Running_CallsHookForAnyInterface(t *testing.T) {
 	got := make(chan string, 1)
 	h.SetIPv4RunningHook(func(id string) { got <- id })
 
-	body := strings.NewReader("type=iflayerchanged&id=OpkgTun7&system_name=opkgtun7&layer=ipv4&level=running")
-	req := httptest.NewRequest(http.MethodPost, "/api/hook/ndms", body)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	h.HandleNDMS(httptest.NewRecorder(), req)
+	handleForm(t, h, "type=iflayerchanged&id=OpkgTun7&system_name=opkgtun7&layer=ipv4&level=running")
 
 	select {
 	case id := <-got:
@@ -412,14 +263,211 @@ func TestHookHandler_IPv4Disabled_NoHook(t *testing.T) {
 	h := newTestHookHandler(&spyDispatcher{})
 	fired := make(chan struct{}, 1)
 	h.SetIPv4RunningHook(func(string) { fired <- struct{}{} })
-	body := strings.NewReader("type=iflayerchanged&id=OpkgTun7&system_name=opkgtun7&layer=ipv4&level=disabled")
-	req := httptest.NewRequest(http.MethodPost, "/api/hook/ndms", body)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	h.HandleNDMS(httptest.NewRecorder(), req)
+	handleForm(t, h, "type=iflayerchanged&id=OpkgTun7&system_name=opkgtun7&layer=ipv4&level=disabled")
 
 	select {
 	case <-fired:
 		t.Fatal("хук вызван на disabled")
 	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+// captureAppLogger собирает записи журнала — по ним видно, что событие дошло
+// до оркестратора.
+type captureAppLogger struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (c *captureAppLogger) AppLog(_ logging.Level, _, _, action, target, message string) {
+	c.mu.Lock()
+	c.lines = append(c.lines, action+"|"+target+"|"+message)
+	c.mu.Unlock()
+}
+
+func (c *captureAppLogger) has(sub string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, l := range c.lines {
+		if strings.Contains(l, sub) {
+			return true
+		}
+	}
+	return false
+}
+
+// Handle — единственная точка входа события без HTTP: в диспетчер и, для
+// iflayerchanged conf, в оркестратор. Доход до оркестратора виден по
+// отсеянной своей грани (Own) — она не требует ни хранилища, ни операторов.
+func TestHandle_DirectCall_EnqueuesAndForwards(t *testing.T) {
+	disp := &spyDispatcher{}
+	h := newTestHookHandler(disp)
+	logs := &captureAppLogger{}
+	h.orch = orchestrator.New(nil, nil, nil, nil, nil, logs)
+
+	ev := events.Event{Type: events.EventIfLayerChanged, ID: "Wireguard0", Layer: "conf", Level: "running", Own: true}
+	h.Handle(ev)
+
+	if got := disp.Events(); len(got) != 1 || got[0] != ev {
+		t.Fatalf("dispatcher: %#v", got)
+	}
+	waitLog(t, logs, "conf=running: свой (кредит)")
+}
+
+func waitLog(t *testing.T, logs *captureAppLogger, sub string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for !logs.has(sub) {
+		if time.Now().After(deadline) {
+			t.Fatalf("в журнале нет %q", sub)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// countingClaimer — кредиты по виду: отвечает own и считает вызовы.
+type countingClaimer struct {
+	mu    sync.Mutex
+	own   bool
+	calls []string
+}
+
+func (c *countingClaimer) claim(kind string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls = append(c.calls, kind)
+	return c.own
+}
+func (c *countingClaimer) ClaimOwnCreated(string) bool     { return c.claim("created") }
+func (c *countingClaimer) ClaimOwnDestroyed(string) bool   { return c.claim("destroyed") }
+func (c *countingClaimer) ClaimOwnConf(_, lvl string) bool { return c.claim("conf=" + lvl) }
+func (c *countingClaimer) take() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := c.calls
+	c.calls = nil
+	return out
+}
+
+// П22: вердикт — в точке входа, до ветвления: и до публикации обработчика
+// (окно старта, только диспетчер), и после — кредит гасится ровно один раз на
+// событие, а Own события в диспетчере — ответ claimer. Хуки без кредитов
+// (ifipchanged, грань не слоя conf) claimer не трогают. После публикации
+// событие доходит и до оркестратора. Мутации: «вызов в HookHandler.Handle» →
+// до Publish claimer не вызван, красный; «вызов в обеих ветвях» → 2 вызова,
+// красный; «сверка conf без слоя» → ctrl гасит кредит, красный.
+func TestHookSink_ClaimsOwnOnce_BothPaths(t *testing.T) {
+	disp := &spyDispatcher{}
+	logs := &captureAppLogger{}
+	cl := &countingClaimer{own: true}
+	sink := NewHookSink(disp, cl)
+	conf := events.Event{Type: events.EventIfLayerChanged, ID: "Wireguard0", Layer: "conf", Level: "running"}
+
+	check := func(phase string, ev events.Event, wantCalls []string, wantOwn bool) {
+		t.Helper()
+		n := len(disp.Events())
+		sink.Handle(ev)
+		got := disp.Events()
+		if len(got) != n+1 || got[n].Own != wantOwn {
+			t.Fatalf("%s: диспетчер %#v, want Own=%v", phase, got[n:], wantOwn)
+		}
+		if calls := cl.take(); strings.Join(calls, ",") != strings.Join(wantCalls, ",") {
+			t.Fatalf("%s: claimer %v, want %v", phase, calls, wantCalls)
+		}
+	}
+	check("до публикации", conf, []string{"conf=running"}, true)
+	check("до публикации, ifcreated", events.Event{Type: events.EventIfCreated, ID: "Wireguard1"}, []string{"created"}, true)
+	time.Sleep(100 * time.Millisecond)
+	if logs.has("свой (кредит)") {
+		t.Fatal("до публикации событие дошло до оркестратора")
+	}
+
+	h := newTestHookHandler(disp)
+	h.orch = orchestrator.New(nil, nil, nil, nil, nil, logs)
+	sink.Publish(h)
+	check("после публикации", conf, []string{"conf=running"}, true)
+	waitLog(t, logs, "conf=running: свой (кредит)")
+	cl.own = false
+	check("после публикации, ifdestroyed", events.Event{Type: events.EventIfDestroyed, ID: "Wireguard9"}, []string{"destroyed"}, false)
+	check("ctrl", events.Event{Type: events.EventIfLayerChanged, ID: "Wireguard0", Layer: "ctrl", Level: "disabled"}, nil, false)
+	check("ifipchanged", events.Event{Type: events.EventIfIPChanged, ID: "Wireguard0", Address: "10.0.0.1"}, nil, false)
+}
+
+// fakeStateMgr — kernel-туннель в состоянии running для LoadState.
+type fakeStateMgr struct{}
+
+func (fakeStateMgr) GetState(context.Context, string) tunnel.StateInfo {
+	return tunnel.StateInfo{State: tunnel.StateRunning}
+}
+
+// F569/П22: ifdestroyed доходит до оркестратора вместе с вердиктом Own:
+// свой — проба записи не вызывается, чужой — вызывается. Настоящий оркестратор
+// с работающим kernel-туннелем awg10 (OpkgTun10). Мутация «не переносить Own
+// в orchestrator.Event» → проба при Own=true, красный.
+func TestHandle_IfDestroyed_ForwardsOwn(t *testing.T) {
+	dir := t.TempDir()
+	store := storage.NewAWGTunnelStoreWithLockDir(dir, filepath.Join(dir, "locks"))
+	if err := store.Create(&storage.AWGTunnel{ID: "awg10", Name: "g", Backend: "kernel", Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	for _, own := range []bool{true, false} {
+		logs := &captureAppLogger{}
+		orch := orchestrator.New(store, nil, nil, fakeStateMgr{}, wan.NewModel(), logs)
+		orch.LoadState(context.Background())
+		probed := make(chan string, 1)
+		orch.SetRecordPresenceProbe(func(_ context.Context, name string) (bool, error) {
+			probed <- name
+			return true, nil // запись есть — хук устарел, исполнителей не зовём
+		})
+		h := newTestHookHandler(&spyDispatcher{})
+		h.orch = orch
+		h.Handle(events.Event{Type: events.EventIfDestroyed, ID: "OpkgTun10", Own: own})
+		if own {
+			waitLog(t, logs, "ifdestroyed: свой (кредит)")
+			select {
+			case n := <-probed:
+				t.Fatalf("Own=true: проба %s вызвана", n)
+			default:
+			}
+			continue
+		}
+		select {
+		case <-probed:
+		case <-time.After(2 * time.Second):
+			t.Fatal("Own=false: проба не вызвана")
+		}
+	}
+}
+
+// В1 (F595): t= хук-скрипта даёт Debug «hook age» — разность аптаймов,
+// округлённая до секунды. Без t= (или без аптайма) строки нет.
+func TestHandle_ScriptUptime_LogsHookAge(t *testing.T) {
+	cases := []struct {
+		name   string
+		event  events.Event
+		uptime float64
+		want   string
+	}{
+		{"age", events.Event{Type: events.EventIfCreated, ID: "Wireguard1", ScriptUptime: 100}, 122.4, "hook age=22s"},
+		{"round", events.Event{Type: events.EventIfCreated, ID: "Wireguard1", ScriptUptime: 100}, 122.6, "hook age=23s"},
+		{"no t", events.Event{Type: events.EventIfCreated, ID: "Wireguard1"}, 122.4, ""},
+		{"no uptime", events.Event{Type: events.EventIfCreated, ID: "Wireguard1", ScriptUptime: 100}, 0, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			logs := &captureAppLogger{}
+			h := &HookHandler{log: logging.NewScopedLogger(logs, logging.GroupSystem, logging.SubBoot)}
+			h.SetUptimeReader(func() float64 { return c.uptime })
+			h.Handle(c.event)
+			if c.want != "" {
+				if !logs.has("hook|Wireguard1|" + c.want) {
+					t.Fatalf("нет %q в журнале: %q", c.want, logs.lines)
+				}
+				return
+			}
+			if logs.has("hook age") {
+				t.Fatalf("лишняя строка age: %q", logs.lines)
+			}
+		})
 	}
 }

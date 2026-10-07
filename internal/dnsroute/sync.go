@@ -147,7 +147,13 @@ func (s *ServiceImpl) reconcile(ctx context.Context) error {
 			}
 		}
 	}
-	target := buildTargetState(data, failedSet)
+
+	// Отложенный save — до чтения: sc-вид держит снесённые строки до
+	// сохранения, и сверка снесла бы их повторно (F568).
+	if err := s.commands.DNSRoutes.FlushPendingSave(ctx); err != nil {
+		s.logError("reconcile", "", "Failed to save configuration before reading dns-proxy routes", err.Error())
+		return fmt.Errorf("flush pending save: %w", err)
+	}
 
 	// Fresh reads (Fetch — past the TTL and the singleflight): router state
 	// may have been mutated since the last fetch (60-minute TTL is too long
@@ -169,6 +175,20 @@ func (s *ServiceImpl) reconcile(ctx context.Context) error {
 		s.logError("reconcile", "", "Failed to read object-groups", err.Error())
 		return fmt.Errorf("show object-group fqdn: %w", err)
 	}
+
+	// Цель без интерфейса в NDMS (F548): строка dns-proxy route на неё — E в
+	// журнале ndm, и без этой проверки она перезаливалась бы при каждом
+	// применении правил. Такая цель уходит в fallback тем же путём, что и
+	// упавший туннель (решение 3), но решение принимается по интерфейсу, а не
+	// по TunnelID: он бывает пустым (REST его не требует) или общим у строк
+	// с разными интерфейсами. Все цели подтверждаются ОДНИМ свежим списком на
+	// прогон; список не прочитан — не знаем, куда писать, ошибка.
+	confirmed, absent, err := s.confirmTargets(ctx, data)
+	if err != nil {
+		s.logError("reconcile", "", "Failed to read interface list", err.Error())
+		return fmt.Errorf("confirm route targets: %w", err)
+	}
+	target := buildTargetState(data, failedSet, absent)
 
 	current := filterAWGState(allGroups, allRoutes)
 
@@ -201,7 +221,7 @@ func (s *ServiceImpl) reconcile(ctx context.Context) error {
 		s.logInfo("reconcile", "", fmt.Sprintf("Route disables: %v", pairs))
 	}
 
-	applyErr := s.applyDiff(ctx, diff)
+	applyErr := s.applyDiff(ctx, diff, confirmed)
 	if applyErr != nil {
 		s.logError("reconcile", "", "Partial apply failure", applyErr.Error())
 		return fmt.Errorf("apply diff: %w", applyErr)
@@ -211,8 +231,69 @@ func (s *ServiceImpl) reconcile(ctx context.Context) error {
 	return nil
 }
 
+// confirmTargets подтверждает интерфейсы целей NDMS-списков одним чтением
+// списка; absent — имена интерфейсов целей, которых в списке нет. Целей нет —
+// список не читается.
+func (s *ServiceImpl) confirmTargets(ctx context.Context, data *StoreData) (map[string]query.Confirmed, map[string]struct{}, error) {
+	var names []string
+	for _, list := range data.Lists {
+		if !isNDMS(list.Backend) {
+			continue
+		}
+		for _, rt := range list.Routes {
+			names = append(names, rt.Interface)
+		}
+	}
+	if len(names) == 0 {
+		return nil, nil, nil
+	}
+	confirmed, err := s.queries.Interfaces.ConfirmEach(ctx, names)
+	if err != nil {
+		return nil, nil, err
+	}
+	var absent map[string]struct{}
+	for _, name := range names {
+		if _, ok := confirmed[name]; ok {
+			continue
+		}
+		if _, seen := absent[name]; seen {
+			continue
+		}
+		if absent == nil {
+			absent = make(map[string]struct{})
+		}
+		absent[name] = struct{}{}
+		s.appLog.Warn("reconcile", name, "интерфейса нет в NDMS — цель в fallback")
+	}
+	return confirmed, absent, nil
+}
+
+// routedEntries — записи и исключения списка, которые уходят на роутер.
+// Domains и Subnets в object-group fqdn одинаковы (один слот include), поэтому
+// идут одним списком. Единственный источник для buildTargetState и
+// tunnelRouteRefs: число групп-кусков у них обязано совпадать, иначе снятие
+// строк туннеля без сверки бьёт мимо (E в журнале ndm) или оставляет хвост.
+//
+// SkipIPv6 drops IPv6 entries here, at render time, so the stored list keeps
+// them. An IPv6 exclude has nothing left to carve from and would still take a
+// slot in every chunk, so it goes too. A list left with no entries gets no
+// groups: chunkWithReserve returns none for an empty input.
+func routedEntries(list *DomainList) (items, excludes []string) {
+	items = make([]string, 0, len(list.Domains)+len(list.Subnets))
+	items = append(items, list.Domains...)
+	items = append(items, list.Subnets...)
+	excludes = list.Excludes
+	if list.SkipsIPv6() {
+		items = ipfamily.WithoutIPv6(items)
+		excludes = ipfamily.WithoutIPv6(excludes)
+	}
+	return items, excludes
+}
+
 // buildTargetState converts stored domain lists into the desired router state.
-func buildTargetState(data *StoreData, failedTunnels map[string]struct{}) targetState {
+// absentIfaces — интерфейсы целей, которых нет в NDMS (F548): такая цель
+// пропускается так же, как упавший туннель.
+func buildTargetState(data *StoreData, failedTunnels, absentIfaces map[string]struct{}) targetState {
 	var ts targetState
 
 	for _, list := range data.Lists {
@@ -233,20 +314,7 @@ func buildTargetState(data *StoreData, failedTunnels map[string]struct{}) target
 		// object-group fqdn — both consume one `include` slot and count
 		// against the same MaxDomainsPerGroup limit. Merge them before
 		// chunking so a huge CIDR list still gets split across groups.
-		items := make([]string, 0, len(list.Domains)+len(list.Subnets))
-		items = append(items, list.Domains...)
-		items = append(items, list.Subnets...)
-		excludes := list.Excludes
-
-		// SkipIPv6 drops IPv6 entries here, at render time, so the stored
-		// list keeps them. An IPv6 exclude has nothing left to carve from
-		// and would still take a slot in every chunk, so it goes too.
-		// A list left with no entries gets no groups: chunkWithReserve
-		// returns none for an empty input.
-		if list.SkipsIPv6() {
-			items = ipfamily.WithoutIPv6(items)
-			excludes = ipfamily.WithoutIPv6(excludes)
-		}
+		items, excludes := routedEntries(&list)
 
 		// NDMS applies an exclude only inside its own object-group, so the
 		// full exclude set goes into every chunk. Excludes also count
@@ -271,6 +339,9 @@ func buildTargetState(data *StoreData, failedTunnels map[string]struct{}) target
 					if _, failed := failedTunnels[rt.TunnelID]; failed {
 						continue
 					}
+				}
+				if _, gone := absentIfaces[rt.Interface]; gone {
+					continue
 				}
 				activeRoutes = append(activeRoutes, rt)
 			}
@@ -515,12 +586,14 @@ func computeDiff(current currentState, target targetState) rciDiff {
 
 // applyDiff issues the computed diff to NDMS via the new CQRS command layer.
 // Save is handled by the debounced SaveCoordinator inside each command group.
-func (s *ServiceImpl) applyDiff(ctx context.Context, diff rciDiff) error {
+// confirmed — интерфейсы целей, подтверждённые в reconcile: постановка идёт
+// только по ним; снос — по строкам из выдачи роутера (DNSRouteRef).
+func (s *ServiceImpl) applyDiff(ctx context.Context, diff rciDiff, confirmed map[string]query.Confirmed) error {
 	// Phase 1: Delete routes (before deleting groups they reference)
 	if len(diff.routeDeletes) > 0 {
-		specs := make([]command.DNSRouteSpec, 0, len(diff.routeDeletes))
+		specs := make([]command.DNSRouteRef, 0, len(diff.routeDeletes))
 		for _, rd := range diff.routeDeletes {
-			specs = append(specs, command.DNSRouteSpec{
+			specs = append(specs, command.DNSRouteRef{
 				Group:     rd.Group,
 				Interface: rd.Iface,
 			})
@@ -563,15 +636,21 @@ func (s *ServiceImpl) applyDiff(ctx context.Context, diff rciDiff) error {
 	// иначе между POST-ами группа осталась бы без правил (на больших списках —
 	// сотни миллисекунд без DNS-маршрутизации).
 	for _, rb := range diff.routeRebuilds {
-		dels := make([]command.DNSRouteSpec, 0, len(rb.deletes))
+		dels := make([]command.DNSRouteRef, 0, len(rb.deletes))
 		for _, iface := range rb.deletes {
-			dels = append(dels, command.DNSRouteSpec{Group: rb.group, Interface: iface})
+			dels = append(dels, command.DNSRouteRef{Group: rb.group, Interface: iface})
 		}
 		ups := make([]command.DNSRouteSpec, 0, len(rb.upserts))
 		for _, ro := range rb.upserts {
+			iface, ok := confirmed[ro.Iface]
+			if !ok {
+				// Неподтверждённая цель в target не попадает (confirmTargets);
+				// нулевой Confirmed ушёл бы в NDMS пустым именем.
+				return fmt.Errorf("replace routes for %s: интерфейс %s не подтверждён", rb.group, ro.Iface)
+			}
 			ups = append(ups, command.DNSRouteSpec{
 				Group:     ro.Group,
-				Interface: ro.Iface,
+				Interface: iface,
 				Reject:    ro.Reject,
 			})
 		}
@@ -582,7 +661,7 @@ func (s *ServiceImpl) applyDiff(ctx context.Context, diff rciDiff) error {
 		}
 		ifaces := make([]string, 0, len(ups))
 		for _, u := range ups {
-			ifaces = append(ifaces, u.Interface)
+			ifaces = append(ifaces, u.Interface.Name())
 		}
 		s.logInfo("applyDiff", rb.group,
 			fmt.Sprintf("Phase4: route block rewritten in priority order: %v", ifaces))

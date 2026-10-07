@@ -2,12 +2,14 @@
 	import { Check, Download, RefreshCw, Save, SaveAll, X } from 'lucide-svelte';
 	import { Button, BackLink, type ButtonVariant } from '$lib/components/ui';
 	import { m } from '$lib/i18n';
+	import { isEnabledButDown } from './tunnelPageSelectors';
 
 	type ActionStatus = 'loading' | 'success' | 'error';
 
 	interface Props {
 		tunnelName: string;
 		tunnelState: string;
+		enabled?: boolean;
 		saving: boolean;
 		actionStatus: ActionStatus | null;
 		onReplace?: () => void;
@@ -19,6 +21,7 @@
 	let {
 		tunnelName,
 		tunnelState,
+		enabled,
 		saving,
 		actionStatus,
 		onReplace,
@@ -46,7 +49,7 @@
 				 : tunnelState === 'needs_start' ? m.tunnels_state_needs_start()
 				 : tunnelState === 'needs_stop' ? m.tunnels_state_needs_stop()
 				 : tunnelState === 'stopping' ? m.tunnels_state_stopping()
-				 : tunnelState === 'disabled' ? m.tunnels_state_disabled()
+				 : tunnelState === 'disabled' ? (isEnabledButDown(tunnelState, enabled) ? m.tunnels_state_failed_start() : m.tunnels_state_disabled())
 				 : tunnelState === 'broken' ? m.tunnels_state_broken()
 				 : m.tunnels_state_stopped()}
 			</span>

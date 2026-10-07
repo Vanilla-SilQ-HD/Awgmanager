@@ -3,6 +3,8 @@ package managed
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -438,5 +440,179 @@ func TestSetASCParams_KeepsASC3OfInterface(t *testing.T) {
 	getter.mu.Unlock()
 	if got["header-protection-key"] != "K" || got["random-trailers"] != "1" || got["jc"] != "3" {
 		t.Fatalf("после записи на интерфейсе: %v", got)
+	}
+}
+
+// F581/F600: правка ASC — одно свежее дерево rc до записи (ASC3Fields, Q6) и
+// одно на сверку; несовпадение второго не читает.
+func TestSetASCParams_RCTreeBudget(t *testing.T) {
+	raw := json.RawMessage(`{
+		"jc":3,"jmin":64,"jmax":256,"s1":15,"s2":16,
+		"h1":"100000001","h2":"1200000002","h3":"2400000003","h4":"3600000004"
+	}`)
+	off := json.RawMessage(`{
+		"jc":0,"jmin":0,"jmax":0,"s1":0,"s2":0,
+		"h1":"","h2":"","h3":"","h4":""
+	}`)
+	for _, tc := range []struct {
+		name    string
+		params  json.RawMessage
+		ignored bool // роутер молча не применил запись
+		budget  int64
+	}{
+		{"set", raw, false, 2},
+		{"set ignored", raw, true, 2}, // 1 до записи (Q6) + 1 сверка (F600)
+		{"clear", off, false, 1},
+		{"clear ignored", off, true, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, _, getter := newCreateTestService(t)
+			server, err := svc.Create(context.Background(), CreateServerRequest{
+				Address:    "10.44.0.1",
+				Mask:       "255.255.255.0",
+				ListenPort: 52044,
+			})
+			if err != nil {
+				t.Fatalf("seed Create: %v", err)
+			}
+			if tc.ignored {
+				// Выключенный ASC читается нулями: «не применил выключение» —
+				// это включённый ASC на роутере.
+				getter.mu.Lock()
+				getter.asc[server.InterfaceName] = map[string]string{
+					"jc": "5", "jmin": "10", "jmax": "50", "s1": "1", "s2": "2",
+					"h1": "1", "h2": "2", "h3": "3", "h4": "4",
+				}
+				getter.mu.Unlock()
+				poster := svc.transport.(*recordingPoster)
+				poster.onPost = func(map[string]interface{}) {}
+			}
+			before := getter.rcReads.Load()
+			err = svc.SetASCParams(context.Background(), server.InterfaceName, tc.params)
+			if tc.ignored != (err != nil) {
+				t.Fatalf("ignored=%v, err=%v", tc.ignored, err)
+			}
+			n := getter.rcReads.Load() - before
+			t.Logf("деревьев rc: %d", n)
+			if n > tc.budget {
+				t.Fatalf("деревьев rc на действие: %d, бюджет %d", n, tc.budget)
+			}
+		})
+	}
+}
+
+// F600: rc отражает запись сразу (стенд 01.10) — сверка, увидевшая старое,
+// сразу «не применено», без второго дерева и без ErrASCUnverified.
+func TestSetASCParams_MismatchNoRetry(t *testing.T) {
+	svc, _, getter := newCreateTestService(t)
+	server, err := svc.Create(context.Background(), CreateServerRequest{
+		Address:    "10.45.0.1",
+		Mask:       "255.255.255.0",
+		ListenPort: 52045,
+	})
+	if err != nil {
+		t.Fatalf("seed Create: %v", err)
+	}
+	poster := svc.transport.(*recordingPoster)
+	var pending map[string]interface{}
+	poster.onPost = func(p map[string]interface{}) { pending = p } // роутер применил бы позже
+	var reads int
+	getter.rcHook = func() error {
+		reads++
+		if reads == 3 && pending != nil { // 1 — ASC3Fields, 2 — сверка, 3 — повтора быть не должно
+			getter.applyPost(pending)
+		}
+		return nil
+	}
+	raw := json.RawMessage(`{
+		"jc":3,"jmin":64,"jmax":256,"s1":15,"s2":16,
+		"h1":"100000001","h2":"1200000002","h3":"2400000003","h4":"3600000004"
+	}`)
+	err = svc.SetASCParams(context.Background(), server.InterfaceName, raw)
+	if err == nil || errors.Is(err, ErrASCUnverified) || !strings.Contains(err.Error(), "not applied") {
+		t.Fatalf("несовпадение сверки — «не применено», got %v", err)
+	}
+	if reads != 2 {
+		t.Fatalf("деревьев rc: %d, want 2 (1 до записи + 1 сверка)", reads)
+	}
+}
+
+// R44: сверка не прочиталась (2 ошибки чтения) — это не отказ записи: Create
+// не откатывает созданный интерфейс, сервер сохранён; но и не успех — Create
+// отдаёт сервер вместе с ErrASCUnverified (L4).
+func TestCreate_ASCUnverifiedKeepsServer(t *testing.T) {
+	svc, store, getter := newCreateTestService(t)
+	poster := svc.transport.(*recordingPoster)
+	failLeft := 0
+	poster.onPost = func(p map[string]interface{}) {
+		getter.applyPost(p)
+		if strings.Contains(fmt.Sprint(p), "asc:") {
+			failLeft = 2 // обе попытки сверки
+		}
+	}
+	getter.rcHook = func() error {
+		if failLeft > 0 {
+			failLeft--
+			return errors.New("rc read timeout")
+		}
+		return nil
+	}
+	server, err := svc.Create(context.Background(), CreateServerRequest{
+		Address:    "10.46.0.1",
+		Mask:       "255.255.255.0",
+		ListenPort: 52046,
+	})
+	if !errors.Is(err, ErrASCUnverified) || server == nil {
+		t.Fatalf("Create с непрочитанной сверкой ASC: сервер %v, err %v; want сервер + ErrASCUnverified", server, err)
+	}
+	if !strings.Contains(err.Error(), server.InterfaceName+" создан") {
+		t.Fatalf("ошибка не говорит, что сервер создан: %v", err)
+	}
+	if _, ok := store.GetManagedServerByID(server.InterfaceName); !ok {
+		t.Fatal("сервер не сохранён")
+	}
+	for _, p := range poster.posts {
+		if intf, ok := p["interface"].(map[string]interface{}); ok {
+			if cfg, ok := intf[server.InterfaceName].(map[string]interface{}); ok {
+				if no, _ := cfg["no"].(bool); no {
+					t.Fatalf("интерфейс откатан: %v", p)
+				}
+			}
+		}
+	}
+	if failLeft != 0 {
+		t.Fatalf("сверка не дошла до обоих чтений: осталось %d", failLeft)
+	}
+}
+
+// R44: обе попытки сверки упали — ErrASCUnverified, не «not applied».
+func TestSetASCParams_ReadErrorIsUnverified(t *testing.T) {
+	svc, _, getter := newCreateTestService(t)
+	server, err := svc.Create(context.Background(), CreateServerRequest{
+		Address:    "10.47.0.1",
+		Mask:       "255.255.255.0",
+		ListenPort: 52047,
+	})
+	if err != nil {
+		t.Fatalf("seed Create: %v", err)
+	}
+	var reads int
+	getter.rcHook = func() error {
+		reads++
+		if reads > 1 { // ASC3Fields до записи читается, сверка — нет
+			return errors.New("rc read timeout")
+		}
+		return nil
+	}
+	raw := json.RawMessage(`{
+		"jc":3,"jmin":64,"jmax":256,"s1":15,"s2":16,
+		"h1":"100000001","h2":"1200000002","h3":"2400000003","h4":"3600000004"
+	}`)
+	err = svc.SetASCParams(context.Background(), server.InterfaceName, raw)
+	if !errors.Is(err, ErrASCUnverified) {
+		t.Fatalf("want ErrASCUnverified, got %v", err)
+	}
+	if reads != 3 {
+		t.Fatalf("деревьев rc: %d, want 3 (1 до записи + 2 сверки)", reads)
 	}
 }

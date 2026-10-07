@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hoaxisr/awg-manager/internal/ndms"
 	"github.com/hoaxisr/awg-manager/internal/ndms/query"
 )
 
@@ -13,6 +14,7 @@ func newTestDNSRouteCommands(_ *testing.T, isOS5 bool) (*DNSRouteCommands, *fake
 	poster := &fakePoster{}
 	pub := &fakePublisher{}
 	sc := NewSaveCoordinator(poster, pub, 500*time.Millisecond, 5*time.Second, 0, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 	q := query.NewQueries(query.Deps{
 		Getter: query.NewFakeGetter(),
 		Logger: query.NopLogger(),
@@ -27,13 +29,13 @@ func newTestDNSRouteCommands(_ *testing.T, isOS5 bool) (*DNSRouteCommands, *fake
 func TestDNSRouteCommands_ReplaceRoutes_OneBatchDeletesThenUpserts(t *testing.T) {
 	cmds, poster := newTestDNSRouteCommands(t, true)
 	err := cmds.ReplaceRoutes(context.Background(),
-		[]DNSRouteSpec{
+		[]DNSRouteRef{
 			{Group: "g1", Interface: "Wireguard1"},
 			{Group: "g1", Interface: "Wireguard0"},
 		},
 		[]DNSRouteSpec{
-			{Group: "g1", Interface: "Wireguard0", Reject: false},
-			{Group: "g1", Interface: "Wireguard1", Reject: true},
+			{Group: "g1", Interface: confirmed(t, "Wireguard0"), Reject: false},
+			{Group: "g1", Interface: confirmed(t, "Wireguard1"), Reject: true},
 		})
 	if err != nil {
 		t.Fatalf("ReplaceRoutes: %v", err)
@@ -67,7 +69,7 @@ func TestDNSRouteCommands_ReplaceRoutes_OneBatchDeletesThenUpserts(t *testing.T)
 
 func TestDNSRouteCommands_DeleteRoutes_OS5(t *testing.T) {
 	cmds, poster := newTestDNSRouteCommands(t, true)
-	_ = cmds.DeleteRoutes(context.Background(), []DNSRouteSpec{
+	_ = cmds.DeleteRoutes(context.Background(), []DNSRouteRef{
 		{Group: "g1", Interface: "Wireguard0"},
 	})
 	r := poster.Payloads()[0].(map[string]any)["dns-proxy"].(map[string]any)["route"].([]any)[0].(map[string]any)
@@ -78,7 +80,7 @@ func TestDNSRouteCommands_DeleteRoutes_OS5(t *testing.T) {
 
 func TestDNSRouteCommands_OS4_ReturnsErrNotSupported(t *testing.T) {
 	cmds, poster := newTestDNSRouteCommands(t, false)
-	err := cmds.ReplaceRoutes(context.Background(), nil, []DNSRouteSpec{{Group: "g1", Interface: "w0"}})
+	err := cmds.ReplaceRoutes(context.Background(), nil, []DNSRouteSpec{{Group: "g1", Interface: confirmed(t, "w0")}})
 	if !errors.Is(err, query.ErrNotSupportedOnOS4) {
 		t.Errorf("err: want ErrNotSupportedOnOS4, got %v", err)
 	}
@@ -86,7 +88,7 @@ func TestDNSRouteCommands_OS4_ReturnsErrNotSupported(t *testing.T) {
 		t.Errorf("no POST must occur on OS4, got %d", poster.Calls())
 	}
 
-	err = cmds.DeleteRoutes(context.Background(), []DNSRouteSpec{{Group: "g1", Interface: "w0"}})
+	err = cmds.DeleteRoutes(context.Background(), []DNSRouteRef{{Group: "g1", Interface: "w0"}})
 	if !errors.Is(err, query.ErrNotSupportedOnOS4) {
 		t.Errorf("Delete err: %v", err)
 	}
@@ -154,4 +156,96 @@ func TestDNSRouteCommands_EmptyBatch_NoOp(t *testing.T) {
 	if poster.Calls() != 0 {
 		t.Errorf("empty batches must not POST, got %d", poster.Calls())
 	}
+}
+
+// Снос — строкой из выдачи роутера, постановка — подтверждённым интерфейсом;
+// обе половины одним POST.
+func TestReplaceRoutes_DeleteByRefUpsertByConfirmed(t *testing.T) {
+	cmds, f, q := newOracleCommands(t, nil, ndms.Interface{ID: "Wireguard0"}, ndms.Interface{ID: "Wireguard1"})
+	c, _, ok, err := q.Interfaces.Confirm(context.Background(), "Wireguard0")
+	if err != nil || !ok {
+		t.Fatalf("confirm: ok=%v err=%v", ok, err)
+	}
+	err = cmds.DNSRoutes.ReplaceRoutes(context.Background(),
+		[]DNSRouteRef{{Group: "g", Interface: "Wireguard1"}},
+		[]DNSRouteSpec{{Group: "g", Interface: c}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"dns-proxy":{"route":[{"group":"g","interface":"Wireguard1","no":true},{"auto":true,"group":"g","interface":"Wireguard0"}]}}`
+	if len(f.Posts) != 1 || f.Posts[0] != want {
+		t.Fatalf("posts=%v", f.Posts)
+	}
+	if f.E != 0 || f.Phantoms != 0 {
+		t.Fatalf("E=%d phantoms=%d", f.E, f.Phantoms)
+	}
+}
+
+// Нулевой Confirmed в upsert — отказ всего батча без POST (F546).
+func TestDNSRouteCommands_ReplaceRoutes_ZeroInterface_Refused(t *testing.T) {
+	cmds, poster := newTestDNSRouteCommands(t, true)
+	err := cmds.ReplaceRoutes(context.Background(),
+		[]DNSRouteRef{{Group: "g1", Interface: "Wireguard1"}},
+		[]DNSRouteSpec{{Group: "g1", Interface: confirmed(t, "Wireguard0")}, {Group: "g2"}})
+	if err == nil {
+		t.Fatal("upsert без интерфейса обязан отказывать")
+	}
+	if poster.Calls() != 0 {
+		t.Fatalf("в NDMS ушло %d POST", poster.Calls())
+	}
+}
+
+// F568 по эпохам (Н10b): sc-вид чист, когда завершённое сохранение начато
+// после нашей правки dns-proxy route; чужие ожидающие правки Flush не
+// вызывают. Мутация: гейт по PendingCount → Flush при чистом sc-виде, красный.
+func TestFlushPendingSave_ByEpoch(t *testing.T) {
+	poster := &flightPoster{}
+	sc := newFlightSC(t, poster)
+	sc.SetSaveTimings(5*time.Second, 5*time.Second, 0)
+	q := query.NewQueries(query.Deps{Getter: query.NewFakeGetter(), Logger: query.NopLogger(),
+		IsOS5: func() bool { return true }})
+	c := NewDNSRouteCommands(poster, sc, q, func() bool { return true })
+
+	if err := c.DeleteRoutes(context.Background(), []DNSRouteRef{{Group: "g_p1", Interface: "OpkgTun0"}}); err != nil {
+		t.Fatal(err)
+	}
+	poster.waitCalls(t, 2) // снос + сохранение
+	waitFlight(t, sc)
+	sc.OnConfigurationSaved(104)
+	waitEpochSaved(t, sc, 1)
+
+	sc.mu.Lock()
+	sc.debounce = time.Hour // чужая правка ждёт своего сохранения
+	sc.mu.Unlock()
+	sc.Request()
+	if err := c.FlushPendingSave(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(poster.calls()); n != 2 {
+		t.Fatalf("POST %d: Flush при чистом sc-виде", n)
+	}
+
+	if err := c.DeleteRoutes(context.Background(), []DNSRouteRef{{Group: "g_p1", Interface: "OpkgTun1"}}); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- c.FlushPendingSave(context.Background()) }()
+	poster.waitCalls(t, 4) // снос + Flush
+	waitFlight(t, sc)
+	sc.OnConfigurationSaved(105)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func waitEpochSaved(t *testing.T, sc *SaveCoordinator, want uint64) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if _, saved := sc.Epoch(); saved >= want {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("saved < %d", want)
 }

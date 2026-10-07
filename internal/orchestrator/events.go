@@ -19,6 +19,8 @@ const (
 	EventWANDown                    // WAN interface went down
 	EventNDMSHook                   // NDMS iflayerchanged.d hook
 	EventQuiesce                    // Stop running tunnels without disabling (backup/restore)
+	// EventNDMSIfDestroyed — NDMS ifdestroyed hook: запись интерфейса снята (F569).
+	EventNDMSIfDestroyed
 
 	// eventTypeCount — сентинель для теста полноты String(). Держать
 	// последним: новое событие, добавленное после него, останется
@@ -39,6 +41,10 @@ type Event struct {
 	NDMSName string
 	Layer    string
 	Level    string
+	// Own — свой хук по кредиту (ifdestroyed или грань слоя conf от нашей
+	// команды): вердикт точки входа spool (api.HookSink.Handle), здесь не
+	// пересчитывается (П22).
+	Own bool
 
 	// WAN event data
 	WANIface string
@@ -75,6 +81,8 @@ func (t EventType) String() string {
 		return "ndms-hook"
 	case EventQuiesce:
 		return "quiesce"
+	case EventNDMSIfDestroyed:
+		return "ndms-ifdestroyed"
 	}
 	return "event-" + strconv.Itoa(int(t))
 }

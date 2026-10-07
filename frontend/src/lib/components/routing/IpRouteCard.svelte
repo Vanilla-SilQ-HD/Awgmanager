@@ -114,6 +114,16 @@
 					{#if route.fallback === 'reject'}
 						<Badge variant="error" uppercase size="xs">Kill Switch</Badge>
 					{/if}
+					{#if route.pending}
+						<Badge
+							variant="warning"
+							uppercase
+							size="xs"
+							title={m.routing_ip_card_pending_title()}
+						>
+							{m.routing_ip_card_pending()}
+						</Badge>
+					{/if}
 				</div>
 			{:else if isOrphan}
 				<div class="card-route">

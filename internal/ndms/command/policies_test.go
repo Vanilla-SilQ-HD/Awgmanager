@@ -8,17 +8,17 @@ import (
 	"github.com/hoaxisr/awg-manager/internal/ndms/query"
 )
 
-func newTestPolicyCommands(_ *testing.T) (*PolicyCommands, *fakePoster, *SaveCoordinator, *spyHookNotifier) {
+func newTestPolicyCommands(_ *testing.T) (*PolicyCommands, *fakePoster, *SaveCoordinator) {
 	poster := &fakePoster{}
 	pub := &fakePublisher{}
 	sc := NewSaveCoordinator(poster, pub, 500*time.Millisecond, 5*time.Second, 0, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 	q := query.NewQueries(query.Deps{Getter: query.NewFakeGetter(), Logger: query.NopLogger(), IsOS5: func() bool { return true }})
-	hn := &spyHookNotifier{}
-	return NewPolicyCommands(poster, sc, q, hn), poster, sc, hn
+	return NewPolicyCommands(poster, sc, q), poster, sc
 }
 
 func TestPolicyCommands_CreatePolicy(t *testing.T) {
-	cmds, poster, sc, _ := newTestPolicyCommands(t)
+	cmds, poster, sc := newTestPolicyCommands(t)
 	_ = cmds.CreatePolicy(context.Background(), "Policy0", "warp")
 	p := poster.Payloads()[0].(map[string]any)
 	pol := p["ip"].(map[string]any)["policy"].(map[string]any)["Policy0"].(map[string]any)
@@ -31,7 +31,7 @@ func TestPolicyCommands_CreatePolicy(t *testing.T) {
 }
 
 func TestPolicyCommands_DeletePolicy(t *testing.T) {
-	cmds, poster, _, _ := newTestPolicyCommands(t)
+	cmds, poster, _ := newTestPolicyCommands(t)
 	_ = cmds.DeletePolicy(context.Background(), "Policy0")
 	p := poster.Payloads()[0].(map[string]any)
 	pol := p["ip"].(map[string]any)["policy"].(map[string]any)["Policy0"].(map[string]any)
@@ -41,7 +41,7 @@ func TestPolicyCommands_DeletePolicy(t *testing.T) {
 }
 
 func TestPolicyCommands_SetStandalone_Enable(t *testing.T) {
-	cmds, poster, _, _ := newTestPolicyCommands(t)
+	cmds, poster, _ := newTestPolicyCommands(t)
 	_ = cmds.SetStandalone(context.Background(), "Policy0", true)
 	p := poster.Payloads()[0].(map[string]any)
 	pol := p["ip"].(map[string]any)["policy"].(map[string]any)["Policy0"].(map[string]any)
@@ -51,7 +51,7 @@ func TestPolicyCommands_SetStandalone_Enable(t *testing.T) {
 }
 
 func TestPolicyCommands_SetStandalone_Disable(t *testing.T) {
-	cmds, poster, _, _ := newTestPolicyCommands(t)
+	cmds, poster, _ := newTestPolicyCommands(t)
 	_ = cmds.SetStandalone(context.Background(), "Policy0", false)
 	p := poster.Payloads()[0].(map[string]any)
 	pol := p["ip"].(map[string]any)["policy"].(map[string]any)["Policy0"].(map[string]any)
@@ -62,8 +62,8 @@ func TestPolicyCommands_SetStandalone_Disable(t *testing.T) {
 }
 
 func TestPolicyCommands_PermitInterface(t *testing.T) {
-	cmds, poster, _, _ := newTestPolicyCommands(t)
-	_ = cmds.PermitInterface(context.Background(), "Policy0", "Wireguard0", 3)
+	cmds, poster, _ := newTestPolicyCommands(t)
+	_ = cmds.PermitInterface(context.Background(), "Policy0", confirmed(t, "Wireguard0"), 3)
 	p := poster.Payloads()[0].(map[string]any)
 	permit := p["ip"].(map[string]any)["policy"].(map[string]any)["Policy0"].(map[string]any)["permit"].(map[string]any)
 	if permit["interface"] != "Wireguard0" || permit["order"] != 3 || permit["global"] != true {
@@ -72,8 +72,8 @@ func TestPolicyCommands_PermitInterface(t *testing.T) {
 }
 
 func TestPolicyCommands_DenyInterface(t *testing.T) {
-	cmds, poster, _, _ := newTestPolicyCommands(t)
-	_ = cmds.DenyInterface(context.Background(), "Policy0", "Wireguard0")
+	cmds, poster, _ := newTestPolicyCommands(t)
+	_ = cmds.DenyInterface(context.Background(), "Policy0", confirmed(t, "Wireguard0"))
 	p := poster.Payloads()[0].(map[string]any)
 	permit := p["ip"].(map[string]any)["policy"].(map[string]any)["Policy0"].(map[string]any)["permit"].(map[string]any)
 	if permit["no"] != true || permit["interface"] != "Wireguard0" {
@@ -82,7 +82,7 @@ func TestPolicyCommands_DenyInterface(t *testing.T) {
 }
 
 func TestPolicyCommands_AssignDevice(t *testing.T) {
-	cmds, poster, sc, _ := newTestPolicyCommands(t)
+	cmds, poster, sc := newTestPolicyCommands(t)
 	_ = cmds.AssignDevice(context.Background(), "aa:bb:cc:dd:ee:ff", "Policy0")
 	p := poster.Payloads()[0].(map[string]any)
 	host := p["ip"].(map[string]any)["hotspot"].(map[string]any)["host"].(map[string]any)
@@ -95,7 +95,7 @@ func TestPolicyCommands_AssignDevice(t *testing.T) {
 }
 
 func TestPolicyCommands_UnassignDevice(t *testing.T) {
-	cmds, poster, _, _ := newTestPolicyCommands(t)
+	cmds, poster, _ := newTestPolicyCommands(t)
 	_ = cmds.UnassignDevice(context.Background(), "aa:bb:cc:dd:ee:ff")
 	p := poster.Payloads()[0].(map[string]any)
 	host := p["ip"].(map[string]any)["hotspot"].(map[string]any)["host"].(map[string]any)

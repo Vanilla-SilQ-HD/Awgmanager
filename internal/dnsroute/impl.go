@@ -2,6 +2,7 @@ package dnsroute
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -841,12 +842,21 @@ func (s *ServiceImpl) OnTunnelStart(ctx context.Context) error {
 	return s.reconcileAll(ctx)
 }
 
-// OnTunnelDelete removes route targets referencing the deleted tunnel and reconciles.
+// OnTunnelDelete removes route targets referencing the deleted tunnel.
 // Also clears any failover state for the deleted tunnel.
+//
+// Без сверки и без чтения sc-вида (Н10b): строки удаляемого туннеля известны
+// из своего хранилища — снимаются одним пакетом по (группа, интерфейс) до
+// сноса интерфейса, чужие маршруты не меняются. Сверка здесь читала бы
+// `/show/sc/dns-proxy/route` и сохраняла конфигурацию перед чтением (F568) —
+// под замком туннеля, на каждое удаление пачки. Туннель в failover — сверка,
+// как прежде: его строки failover уже снял, а MarkRecovered меняет чужие.
+// Вид sc после сноса устарел до сохранения — его ведёт эпоха DNSRoutes
+// (FlushPendingSave первой следующей сверки).
 func (s *ServiceImpl) OnTunnelDelete(ctx context.Context, tunnelID string) error {
 	// Clean up failover state first (uses its own mutex, before opMu lock).
-	// Skip if not in failedSet to avoid redundant reconcile.
-	if s.failover != nil && s.failover.IsFailed(tunnelID) {
+	failed := s.failover != nil && s.failover.IsFailed(tunnelID)
+	if failed {
 		_ = s.failover.MarkRecovered(tunnelID)
 	}
 
@@ -858,20 +868,23 @@ func (s *ServiceImpl) OnTunnelDelete(ctx context.Context, tunnelID string) error
 		return nil
 	}
 
+	var refs []command.DNSRouteRef
 	changed := false
 	for i := range data.Lists {
+		list := &data.Lists[i]
 		var kept []RouteTarget
-		for _, rt := range data.Lists[i].Routes {
-			if rt.TunnelID == tunnelID {
-				changed = true
+		for _, rt := range list.Routes {
+			if rt.TunnelID != tunnelID {
+				kept = append(kept, rt)
 				continue
 			}
-			kept = append(kept, rt)
+			changed = true
+			refs = append(refs, tunnelRouteRefs(list, rt.Interface)...)
 		}
 		if kept == nil {
 			kept = []RouteTarget{}
 		}
-		data.Lists[i].Routes = kept
+		list.Routes = kept
 	}
 
 	if changed {
@@ -881,7 +894,52 @@ func (s *ServiceImpl) OnTunnelDelete(ctx context.Context, tunnelID string) error
 		s.appLog.Info("cleanup-targets", tunnelID, "removed from dns route targets")
 	}
 
-	return s.reconcileAll(ctx)
+	if failed {
+		return s.reconcileAll(ctx)
+	}
+	// Строку ставит только сверка и только на подтверждённый интерфейс
+	// (buildTargetState, F548): у цели без интерфейса строки нет, и `no` по
+	// ней — E в журнале ndm (L5 финального ревью F595; туннель-цель, ни разу
+	// не стартовавший). Подтверждение — одним списком; в ctx действия
+	// оркестратора (WithActionList) это тот же список, что у Delete
+	// оператора следом, — без лишнего чтения. Список не прочитан — команды
+	// не шлём (решение 4): строки, если есть, снимет следующая сверка.
+	if len(refs) > 0 {
+		names := make([]string, 0, len(refs))
+		for _, r := range refs {
+			names = append(names, r.Interface)
+		}
+		confirmed, err := s.queries.Interfaces.ConfirmEach(ctx, names)
+		if err != nil {
+			return fmt.Errorf("confirm dns-proxy route targets of tunnel %s: %w", tunnelID, err)
+		}
+		present := refs[:0]
+		for _, r := range refs {
+			if _, ok := confirmed[r.Interface]; ok {
+				present = append(present, r)
+			}
+		}
+		refs = present
+	}
+	if err := s.commands.DNSRoutes.DeleteRoutes(ctx, refs); err != nil && !errors.Is(err, query.ErrNotSupportedOnOS4) {
+		return fmt.Errorf("delete dns-proxy routes of tunnel %s: %w", tunnelID, err)
+	}
+	return nil
+}
+
+// tunnelRouteRefs — строки dns-proxy route, которые сверка ставит списку
+// list на интерфейс iface (buildTargetState): по одной на группу-кусок.
+func tunnelRouteRefs(list *DomainList, iface string) []command.DNSRouteRef {
+	if !isNDMS(list.Backend) || len(list.Domains)+len(list.Subnets) == 0 {
+		return nil
+	}
+	items, excludes := routedEntries(list)
+	n := len(chunkWithReserve(items, MaxDomainsPerGroup, len(excludes)))
+	refs := make([]command.DNSRouteRef, 0, n)
+	for i := 1; i <= n; i++ {
+		refs = append(refs, command.DNSRouteRef{Group: buildGroupName(list.ID, list.Name, i), Interface: iface})
+	}
+	return refs
 }
 
 // CleanupAll removes all DNS route objects (AWG_*) from NDMS.
