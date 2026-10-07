@@ -280,6 +280,14 @@ func patchSingleScalarKey(lowerKey string, value string) error {
 	if targetKey == "" {
 		return fmt.Errorf("hydraroute: unknown config key %q", lowerKey)
 	}
+	return patchKeyLine(targetKey, value)
+}
+
+// patchKeyLine заменяет первую строку ключа targetKey (без учёта регистра,
+// с сохранением написания ключа) на value, остальные строки этого ключа
+// выбрасывает, при отсутствии ключа дописывает его в конец. Прочие строки
+// не трогает.
+func patchKeyLine(targetKey string, value string) error {
 	if err := os.MkdirAll(hrDir, 0o755); err != nil {
 		return fmt.Errorf("hydraroute: create hrneo dir: %w", err)
 	}

@@ -193,6 +193,7 @@ func (s *Service) saveEntries(entries map[string]ManagedEntry) error {
 	if err := WriteWholeFile(ipListPath, GenerateIPList(ordered)); err != nil {
 		return err
 	}
+	s.updateForceInterface(entries)
 	s.scheduleRestart("rules-write")
 	return nil
 }

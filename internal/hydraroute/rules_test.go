@@ -23,6 +23,8 @@ func setupRuleFiles(t *testing.T) (svc *Service, domainPath, ipPath string) {
 		ipListPath = origIP
 	})
 
+	setupEmptyConf(t) // saveEntries дописывает ForceInterface в hrneo.conf
+
 	svc = &Service{}
 	svc.SetStatusForTest(true)
 	stopRestartTimerOnCleanup(t, svc) // WriteRules планирует neo restart (F410)
