@@ -698,10 +698,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
-		/* Карточку, растянутую по ряду сетки, добирает место под шапкой:
-		   сведения, кнопки и графики соседних карточек встают в линию, даже
-		   когда у одной бейджи протокола переносятся на вторую строку. */
-		margin-top: auto;
 		padding: 4px 0;
 		border-top: 1px solid var(--color-border);
 		border-bottom: 1px solid var(--color-border);
