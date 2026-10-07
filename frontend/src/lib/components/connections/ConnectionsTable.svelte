@@ -76,6 +76,8 @@
 		tabindex="0"
 		onclick={() => onSelect(key)}
 		onkeydown={(e) => {
+			// Enter/пробел на «убить соединение» — нажатие кнопки, а не выбор строки.
+			if (e.target !== e.currentTarget) return;
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				onSelect(key);

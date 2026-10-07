@@ -86,6 +86,8 @@
 				class:broken={t.broken}
 				onclick={() => onselect({ type: 'target', name: t.name })}
 				onkeydown={(e) => {
+					// Enter/пробел на кнопках «вверх/вниз» — их нажатие, а не выбор строки.
+					if (e.target !== e.currentTarget) return;
 					if (e.key === 'Enter' || e.key === ' ') {
 						e.preventDefault();
 						onselect({ type: 'target', name: t.name });

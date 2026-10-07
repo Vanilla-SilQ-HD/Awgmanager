@@ -105,6 +105,8 @@
   }
 
   function handleRowKey(e: KeyboardEvent) {
+    // Enter/пробел на чипах уровня и области — их нажатие, а не раскрытие строки.
+    if (e.target !== e.currentTarget) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       onToggleExpand?.();
