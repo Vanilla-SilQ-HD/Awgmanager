@@ -55,6 +55,7 @@
 		if (remember) {
 			saveTerminalAutoLogin(payload);
 			saved = true;
+			open = false;
 			notifications.success(m.terminal_creds_saved_toast());
 		} else {
 			clearTerminalAutoLogin();
