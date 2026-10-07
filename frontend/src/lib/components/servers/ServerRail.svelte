@@ -28,6 +28,11 @@
   const active = $derived(items.find((i) => i.id === activeId) ?? items[0]);
 </script>
 
+<!-- Интерфейс и порт: обрезается только имя, порт виден всегда. -->
+{#snippet ifaceLabel(item: RailItem)}
+  <span class="iface"><span class="iface-name">{item.iface}</span>{#if item.listenPort}<span class="port">:{item.listenPort}</span>{/if}</span>
+{/snippet}
+
 <aside class="rail" aria-label={m.servers_rail_aria()}>
   <header class="rail-header">
     <span class="label">{m.servers_rail_label({ count: items.length })}</span>
@@ -47,10 +52,10 @@
         <span class="item-name">{item.name}</span>
       </span>
       <span class="item-meta">
-        <span class="iface"><span class="iface-name">{item.iface}</span>{#if item.listenPort}<span class="port">:{item.listenPort}</span>{/if}</span>
+        {@render ifaceLabel(item)}
         {#if item.peerCount !== undefined && item.peerCount > 0}
           <span class="dot">·</span>
-          <span class="peers">{item.peerActive ?? 0}/{item.peerCount} peers</span>
+          <span class="peers">{m.servers_rail_peers({ active: item.peerActive ?? 0, total: item.peerCount })}</span>
         {/if}
       </span>
     </button>
@@ -87,7 +92,7 @@
             <span class="item-name">{item.name}</span>
           </span>
           <span class="item-meta">
-            <span class="iface"><span class="iface-name">{item.iface}</span>{#if item.listenPort}<span class="port">:{item.listenPort}</span>{/if}</span>
+            {@render ifaceLabel(item)}
           </span>
         </button>
       {/each}

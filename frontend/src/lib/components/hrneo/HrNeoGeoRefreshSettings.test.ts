@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { render, screen, fireEvent } from '@testing-library/svelte';
 import HrNeoGeoRefreshSettings from './HrNeoGeoRefreshSettings.svelte';
 import type { GeoFileSettings } from '$lib/types';
 
@@ -21,5 +21,21 @@ describe('HrNeoGeoRefreshSettings', () => {
 		});
 		expect(screen.getByText('Режим обновления:')).toBeTruthy();
 		expect(screen.getByText('каждые N часов')).toBeTruthy();
+	});
+
+	it('после неудачного сохранения показывает сохранённое значение, а не отклонённое', async () => {
+		const value = geoFile({ autoRefreshEnabled: true, refreshMode: 'interval', refreshIntervalHours: 6 });
+		// Сохранить не удалось: value остаётся прежним.
+		const onSave = vi.fn(async () => {});
+		const { container } = render(HrNeoGeoRefreshSettings, {
+			props: { value, saving: false, onToggle: vi.fn(), onSave },
+		});
+		const input = container.querySelector('input[type="number"]') as HTMLInputElement;
+
+		await fireEvent.input(input, { target: { value: '12' } });
+		await fireEvent.click(screen.getByRole('button'));
+
+		expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ refreshIntervalHours: 12 }));
+		await vi.waitFor(() => expect(input.value).toBe('6'));
 	});
 });

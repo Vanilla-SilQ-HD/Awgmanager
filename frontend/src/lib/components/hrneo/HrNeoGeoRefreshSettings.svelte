@@ -7,12 +7,12 @@
 		value: GeoFileSettings;
 		saving: boolean;
 		onToggle: (enabled: boolean) => void;
-		onSave: (next: GeoFileSettings) => void;
+		onSave: (next: GeoFileSettings) => void | Promise<void>;
 	}
 
 	let { value, saving, onToggle, onSave }: Props = $props();
 
-	// Local editable copies seeded from the prop, then synced via the $effect blocks below.
+	// Local editable copies seeded from the prop, then synced by syncFromSettings().
 	// svelte-ignore state_referenced_locally
 	let localMode = $state(value.refreshMode || 'interval');
 	// svelte-ignore state_referenced_locally
@@ -30,18 +30,27 @@
 		(localMode === 'daily' && localDailyTime !== savedDailyTime)
 	);
 
-	$effect(() => { if (savedInterval > 0) localInterval = savedInterval; });
-	$effect(() => { localMode = savedMode; });
-	$effect(() => { localDailyTime = savedDailyTime; });
+	function syncFromSettings() {
+		if (savedInterval > 0) {
+			localInterval = savedInterval;
+		}
+		localMode = savedMode;
+		localDailyTime = savedDailyTime;
+	}
+	$effect(syncFromSettings);
 
-	function handleSave() {
+	// Same as DnsRouteSettings: after a failed save the saved values do not
+	// change, so the fields are re-synced explicitly instead of keeping the
+	// rejected ones.
+	async function handleSave() {
 		const next: GeoFileSettings = {
 			...value,
 			refreshMode: localMode,
 			refreshIntervalHours: localMode === 'interval' ? localInterval : value.refreshIntervalHours,
 			refreshDailyTime: localMode === 'daily' ? localDailyTime : value.refreshDailyTime,
 		};
-		onSave(next);
+		await onSave(next);
+		syncFromSettings();
 	}
 </script>
 

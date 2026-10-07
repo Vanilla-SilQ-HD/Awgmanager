@@ -1454,6 +1454,22 @@
 	"servers_rail_aria": "Server list",
 	"servers_rail_label": "Servers ({count})",
 	"servers_rail_new": "New server",
+	"servers_rail_peers": [
+		{
+			"declarations": [
+				"input active",
+				"input total",
+				"local totalPlural = total: plural"
+			],
+			"selectors": [
+				"totalPlural"
+			],
+			"match": {
+				"totalPlural=one": "{active}/{total} peer",
+				"totalPlural=*": "{active}/{total} peers"
+			}
+		}
+	],
 	"servers_settings_panel_title": "Access settings",
 	"servers_create_title": "Create WireGuard server",
 	"servers_create_failed": "Creation failed",
