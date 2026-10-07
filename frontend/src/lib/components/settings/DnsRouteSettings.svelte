@@ -11,14 +11,19 @@
 	}
 
 	let {
-		settings = $bindable(),
+		settings,
 		saving,
 		onToggle,
 		onSave,
 	}: Props = $props();
 
+	// Поля формы — локальная копия сохранённых значений: начальное значение
+	// берётся один раз, дальше их держит в синхроне syncFromSettings().
+	// svelte-ignore state_referenced_locally
 	let localMode = $state(settings.dnsRoute.refreshMode || 'interval');
+	// svelte-ignore state_referenced_locally
 	let localInterval = $state(settings.dnsRoute.refreshIntervalHours || 6);
+	// svelte-ignore state_referenced_locally
 	let localDailyTime = $state(settings.dnsRoute.refreshDailyTime || '03:00');
 
 	let savedMode = $derived(settings.dnsRoute.refreshMode || 'interval');

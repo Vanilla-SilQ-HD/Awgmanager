@@ -1016,7 +1016,7 @@ $effect(() => {
 					</div>
 					{#if systemInfo.isOS5 && showDnsRouteCard}
 						<DnsRouteSettings
-							bind:settings
+							{settings}
 							{saving}
 							onToggle={toggleDnsAutoRefresh}
 							onSave={saveDnsRouteSettings}
@@ -1062,7 +1062,7 @@ $effect(() => {
 					<div class="card">
 					<SettingsSectionLabel label={m.settings_page_logging_title()} icon={ScrollText} tone="slate" header />
 					<LoggingSettings
-						bind:settings
+						{settings}
 						{saving}
 						onToggle={toggleLogging}
 						onSave={saveLoggingSettings}

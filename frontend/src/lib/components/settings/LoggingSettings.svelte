@@ -14,7 +14,7 @@
 	}
 
 	let {
-		settings = $bindable(),
+		settings,
 		saving,
 		onToggle,
 		onSave,
@@ -25,14 +25,21 @@
 	type AwgmLogLevel = 'info' | 'full' | 'debug';
 	type SingboxLogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal' | 'panic';
 
+	// Поля формы — локальная копия сохранённых значений: начальное значение
+	// берётся один раз, дальше их держит в синхроне syncFromSettings().
+	// svelte-ignore state_referenced_locally
 	let localMaxAge = $state(settings.logging.maxAge);
+	// svelte-ignore state_referenced_locally
 	let localLogLevel = $state<AwgmLogLevel>(
 		(settings.logging.logLevel as AwgmLogLevel) || 'info',
 	);
+	// svelte-ignore state_referenced_locally
 	let localSingboxLogLevel = $state<SingboxLogLevel>(
 		(settings.logging.singboxLogLevel as SingboxLogLevel) || 'trace',
 	);
+	// svelte-ignore state_referenced_locally
 	let localAppMaxEntries = $state(settings.logging.appMaxEntries || 5000);
+	// svelte-ignore state_referenced_locally
 	let localSingboxMaxEntries = $state(settings.logging.singboxMaxEntries || 5000);
 
 	function syncFromSettings() {
