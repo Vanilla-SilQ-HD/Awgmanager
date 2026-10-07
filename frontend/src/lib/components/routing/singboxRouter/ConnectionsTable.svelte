@@ -188,28 +188,31 @@
 		font-weight: 600;
 		font-family: ui-monospace, monospace;
 	}
-	.proto-tcp { background: rgba(74, 158, 255, 0.15); color: #4a9eff; }
-	.proto-udp { background: rgba(218, 184, 86, 0.15); color: #dab856; }
+	/* Оттенок — в --conn-hue: светлая тема берёт его же, а не копию hex. */
+	.proto-tcp { --conn-hue: #4a9eff; background: rgba(74, 158, 255, 0.15); color: var(--conn-hue); }
+	.proto-udp { --conn-hue: #dab856; background: rgba(218, 184, 86, 0.15); color: var(--conn-hue); }
 	.badge {
+		--conn-hue: #da7756;
 		display: inline-block;
 		padding: 2px 6px;
 		border-radius: 3px;
 		background: rgba(218, 119, 86, 0.12);
-		color: #da7756;
+		color: var(--conn-hue);
 		font-size: 11px;
 		font-family: ui-monospace, monospace;
 	}
 	.badge.awg {
+		--conn-hue: #9c8aff;
 		background: rgba(156, 138, 255, 0.14);
-		color: #9c8aff;
 	}
 	.badge.muted { background: rgba(110, 110, 110, 0.15); color: var(--text-tertiary, #6e6e6e); }
-	/* Светлая тема: те же оттенки, притемнённые к цвету текста, — на бледной
-	   подложке исходные не дотягивали до контраста 4.5:1 (WCAG AA). */
-	:global([data-theme='light']) .proto-udp { color: color-mix(in srgb, #dab856 40%, var(--color-text-primary)); }
-	:global([data-theme='light']) .proto-tcp { color: color-mix(in srgb, #4a9eff 40%, var(--color-text-primary)); }
-	:global([data-theme='light']) .badge:not(.muted) { color: color-mix(in srgb, #da7756 40%, var(--color-text-primary)); }
-	:global([data-theme='light']) .badge.awg { color: color-mix(in srgb, #9c8aff 40%, var(--color-text-primary)); }
+	/* Светлая тема: тот же оттенок, притемнённый к цвету текста, — на бледной
+	   подложке исходный не дотягивал до контраста 4.5:1 (WCAG AA). */
+	:global([data-theme='light']) .proto-tcp,
+	:global([data-theme='light']) .proto-udp,
+	:global([data-theme='light']) .badge:not(.muted) {
+		color: color-mix(in srgb, var(--conn-hue) 40%, var(--color-text-primary));
+	}
 	.kill {
 		all: unset;
 		cursor: pointer;

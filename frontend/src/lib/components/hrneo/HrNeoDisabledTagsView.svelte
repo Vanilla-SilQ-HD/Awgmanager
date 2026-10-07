@@ -93,14 +93,16 @@
 	}
 
 	.tag-name {
+		/* Оттенок — в --tag-hue: светлая тема берёт его же, а не копию hex. */
+		--tag-hue: #bb8bff;
 		font-family: ui-monospace, monospace;
 		font-weight: 600;
-		color: #bb8bff;
+		color: var(--tag-hue);
 	}
 
-	/* Светлая тема: #bb8bff на белом — 2.5:1, ниже WCAG AA. */
+	/* Светлая тема: исходный оттенок на белом — 2.5:1, ниже WCAG AA. */
 	:global([data-theme='light']) .tag-name {
-		color: color-mix(in srgb, #bb8bff 40%, var(--color-text-primary));
+		color: color-mix(in srgb, var(--tag-hue) 40%, var(--color-text-primary));
 	}
 
 	.tag-count {

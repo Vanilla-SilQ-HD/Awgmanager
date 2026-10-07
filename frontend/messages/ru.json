@@ -1484,6 +1484,24 @@
 	"servers_rail_aria": "Список серверов",
 	"servers_rail_label": "Серверы ({count})",
 	"servers_rail_new": "Новый сервер",
+	"servers_rail_peers": [
+		{
+			"declarations": [
+				"input active",
+				"input total",
+				"local totalPlural = total: plural"
+			],
+			"selectors": [
+				"totalPlural"
+			],
+			"match": {
+				"totalPlural=one": "{active}/{total} пир",
+				"totalPlural=few": "{active}/{total} пира",
+				"totalPlural=many": "{active}/{total} пиров",
+				"totalPlural=*": "{active}/{total} пира"
+			}
+		}
+	],
 	"servers_settings_panel_title": "Настройки доступа",
 	"servers_create_title": "Создать WireGuard сервер",
 	"servers_create_failed": "Ошибка создания",
