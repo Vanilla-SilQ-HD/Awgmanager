@@ -50,7 +50,7 @@
 		<span class="font-medium">{m.hrneo_geo_refresh_title()}</span>
 		<span class="setting-description">{m.hrneo_geo_refresh_description()}</span>
 	</div>
-	<Toggle checked={value.autoRefreshEnabled} onchange={onToggle} disabled={saving} />
+	<Toggle checked={value.autoRefreshEnabled} controlled onchange={onToggle} disabled={saving} />
 </div>
 
 {#if value.autoRefreshEnabled}

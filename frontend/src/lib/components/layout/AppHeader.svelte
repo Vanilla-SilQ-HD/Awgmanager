@@ -229,7 +229,7 @@
 
 		<div class="user-tools">
 			{#if authenticated && !authDisabled && username}
-				<span class="user-chip">{username}</span>
+				<span class="user-chip" title={username}>{username}</span>
 			{/if}
 
 			<NotificationCenter {authenticated} />
@@ -405,6 +405,10 @@
 		border-radius: var(--radius-sm);
 		margin-right: 0.25rem;
 		white-space: nowrap;
+		/* Длинное имя не должно выталкивать последнюю вкладку меню за край. */
+		max-width: 72px;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.version-slot {
@@ -529,7 +533,7 @@
 		display: none;
 	}
 
-	@media (max-width: 1050px) {
+	@media (max-width: 1100px) {
 		.nav {
 			display: none;
 		}

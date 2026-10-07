@@ -626,11 +626,11 @@ $effect(() => {
 		}
 	}
 
-	async function saveDnsRouteSettings() {
+	async function saveDnsRouteSettings(dnsRoute: Settings["dnsRoute"]) {
 		if (!settings) return;
 		saving = true;
 		try {
-			settings = await api.updateSettings(settings);
+			settings = await api.updateSettings({ ...settings, dnsRoute });
 			setGlobalSettings(settings);
 			notifications.success(m.settings_page_dns_auto_saved());
 		} catch {

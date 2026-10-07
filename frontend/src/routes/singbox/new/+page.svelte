@@ -5,6 +5,7 @@
 	import { SingboxGhostTerminal } from '$lib/components/singbox';
 	import { ArrowLeft } from 'lucide-svelte';
 	import { Button } from '$lib/components/ui';
+	import RichText from '$lib/components/ui/RichText.svelte';
 	import { notifications } from '$lib/stores/notifications';
 
 	function onComplete(imported: number): void {
@@ -28,8 +29,7 @@
 	</div>
 
 	<p class="page-intro">
-		{m.singbox_new_intro_prefix()} <code>vless://</code>, <code>hysteria2://</code>,
-		<code>mieru://</code> {m.singbox_new_intro_or()} <code>mierus://</code> {m.singbox_new_intro_suffix()}
+		<RichText text={m.singbox_new_intro()} />
 	</p>
 
 	<SingboxGhostTerminal oncomplete={onComplete} />
@@ -65,7 +65,7 @@
 		margin: 0 0 1rem 0;
 	}
 
-	.page-intro code {
+	.page-intro :global(code) {
 		font-family: var(--font-mono, monospace);
 		background: var(--bg-secondary);
 		padding: 1px 6px;

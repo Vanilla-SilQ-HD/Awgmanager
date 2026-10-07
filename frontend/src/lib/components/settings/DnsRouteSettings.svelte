@@ -7,7 +7,7 @@
 		settings: Settings;
 		saving: boolean;
 		onToggle: (enabled: boolean) => void;
-		onSave: () => void;
+		onSave: (dnsRoute: Settings['dnsRoute']) => void | Promise<void>;
 	}
 
 	let {
@@ -31,28 +31,26 @@
 		(localMode === 'daily' && localDailyTime !== savedDailyTime)
 	);
 
-	$effect(() => {
+	function syncFromSettings() {
 		if (savedInterval > 0) {
 			localInterval = savedInterval;
 		}
-	});
-
-	$effect(() => {
 		localMode = savedMode;
-	});
-
-	$effect(() => {
 		localDailyTime = savedDailyTime;
-	});
+	}
+	$effect(syncFromSettings);
 
-	function handleSave() {
-		settings.dnsRoute.refreshMode = localMode;
-		if (localMode === 'interval') {
-			settings.dnsRoute.refreshIntervalHours = localInterval;
-		} else {
-			settings.dnsRoute.refreshDailyTime = localDailyTime;
-		}
-		onSave();
+	// `settings` is not touched until the page saves it: after a failed save the
+	// controls fall back to the last saved values instead of the rejected ones.
+	async function handleSave() {
+		await onSave({
+			...settings.dnsRoute,
+			refreshMode: localMode,
+			...(localMode === 'interval'
+				? { refreshIntervalHours: localInterval }
+				: { refreshDailyTime: localDailyTime }),
+		});
+		syncFromSettings();
 	}
 </script>
 

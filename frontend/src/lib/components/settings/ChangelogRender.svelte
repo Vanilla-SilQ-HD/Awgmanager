@@ -19,7 +19,7 @@
 </script>
 
 <script lang="ts">
-	import { m } from '$lib/i18n';
+	import { m, formatLocale } from '$lib/i18n';
 	import type { ChangelogEntry } from '$lib/types';
 
 	interface Props {
@@ -40,6 +40,18 @@
 	function label(heading: string): string {
 		return GROUP_LABELS[heading]?.() ?? heading;
 	}
+
+	// CHANGELOG пишет дату как YYYY-MM-DD; показываем её в выбранном формате.
+	// timeZone: 'UTC' — иначе западнее Гринвича дата съехала бы на день назад.
+	function entryDate(date: string): string {
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+		return new Date(`${date}T00:00:00Z`).toLocaleDateString(formatLocale(), {
+			timeZone: 'UTC',
+			day: '2-digit',
+			month: '2-digit',
+			year: 'numeric',
+		});
+	}
 </script>
 
 <div class="changelog">
@@ -47,7 +59,7 @@
 		<section class="entry">
 			<header class="entry-header">
 				<h3>{e.version}</h3>
-				<span class="entry-date">{e.date}</span>
+				<span class="entry-date">{entryDate(e.date)}</span>
 			</header>
 			{#each e.groups as g}
 				{#if g.heading}

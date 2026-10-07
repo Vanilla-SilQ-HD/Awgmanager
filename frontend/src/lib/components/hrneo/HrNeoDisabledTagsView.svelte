@@ -98,6 +98,11 @@
 		color: #bb8bff;
 	}
 
+	/* Светлая тема: #bb8bff на белом — 2.5:1, ниже WCAG AA. */
+	:global([data-theme='light']) .tag-name {
+		color: color-mix(in srgb, #bb8bff 40%, var(--color-text-primary));
+	}
+
 	.tag-count {
 		color: var(--text-muted);
 		font-size: 0.8125rem;

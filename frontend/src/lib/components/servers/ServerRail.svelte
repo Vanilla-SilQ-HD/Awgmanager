@@ -47,10 +47,10 @@
         <span class="item-name">{item.name}</span>
       </span>
       <span class="item-meta">
-        <span class="iface">{item.iface}{item.listenPort ? `:${item.listenPort}` : ''}</span>
+        <span class="iface"><span class="iface-name">{item.iface}</span>{#if item.listenPort}<span class="port">:{item.listenPort}</span>{/if}</span>
         {#if item.peerCount !== undefined && item.peerCount > 0}
           <span class="dot">·</span>
-          <span>{item.peerActive ?? 0}/{item.peerCount} peers</span>
+          <span class="peers">{item.peerActive ?? 0}/{item.peerCount} peers</span>
         {/if}
       </span>
     </button>
@@ -87,7 +87,7 @@
             <span class="item-name">{item.name}</span>
           </span>
           <span class="item-meta">
-            <span class="iface">{item.iface}{item.listenPort ? `:${item.listenPort}` : ''}</span>
+            <span class="iface"><span class="iface-name">{item.iface}</span>{#if item.listenPort}<span class="port">:{item.listenPort}</span>{/if}</span>
           </span>
         </button>
       {/each}
@@ -178,9 +178,21 @@
     font-family: var(--font-mono);
   }
 
+  /* Обрезается имя интерфейса, а порт и число пиров видны всегда. */
   .iface {
+    display: flex;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .iface-name {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .port,
+  .peers {
+    flex-shrink: 0;
     white-space: nowrap;
   }
 
