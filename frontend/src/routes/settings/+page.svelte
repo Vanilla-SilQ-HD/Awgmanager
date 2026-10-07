@@ -587,11 +587,11 @@ $effect(() => {
 		}
 	}
 
-	async function saveLoggingSettings() {
+	async function saveLoggingSettings(logging: Settings["logging"]) {
 		if (!settings) return;
 		saving = true;
 		try {
-			settings = await api.updateSettings(settings);
+			settings = await api.updateSettings({ ...settings, logging });
 			setGlobalSettings(settings);
 			notifications.success(m.settings_page_logging_saved());
 		} catch {
@@ -965,7 +965,7 @@ $effect(() => {
 								{m.settings_page_auth_description()}
 							</span>
 						</div>
-						<Toggle checked={settings.authEnabled} onchange={toggleAuth} disabled={saving} />
+						<Toggle checked={settings.authEnabled} controlled onchange={toggleAuth} disabled={saving} />
 					</div>
 					{#if settings.authEnabled}
 						<div class="setting-row session-ttl-row">
@@ -1009,6 +1009,7 @@ $effect(() => {
 						</div>
 						<Toggle
 							checked={settings.updates.checkEnabled}
+							controlled
 							onchange={toggleUpdateCheck}
 							disabled={saving}
 						/>

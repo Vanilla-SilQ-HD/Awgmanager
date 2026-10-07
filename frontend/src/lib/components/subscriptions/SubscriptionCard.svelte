@@ -174,6 +174,7 @@
 		class:off={!subscription.enabled}
 		onclick={(e) => open(e)}
 		onkeydown={(e) => {
+			if (isCardNestedInteraction(e)) return;
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				open(e);
@@ -291,6 +292,7 @@
 		tabindex: 0,
 		onclick: (e: MouseEvent) => open(e),
 		onkeydown: (e: KeyboardEvent) => {
+			if (isCardNestedInteraction(e)) return;
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				open(e);
@@ -381,6 +383,7 @@
 	tabindex="0"
 	onclick={(e) => open(e)}
 	onkeydown={(e) => {
+		if (isCardNestedInteraction(e)) return;
 		if (e.key === 'Enter' || e.key === ' ') {
 			e.preventDefault();
 			open(e);

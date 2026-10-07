@@ -882,6 +882,15 @@ button.tunnel-list-traffic-cell:focus-visible {
 	min-width: 0;
 }
 
+/* Карточка, растянутая по ряду сетки, добирает место под шапкой: сведения,
+   кнопки и графики соседних карточек встают в линию, даже когда у одной
+   шапка выше (лишний ряд бейджей, перенесённая подпись). Без растяжения
+   отступ нулевой. Общее для карточек туннелей и активных подписок. */
+.card.view-compact .details,
+.card.view-dense:not(.view-list) .details {
+	margin-top: auto;
+}
+
 /* ─── Grid density overrides ─── */
 .tunnel-grid.tunnel-grid--dense {
 	grid-template-columns: repeat(auto-fill, minmax(min(100%, 248px), 1fr));

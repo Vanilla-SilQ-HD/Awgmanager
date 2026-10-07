@@ -3,6 +3,7 @@
 	import type { SubscriptionMember } from '$lib/types';
 	import { Trash2, Ban } from 'lucide-svelte';
 	import SubscriptionMemberCard from './SubscriptionMemberCard.svelte';
+	import { isCardNestedInteraction } from '$lib/utils/cardClick';
 	import type { SingboxLayoutMode } from '$lib/constants/singboxLayout';
 
 	interface Props {
@@ -81,7 +82,7 @@
 					else onpick(member.tag);
 				}}
 				onkeydown={(e) => {
-					if (switching !== null) return;
+					if (switching !== null || isCardNestedInteraction(e)) return;
 					if (e.key === 'Enter' || e.key === ' ') {
 						e.preventDefault();
 						if (selectMode) ontoggle(member.tag);

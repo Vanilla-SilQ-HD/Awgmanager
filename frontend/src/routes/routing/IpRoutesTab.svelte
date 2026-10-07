@@ -26,12 +26,15 @@
 
     // Open edit modal when search result is clicked.
     // Capture counter at mount to skip stale values on tab re-mount.
+    // The handled request is remembered: a later refresh of the list (SSE)
+    // must not reopen a modal the user has already closed.
     // svelte-ignore state_referenced_locally
-    const initialEditCounter = editRuleCounter;
+    let handledEditCounter = editRuleCounter;
     $effect(() => {
-        if (editRuleCounter > initialEditCounter && editRuleId) {
+        if (editRuleCounter > handledEditCounter && editRuleId) {
             const route = ipRoutes.find(r => r.id === editRuleId);
             if (route) {
+                handledEditCounter = editRuleCounter;
                 editingIpRoute = route;
                 ipCreateOpen = true;
             }

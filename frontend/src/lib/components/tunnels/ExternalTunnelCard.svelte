@@ -375,6 +375,9 @@
 		display: flex;
 		gap: 8px;
 		flex-wrap: wrap;
+		/* Card stretched by its grid row: keep the buttons at the bottom edge,
+		   in line with the neighbours, instead of floating mid-card. */
+		margin-top: auto;
 		padding-top: 12px;
 		border-top: 1px solid var(--border);
 	}

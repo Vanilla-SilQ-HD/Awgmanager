@@ -223,6 +223,7 @@
         class:unknown={cardState === 'unknown'}
         onclick={(e) => openDetail(e)}
         onkeydown={(e) => {
+            if (isCardNestedInteraction(e)) return;
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 openDetail(e);
@@ -344,6 +345,7 @@
     tabindex="0"
     onclick={(e) => openDetail(e)}
     onkeydown={(e) => {
+        if (isCardNestedInteraction(e)) return;
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             openDetail(e);
@@ -524,6 +526,7 @@
     tabindex="0"
     onclick={(e) => openDetail(e)}
     onkeydown={(e) => {
+        if (isCardNestedInteraction(e)) return;
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             openDetail(e);

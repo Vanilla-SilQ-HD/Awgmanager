@@ -3,7 +3,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { api } from '$lib/api/client';
 	import { notifications } from '$lib/stores/notifications';
-	import { PageContainer } from '$lib/components/layout';
+	import { PageContainer, LoadingSpinner } from '$lib/components/layout';
 	import { Button } from '$lib/components/ui';
 	import { TerminalInstall, TerminalView, TerminalCredentialsBar } from '$lib/components/terminal';
 	import type { TerminalStatus } from '$lib/types';
@@ -94,8 +94,7 @@
 {#if pageState === 'loading' || pageState === 'starting'}
 	<PageContainer>
 		<div class="terminal-loading">
-			<div class="spinner"></div>
-			<p>{pageState === 'loading' ? m.terminal_page_checking() : m.terminal_page_starting()}</p>
+			<LoadingSpinner size="md" message={pageState === 'loading' ? m.terminal_page_checking() : m.terminal_page_starting()} />
 		</div>
 	</PageContainer>
 {:else if pageState === 'not-installed'}
@@ -156,22 +155,8 @@
 	}
 	.terminal-loading {
 		display: flex;
-		flex-direction: column;
 		align-items: center;
 		justify-content: center;
 		height: 60vh;
-		gap: 1rem;
-		color: var(--text-secondary);
-	}
-	.spinner {
-		width: 32px;
-		height: 32px;
-		border: 3px solid var(--border-primary);
-		border-top-color: var(--accent-primary);
-		border-radius: 50%;
-		animation: spin 0.8s linear infinite;
-	}
-	@keyframes spin {
-		to { transform: rotate(360deg); }
 	}
 </style>

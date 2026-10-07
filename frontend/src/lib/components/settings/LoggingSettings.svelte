@@ -10,7 +10,7 @@
 		settings: Settings;
 		saving: boolean;
 		onToggle: (enabled: boolean) => void;
-		onSave: () => void;
+		onSave: (logging: Settings['logging']) => void | Promise<void>;
 	}
 
 	let {
@@ -35,26 +35,32 @@
 	let localAppMaxEntries = $state(settings.logging.appMaxEntries || 5000);
 	let localSingboxMaxEntries = $state(settings.logging.singboxMaxEntries || 5000);
 
-	$effect(() => {
+	function syncFromSettings() {
 		localMaxAge = settings.logging.maxAge;
 		localLogLevel = (settings.logging.logLevel as AwgmLogLevel) || 'info';
 		localSingboxLogLevel = (settings.logging.singboxLogLevel as SingboxLogLevel) || 'trace';
 		localAppMaxEntries = settings.logging.appMaxEntries || 5000;
 		localSingboxMaxEntries = settings.logging.singboxMaxEntries || 5000;
-	});
+	}
+	$effect(syncFromSettings);
 
 	function clampEntries(n: number): number {
 		if (!Number.isFinite(n)) return 5000;
 		return Math.min(MAX_ENTRIES, Math.max(MIN_ENTRIES, Math.round(n)));
 	}
 
-	function handleSave() {
-		settings.logging.maxAge = localMaxAge;
-		settings.logging.logLevel = localLogLevel;
-		settings.logging.singboxLogLevel = localSingboxLogLevel;
-		settings.logging.appMaxEntries = clampEntries(localAppMaxEntries);
-		settings.logging.singboxMaxEntries = clampEntries(localSingboxMaxEntries);
-		onSave();
+	// `settings` is not touched until the page saves it: after a failed save the
+	// controls fall back to the last saved values instead of the rejected ones.
+	async function handleSave() {
+		await onSave({
+			...settings.logging,
+			maxAge: localMaxAge,
+			logLevel: localLogLevel,
+			singboxLogLevel: localSingboxLogLevel,
+			appMaxEntries: clampEntries(localAppMaxEntries),
+			singboxMaxEntries: clampEntries(localSingboxMaxEntries),
+		});
+		syncFromSettings();
 	}
 
 	const hoursOptions: DropdownOption[] = $derived([
@@ -123,7 +129,7 @@
 				/>
 			</div>
 		{/if}
-		<Toggle checked={settings.logging.enabled} onchange={onToggle} disabled={saving} />
+		<Toggle checked={settings.logging.enabled} controlled onchange={onToggle} disabled={saving} />
 	</div>
 </div>
 
