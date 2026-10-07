@@ -1,11 +1,5 @@
 package transport
 
-import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-)
-
 // RCI payload builders for the JSON-POST form of /show commands.
 //
 // Background: NDMS RCI accepts GET /show/<path>/<name> or POST /rci/ with
@@ -26,11 +20,11 @@ import (
 // the URL parser. Caller supplies the command tree under "show" as a
 // slice of segments; args is merged into the innermost object.
 //
-//	ShowQuery([]string{"interface"}, map[string]any{"name": "GigabitEthernet0/Vlan2"})
-//	  => {"show":{"interface":{"name":"GigabitEthernet0/Vlan2"}}}
+//	ShowQuery([]string{"interface", "system-name"}, map[string]any{"name": "GigabitEthernet0/Vlan2"})
+//	  => {"show":{"interface":{"system-name":{"name":"GigabitEthernet0/Vlan2"}}}}
 //
-//	ShowQuery([]string{"interface"}, map[string]any{"name": "Wireguard0", "details": "yes"})
-//	  => {"show":{"interface":{"name":"Wireguard0","details":"yes"}}}
+// Интерфейс по имени (`show interface name=X`) так не читаем — на снятом
+// NDMS пишет E; данные интерфейса — из полного списка (F546).
 //
 // Empty args yields the bare command (useful for listings):
 //
@@ -50,46 +44,4 @@ func ShowQuery(path []string, args map[string]any) any {
 		cur = map[string]any{path[i]: cur}
 	}
 	return map[string]any{"show": cur}
-}
-
-// ShowInterface is shorthand for the by-name interface fetch — by far
-// the most common single-interface RCI query in this codebase.
-//
-//	ShowInterface("GigabitEthernet0/Vlan2", nil)
-//	  => {"show":{"interface":{"name":"GigabitEthernet0/Vlan2"}}}
-//
-//	ShowInterface("Wireguard0", map[string]any{"details": "yes"})
-//	  => {"show":{"interface":{"name":"Wireguard0","details":"yes"}}}
-//
-// extra keys win over the auto-set "name" — pass extra["name"] = "..."
-// to override, though there's no current reason to.
-func ShowInterface(name string, extra map[string]any) any {
-	args := map[string]any{"name": name}
-	for k, v := range extra {
-		args[k] = v
-	}
-	return ShowQuery([]string{"interface"}, args)
-}
-
-// UnwrapShowInterface strips the {"show":{"interface":…}} envelope from a
-// Post(ShowInterface(...)) response, returning the inner interface object
-// (nil when absent). Shared by consumers outside the query package (nwg).
-func UnwrapShowInterface(raw json.RawMessage) ([]byte, error) {
-	trimmed := bytes.TrimSpace(raw)
-	if len(trimmed) == 0 {
-		return nil, nil
-	}
-	var w struct {
-		Show struct {
-			Interface json.RawMessage `json:"interface"`
-		} `json:"show"`
-	}
-	if err := json.Unmarshal(trimmed, &w); err != nil {
-		return nil, fmt.Errorf("decode show.interface envelope: %w", err)
-	}
-	inner := bytes.TrimSpace(w.Show.Interface)
-	if len(inner) == 0 || bytes.Equal(inner, []byte("null")) {
-		return nil, nil
-	}
-	return inner, nil
 }

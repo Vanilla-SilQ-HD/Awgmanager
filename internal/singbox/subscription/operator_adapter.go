@@ -45,8 +45,9 @@ type slotConfig struct {
 // package.
 type ProxyRegistrar interface {
 	NextFreeIndex(ctx context.Context, reserved map[int]bool) (int, error)
-	EnsureProxy(ctx context.Context, idx, port int, description string) error
-	RemoveProxy(ctx context.Context, idx int) error
+	EnsureProxy(ctx context.Context, idx, port int, description, ownedDesc string) error
+	CreateProxy(ctx context.Context, idx, port int, description string) (ours bool, err error)
+	RemoveProxy(ctx context.Context, idx int, desc string) error
 }
 
 // ClashSelector is the narrow interface for switching a selector outbound's
@@ -826,20 +827,31 @@ func (a *OperatorAdapter) AllocProxyIndex(ctx context.Context) (int, error) {
 	return a.pm.NextFreeIndex(ctx, nil)
 }
 
-// EnsureProxy creates or refreshes the NDMS ProxyN interface at the given index.
-func (a *OperatorAdapter) EnsureProxy(ctx context.Context, idx, port int, description string) error {
+// EnsureProxy creates or refreshes the NDMS ProxyN interface at the given
+// index; an existing record is refreshed only when it is ours (F577).
+func (a *OperatorAdapter) EnsureProxy(ctx context.Context, idx, port int, description, ownedDesc string) error {
 	if a.pm == nil {
 		return fmt.Errorf("subscription adapter: ProxyRegistrar not configured")
 	}
-	return a.pm.EnsureProxy(ctx, idx, port, description)
+	return a.pm.EnsureProxy(ctx, idx, port, description, ownedDesc)
 }
 
-// RemoveProxy tears down the NDMS ProxyN interface at the given index.
-func (a *OperatorAdapter) RemoveProxy(ctx context.Context, idx int) error {
+// CreateProxy creates the NDMS ProxyN at a freshly allocated index; ours —
+// откат вправе её снести (F574).
+func (a *OperatorAdapter) CreateProxy(ctx context.Context, idx, port int, description string) (bool, error) {
+	if a.pm == nil {
+		return false, fmt.Errorf("subscription adapter: ProxyRegistrar not configured")
+	}
+	return a.pm.CreateProxy(ctx, idx, port, description)
+}
+
+// RemoveProxy tears down the NDMS ProxyN interface at the given index when
+// its description is desc (ours, F577).
+func (a *OperatorAdapter) RemoveProxy(ctx context.Context, idx int, desc string) error {
 	if a.pm == nil {
 		return fmt.Errorf("subscription adapter: ProxyRegistrar not configured")
 	}
-	return a.pm.RemoveProxy(ctx, idx)
+	return a.pm.RemoveProxy(ctx, idx, desc)
 }
 
 // toAnyInt extracts an integer from json-decoded interface values (float64, int, int64).

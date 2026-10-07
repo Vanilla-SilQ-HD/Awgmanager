@@ -1,0 +1,839 @@
+package managed
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"log/slog"
+	"slices"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/hoaxisr/awg-manager/internal/ndms"
+	"github.com/hoaxisr/awg-manager/internal/ndms/command"
+	"github.com/hoaxisr/awg-manager/internal/ndms/query"
+	"github.com/hoaxisr/awg-manager/internal/storage"
+)
+
+// oracleGetter — FakeNDMS плюс ответы по путям вне его модели (rc маршрутов,
+// rc пиров с содержимым).
+type oracleGetter struct {
+	*query.FakeNDMS
+	raw map[string]string
+}
+
+func (g oracleGetter) GetRaw(ctx context.Context, path string) ([]byte, error) {
+	if r, ok := g.raw[path]; ok {
+		return []byte(r), nil
+	}
+	return g.FakeNDMS.GetRaw(ctx, path)
+}
+
+// Post: ключ raw "POST <payload JSON>" — ответ на чтение POST-ом (show
+// interface записи); остальное — FakeNDMS.
+func (g oracleGetter) Post(ctx context.Context, payload any) (json.RawMessage, error) {
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	if r, ok := g.raw["POST "+string(b)]; ok {
+		return json.RawMessage(r), nil
+	}
+	return g.FakeNDMS.Post(ctx, payload)
+}
+
+func (g oracleGetter) Get(ctx context.Context, path string, dst any) error {
+	raw, err := g.GetRaw(ctx, path)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(raw, dst)
+}
+
+// newServiceWithOracle — Service над оракулом: FakeNDMS — и getter, и poster
+// (rci и command.Commands), servers — в хранилище. raw — пути вне модели
+// FakeNDMS (nil — нет).
+func newServiceWithOracle(t *testing.T, f *query.FakeNDMS, raw map[string]string, servers ...storage.ManagedServer) *Service {
+	t.Helper()
+	store := storage.NewSettingsStore(t.TempDir())
+	if _, err := store.Load(); err != nil {
+		t.Fatalf("load store: %v", err)
+	}
+	for _, sv := range servers {
+		if err := store.AddManagedServer(sv); err != nil {
+			t.Fatalf("seed %s: %v", sv.InterfaceName, err)
+		}
+	}
+	g := oracleGetter{FakeNDMS: f, raw: raw}
+	ifaces := query.NewInterfaceStore(g, query.NopLogger())
+	queries := &query.Queries{
+		Interfaces:    ifaces,
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		WGServers:     query.NewWGServerStore(g, query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(g, query.NopLogger()),
+		StaticRoutes:  query.NewStaticRouteStore(g, query.NopLogger()),
+		Routes:        query.NewRouteStore(g, query.NopLogger()),
+	}
+	sc := command.NewSaveCoordinator(f, nil, time.Hour, time.Hour, 0, nil)
+	cmds := command.NewCommands(command.Deps{Poster: f, Save: sc, Queries: queries})
+	svc := New(f, sc, queries, cmds, store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
+	svc.wgRun = func(context.Context, string, ...string) (string, error) {
+		return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n", nil
+	}
+	svc.keyGen = &fakeKeyGen{}
+	return svc
+}
+
+// confirmed — доказательство для вызовов rci* в тестах: берётся у отдельного
+// FakeNDMS, где name есть.
+func confirmed(t *testing.T, name string) query.Confirmed {
+	t.Helper()
+	s := query.NewInterfaceStore(query.NewFakeNDMS(ndms.Interface{ID: name}), query.NopLogger())
+	c, _, ok, err := s.Confirm(context.Background(), name)
+	if err != nil || !ok {
+		t.Fatalf("confirm %s: ok=%v err=%v", name, ok, err)
+	}
+	return c
+}
+
+// listsDuring — сколько полных списков прочитано за call; карта интерфейсов
+// загружена заранее (в проде она тёплая с загрузки демона).
+func listsDuring(t *testing.T, s *Service, f *query.FakeNDMS, call func()) int {
+	t.Helper()
+	if _, err := s.queries.Interfaces.List(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	before := f.ListCalls()
+	call()
+	return f.ListCalls() - before
+}
+
+func TestDelete_InterfaceGoneOutside_NoCommandsRecordRemoved(t *testing.T) { // F547
+	f := query.NewFakeNDMS() // Wireguard3 снят мимо панели
+	s := newServiceWithOracle(t, f, nil, storage.ManagedServer{InterfaceName: "Wireguard3", NATMode: "full", LANSegments: []string{"Bridge0"}})
+	if err := s.Delete(context.Background(), "Wireguard3"); err != nil {
+		t.Fatal(err)
+	}
+	if f.Phantoms != 0 || f.E != 0 || len(f.Posts) != 0 {
+		t.Fatalf("phantoms=%d E=%d posts=%v", f.Phantoms, f.E, f.Posts)
+	}
+	if _, ok := s.settings.GetManagedServerByID("Wireguard3"); ok {
+		t.Fatal("storage record must be removed")
+	}
+	if s.saveCoord.Status().State == command.SaveStatePending {
+		t.Fatal("no save without commands")
+	}
+}
+
+func TestDelete_ListError_FailsClosed(t *testing.T) {
+	f := query.NewFakeNDMS(ndms.Interface{ID: "Wireguard3", Type: "Wireguard"})
+	s := newServiceWithOracle(t, f, nil, storage.ManagedServer{InterfaceName: "Wireguard3"})
+	f.FailList(errors.New("rci down"))
+	if err := s.Delete(context.Background(), "Wireguard3"); err == nil {
+		t.Fatal("must fail closed")
+	}
+	if _, ok := s.settings.GetManagedServerByID("Wireguard3"); !ok {
+		t.Fatal("storage must stay for a retry")
+	}
+	if len(f.Posts) != 0 {
+		t.Fatalf("no commands on unknown state: %v", f.Posts)
+	}
+}
+
+// R16: NAT снимается по доказательству ДО `no interface`, `down` не шлётся.
+func TestDelete_Present_NATThenNoInterface_NoDown(t *testing.T) {
+	f := query.NewFakeNDMS(ndms.Interface{ID: "Wireguard3", Type: "Wireguard", State: "up"})
+	s := newServiceWithOracle(t, f, nil, storage.ManagedServer{InterfaceName: "Wireguard3", NATMode: "full"})
+	if err := s.Delete(context.Background(), "Wireguard3"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		`{"ip":{"nat":[{"interface":"Wireguard3","no":true}]}}`,
+		`{"interface":{"Wireguard3":{"no":true}}}`,
+	}
+	if strings.Join(f.Posts, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("posts:\n%s\nwant:\n%s", strings.Join(f.Posts, "\n"), strings.Join(want, "\n"))
+	}
+	if f.Phantoms != 0 || f.E != 0 || f.Has("Wireguard3") {
+		t.Fatalf("phantoms=%d E=%d has=%v", f.Phantoms, f.E, f.Has("Wireguard3"))
+	}
+	if rec, _ := s.queries.Interfaces.Get(context.Background(), "Wireguard3"); rec != nil {
+		t.Fatal("снятый интерфейс остался в кэше")
+	}
+	if _, ok := s.settings.GetManagedServerByID("Wireguard3"); ok {
+		t.Fatal("storage record must be removed")
+	}
+}
+
+// Create: список FindFreeIndex и один Confirm после создания; команды
+// списка не перечитывают (прежде — InvalidateAll на каждый пост).
+func TestCreate_OneListThenNoListsPerPost(t *testing.T) {
+	f := query.NewFakeNDMS()
+	f.ExpectCreate("Wireguard0")
+	s := newServiceWithOracle(t, f, map[string]string{
+		`POST {"show":{"interface":{"system-name":{"name":"Wireguard0"}}}}`: `{"show":{"interface":{"system-name":"nwg0"}}}`,
+	})
+	no := false
+	var sv *storage.ManagedServer
+	lists := listsDuring(t, s, f, func() {
+		var err error
+		sv, err = s.Create(context.Background(), CreateServerRequest{Address: "10.77.0.1", Mask: "24", ListenPort: 51820, GenerateASC: &no})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+	if sv.InterfaceName != "Wireguard0" {
+		t.Fatalf("iface %s", sv.InterfaceName)
+	}
+	if lists != 2 { // FindFreeIndex + Confirm
+		t.Fatalf("list reads = %d, want 2 (FindFreeIndex + Confirm)", lists)
+	}
+	if f.Phantoms != 0 || f.E != 0 || len(f.Created) != 1 {
+		t.Fatalf("phantoms=%d E=%d created=%v", f.Phantoms, f.E, f.Created)
+	}
+}
+
+func TestSetEnabled_InterfaceGone_ErrorNoCommands(t *testing.T) {
+	f := query.NewFakeNDMS()
+	s := newServiceWithOracle(t, f, nil, storage.ManagedServer{InterfaceName: "Wireguard3"})
+	for _, call := range []func() error{
+		func() error { return s.SetEnabled(context.Background(), "Wireguard3", true) },
+		func() error { return s.RestartOrStart(context.Background(), "Wireguard3") },
+		func() error { return s.SetNATMode(context.Background(), "Wireguard3", "none") },
+	} {
+		if err := call(); err == nil || !strings.Contains(err.Error(), "интерфейс Wireguard3 снят в NDMS") {
+			t.Fatalf("err = %v", err)
+		}
+	}
+	if f.Phantoms != 0 || f.E != 0 || len(f.Posts) != 0 {
+		t.Fatalf("phantoms=%d E=%d posts=%v", f.Phantoms, f.E, f.Posts)
+	}
+}
+
+// F552: снимок занятых — одним списком, сколько бы серверов ни было.
+func TestOccupiedSubnets_OneListRead(t *testing.T) {
+	f := query.NewFakeNDMS(
+		ndms.Interface{ID: "Wireguard1", Type: "Wireguard", Address: "10.1.0.1", Mask: "255.255.255.0"},
+		ndms.Interface{ID: "Wireguard2", Type: "Wireguard", Address: "10.2.0.1", Mask: "255.255.255.0"},
+		ndms.Interface{ID: "Wireguard3", Type: "Wireguard", Address: "10.3.0.1", Mask: "255.255.255.0"},
+	)
+	s := newServiceWithOracle(t, f, map[string]string{"/show/rc/ip/route": `[]`},
+		storage.ManagedServer{InterfaceName: "Wireguard1"},
+		storage.ManagedServer{InterfaceName: "Wireguard2"},
+		storage.ManagedServer{InterfaceName: "Wireguard3"},
+	)
+	lists := listsDuring(t, s, f, func() {
+		occ, err := s.OccupiedSubnets(context.Background(), PeerRef{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(occ) != 3 {
+			t.Fatalf("occupied = %v", occ)
+		}
+	})
+	if lists != 1 {
+		t.Fatalf("list reads = %d, want 1", lists)
+	}
+	if f.E != 0 {
+		t.Fatalf("E=%d", f.E)
+	}
+}
+
+// Проверка занятости: пиры всех серверов — одним чтением дерева rc, и после
+// нашей записи (карта помечена грязной) — всё равно один список: подтверждение
+// и карта берутся из одного чтения (F546).
+func TestOccupied_OneRCReadForAllServers(t *testing.T) {
+	f := query.NewFakeNDMS(
+		ndms.Interface{ID: "Wireguard1", Type: "Wireguard", Address: "10.1.0.1", Mask: "255.255.255.0"},
+		ndms.Interface{ID: "Wireguard2", Type: "Wireguard", Address: "10.2.0.1", Mask: "255.255.255.0"},
+		ndms.Interface{ID: "Wireguard3", Type: "Wireguard", Address: "10.3.0.1", Mask: "255.255.255.0"},
+	)
+	for i, id := range []string{"Wireguard1", "Wireguard2", "Wireguard3"} {
+		n := string(rune('1' + i))
+		f.SetRC(id, json.RawMessage(`{"wireguard":{"peer":[{"key":"K`+n+`","allow-ips":[{"address":"192.168.`+n+`0.0","mask":"255.255.255.0"}]}]}}`))
+	}
+	s := newServiceWithOracle(t, f, map[string]string{"/show/rc/ip/route": `[]`},
+		storage.ManagedServer{InterfaceName: "Wireguard1"},
+		storage.ManagedServer{InterfaceName: "Wireguard2"},
+		storage.ManagedServer{InterfaceName: "Wireguard3"},
+	)
+	for round := 1; round <= 2; round++ {
+		rcBefore := f.RCListCalls()
+		lists := listsDuring(t, s, f, func() {
+			s.queries.Interfaces.Invalidate("Wireguard1") // наша запись перед проверкой
+			occ, err := s.OccupiedSubnets(context.Background(), PeerRef{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(occ) != 6 {
+				t.Fatalf("occupied = %v", occ)
+			}
+		})
+		if lists != 1 {
+			t.Fatalf("проверка %d: list reads = %d, want 1", round, lists)
+		}
+		if got := f.RCListCalls() - rcBefore; got != 1 {
+			t.Fatalf("проверка %d: чтений дерева rc = %d, want 1", round, got)
+		}
+	}
+	if f.E != 0 {
+		t.Fatalf("E=%d", f.E)
+	}
+}
+
+// Миграция allow-ips: пиры всех серверов — одно чтение дерева rc.
+func TestMigratePeerAllowIPs_OneRCRead(t *testing.T) {
+	f := query.NewFakeNDMS(
+		ndms.Interface{ID: "Wireguard1", Type: "Wireguard"},
+		ndms.Interface{ID: "Wireguard2", Type: "Wireguard"},
+		ndms.Interface{ID: "Wireguard3", Type: "Wireguard"},
+	)
+	peer := func(k string) []storage.ManagedPeer { return []storage.ManagedPeer{{PublicKey: k}} }
+	f.SetRC("Wireguard1", json.RawMessage(`{"wireguard":{"peer":[{"key":"A"}]}}`))
+	f.SetRC("Wireguard2", json.RawMessage(`{"wireguard":{"peer":[{"key":"B"}]}}`))
+	f.SetRC("Wireguard3", json.RawMessage(`{"wireguard":{"peer":[{"key":"C"}]}}`))
+	s := newServiceWithOracle(t, f, map[string]string{},
+		storage.ManagedServer{InterfaceName: "Wireguard1", Peers: peer("A")},
+		storage.ManagedServer{InterfaceName: "Wireguard2", Peers: peer("B")},
+		storage.ManagedServer{InterfaceName: "Wireguard3", Peers: peer("C")},
+	)
+	if err := s.settings.SetManagedPeerAllowIPsMigrated(false); err != nil {
+		t.Fatal(err)
+	}
+	before := f.RCListCalls()
+	s.MigratePeerAllowIPs(context.Background())
+	if got := f.RCListCalls() - before; got != 1 {
+		t.Fatalf("чтений дерева rc = %d, want 1", got)
+	}
+	if len(f.Posts) != 3 || f.E != 0 || !s.settings.IsManagedPeerAllowIPsMigrated() {
+		t.Fatalf("posts=%v E=%d", f.Posts, f.E)
+	}
+}
+
+// Сервер, которого карта не знала (потерян ifcreated), попадает в проверку:
+// тот же список показывает его, второй подтверждает.
+func TestOccupiedSubnets_BuiltInMissedByCache_StillRead(t *testing.T) {
+	f := query.NewFakeNDMS()
+	f.SetRC("Wireguard0", json.RawMessage(`{"wireguard":{"peer":[{"key":"K","allow-ips":[{"address":"192.168.50.0","mask":"255.255.255.0"}]}]}}`))
+	s := newServiceWithOracle(t, f, map[string]string{
+		"/show/rc/ip/route": `[]`,
+	})
+	if _, err := s.queries.Interfaces.List(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	f.Add(ndms.Interface{ID: "Wireguard0", Type: "Wireguard", Description: ndms.BuiltInVPNServerDescription})
+	f.DrainHooks() // хук потерян
+	occ, err := s.OccupiedSubnets(context.Background(), PeerRef{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(occ) != 1 || occ[0].Net.String() != "192.168.50.0/24" {
+		t.Fatalf("occupied = %v", occ)
+	}
+}
+
+func restoreServerWithPeers(n int) ManagedServerExport {
+	sv := ManagedServerExport{
+		InterfaceName: "Wireguard1", Address: "10.99.0.1", Mask: "255.255.255.0",
+		ListenPort: 51900, PrivateKey: validPrivateKey(1), NATMode: "none",
+	}
+	for i := 0; i < n; i++ {
+		sv.Peers = append(sv.Peers, storage.ManagedPeer{
+			PublicKey:     validPeerKey(byte(10 + i)),
+			TunnelIP:      "10.99.0." + string(rune('2'+i)) + "/32",
+			Enabled:       true,
+			RemoteSubnets: []string{"192.168.10" + string(rune('0'+i)) + ".0/24"},
+		})
+	}
+	return sv
+}
+
+func restoreRCPeers(sv ManagedServerExport) string {
+	var peers []map[string]any
+	for _, p := range sv.Peers {
+		peers = append(peers, map[string]any{"key": p.PublicKey})
+	}
+	b, _ := json.Marshal(map[string]any{"wireguard": map[string]any{"peer": peers}})
+	return string(b)
+}
+
+// Восстановление сервера читает список не на каждого пира: подтверждение
+// созданного плюс один снимок занятых — при любом числе пиров с сетями.
+func TestRestore_ListReadsDoNotGrowWithPeers(t *testing.T) {
+	for _, n := range []int{1, 3} {
+		sv := restoreServerWithPeers(n)
+		f := query.NewFakeNDMS()
+		f.ExpectCreate("Wireguard1")
+		f.SetRC("Wireguard1", json.RawMessage(restoreRCPeers(sv)))
+		s := newServiceWithOracle(t, f, map[string]string{
+			"/show/rc/ip/route":    `[]`,
+			"/show/running-config": `{"message":[]}`,
+		})
+		var out []RestoreOutcome
+		lists := listsDuring(t, s, f, func() {
+			out = s.Restore(context.Background(), []ManagedServerExport{sv}, RestoreOptions{})
+		})
+		if len(out) != 1 || out[0].Action != "created" {
+			t.Fatalf("n=%d outcome %+v", n, out)
+		}
+		got, _ := s.settings.GetManagedServerByID("Wireguard1")
+		for _, p := range got.Peers {
+			if len(p.RemoteSubnets) != 1 {
+				t.Fatalf("n=%d: сети пира не восстановлены: %+v", n, got.Peers)
+			}
+		}
+		// Confirm создания + снимок занятых (кандидаты и подтверждение — одно
+		// чтение, F546) — от числа пиров не зависит.
+		if lists != 2 {
+			t.Fatalf("n=%d: list reads = %d, want 2", n, lists)
+		}
+		if f.Phantoms != 0 || f.E != 0 {
+			t.Fatalf("n=%d: phantoms=%d E=%d", n, f.Phantoms, f.E)
+		}
+	}
+}
+
+// Мерж в живой сервер — ОДИН список: снимок занятых подтверждает и сервер.
+func TestRestoreMerge_OneListRead(t *testing.T) {
+	sv := restoreServerWithPeers(3)
+	existing := sv
+	existing.Peers = nil
+	f := query.NewFakeNDMS(ndms.Interface{ID: "Wireguard1", Type: "Wireguard", Address: "10.99.0.1", Mask: "255.255.255.0"})
+	pub := mustDerivePublicKey(t, sv.PrivateKey)
+	f.SetRC("Wireguard1", json.RawMessage(restoreRCPeers(sv)))
+	s := newServiceWithOracle(t, f, map[string]string{
+		"/show/rc/ip/route":    `[]`,
+		"/show/running-config": `{"message":[]}`,
+	}, existing)
+	// WGServers.Get: ключ живого сервера — тот же, что в бэкапе; runtime — из
+	// снимка списка (F546).
+	f.SetDetail("Wireguard1", json.RawMessage(`{"wireguard":{"public-key":"`+pub+`"}}`))
+	if live, err := s.queries.WGServers.Get(context.Background(), "Wireguard1"); err != nil || live.PublicKey != pub {
+		t.Fatalf("живой ключ не читается фикстурой: %+v %v", live, err)
+	}
+	var out []RestoreOutcome
+	lists := listsDuring(t, s, f, func() {
+		out = s.Restore(context.Background(), []ManagedServerExport{sv}, RestoreOptions{})
+	})
+	if len(out) != 1 || out[0].Action != "merged" || out[0].AddedPeers != 3 {
+		t.Fatalf("outcome %+v", out)
+	}
+	if lists != 1 {
+		t.Fatalf("list reads = %d, want 1", lists)
+	}
+	if f.Phantoms != 0 || f.E != 0 {
+		t.Fatalf("phantoms=%d E=%d", f.Phantoms, f.E)
+	}
+}
+
+// Миграция allow-ips: один список на все серверы, не по списку на сервер.
+func TestMigratePeerAllowIPs_OneListRead(t *testing.T) {
+	f := query.NewFakeNDMS(
+		ndms.Interface{ID: "Wireguard1", Type: "Wireguard"},
+		ndms.Interface{ID: "Wireguard2", Type: "Wireguard"},
+	)
+	peer := func(k string) []storage.ManagedPeer { return []storage.ManagedPeer{{PublicKey: k}} }
+	f.SetRC("Wireguard1", json.RawMessage(`{"wireguard":{"peer":[{"key":"A"}]}}`))
+	f.SetRC("Wireguard2", json.RawMessage(`{"wireguard":{"peer":[{"key":"B"}]}}`))
+	s := newServiceWithOracle(t, f, map[string]string{},
+		storage.ManagedServer{InterfaceName: "Wireguard1", Peers: peer("A")},
+		storage.ManagedServer{InterfaceName: "Wireguard2", Peers: peer("B")},
+		storage.ManagedServer{InterfaceName: "Wireguard3", Peers: peer("C")}, // снят мимо панели
+	)
+	if err := s.settings.SetManagedPeerAllowIPsMigrated(false); err != nil {
+		t.Fatal(err)
+	}
+	lists := listsDuring(t, s, f, func() { s.MigratePeerAllowIPs(context.Background()) })
+	if lists != 1 {
+		t.Fatalf("list reads = %d, want 1", lists)
+	}
+	if len(f.Posts) != 2 || f.Phantoms != 0 || f.E != 0 {
+		t.Fatalf("posts=%v phantoms=%d E=%d", f.Posts, f.Phantoms, f.E)
+	}
+}
+
+// internet-only: выход, которого нет в NDMS, не называется ни в постановке,
+// ни в снятии хвоста — ссылка на него была бы E в журнале ndm.
+func TestSetNATMode_AbsentExitsSkipped(t *testing.T) {
+	f := query.NewFakeNDMS(
+		ndms.Interface{ID: "Wireguard3", Type: "Wireguard"},
+		ndms.Interface{ID: "PPPoE0", Type: "PPPoE"},
+	)
+	s := newServiceWithOracle(t, f, map[string]string{
+		// Wireguard2 — выход в running-config, но интерфейса уже нет.
+		"/show/running-config": `{"message":["interface PPPoE0","    ip global 32767","!","interface Wireguard2","    ip global 100","!"]}`,
+	}, storage.ManagedServer{InterfaceName: "Wireguard3", NATMode: "internet-only", NATStaticWANs: []string{"ISP"}})
+	if err := s.SetNATMode(context.Background(), "Wireguard3", "internet-only"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		`{"ip":{"static":{"interface":"Wireguard3","to-interface":"PPPoE0"}}}`,
+		`{"ip":{"nat":[{"interface":"Wireguard3","no":true}]}}`,
+	}
+	if strings.Join(f.Posts, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("posts:\n%s", strings.Join(f.Posts, "\n"))
+	}
+	if f.E != 0 || f.Phantoms != 0 {
+		t.Fatalf("E=%d phantoms=%d", f.E, f.Phantoms)
+	}
+	sv, _ := s.settings.GetManagedServerByID("Wireguard3")
+	if len(sv.NATStaticWANs) != 1 || sv.NATStaticWANs[0] != "PPPoE0" {
+		t.Fatalf("NATStaticWANs = %v", sv.NATStaticWANs)
+	}
+}
+
+// Снятие у интерфейса, которого нет, — снимать нечего; постановка — отказ.
+// Ни в одном случае команд нет.
+func TestApplyToInterface_Absent(t *testing.T) {
+	f := query.NewFakeNDMS()
+	s := newServiceWithOracle(t, f, nil)
+	ctx := context.Background()
+	if err := s.ApplyLANSegmentsToInterface(ctx, "OpkgTun7", "", "", nil); err != nil {
+		t.Fatalf("teardown LAN: %v", err)
+	}
+	if _, err := s.ApplyNATModeToInterface(ctx, "OpkgTun7", "none", []string{"PPPoE0"}); err != nil {
+		t.Fatalf("teardown NAT: %v", err)
+	}
+	if err := s.ApplyPolicyToInterface(ctx, "OpkgTun7", "none"); err != nil {
+		t.Fatalf("teardown policy: %v", err)
+	}
+	if _, err := s.ApplyNATModeToInterface(ctx, "OpkgTun7", "full", nil); err == nil || !strings.Contains(err.Error(), "OpkgTun7") {
+		t.Fatalf("постановка NAT на отсутствующий: %v", err)
+	}
+	if len(f.Posts) != 0 || f.E != 0 || f.Phantoms != 0 {
+		t.Fatalf("posts=%v E=%d phantoms=%d", f.Posts, f.E, f.Phantoms)
+	}
+}
+
+// Пир сервера, чей интерфейс снят мимо панели: снимать с роутера нечего,
+// запись пира удаляется без команд.
+func TestDeletePeer_InterfaceGone_RecordOnly(t *testing.T) {
+	// Бридж есть: правила ACL сетей пира собрать можно — не шлём их всё равно.
+	f := query.NewFakeNDMS(ndms.Interface{ID: "Bridge0", Type: "Bridge", Address: "192.168.1.1", Mask: "255.255.255.0"})
+	s := newServiceWithOracle(t, f, nil, storage.ManagedServer{
+		InterfaceName: "Wireguard3", LANSegments: []string{"Bridge0"},
+		Peers: []storage.ManagedPeer{{PublicKey: "K", RemoteSubnets: []string{"192.168.5.0/24"}}},
+	})
+	if err := s.DeletePeer(context.Background(), "Wireguard3", "K"); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Posts) != 0 || f.E != 0 || f.Phantoms != 0 {
+		t.Fatalf("posts=%v E=%d phantoms=%d", f.Posts, f.E, f.Phantoms)
+	}
+	if sv, _ := s.settings.GetManagedServerByID("Wireguard3"); len(sv.Peers) != 0 {
+		t.Fatalf("peers = %+v", sv.Peers)
+	}
+}
+
+// Правка одних полей записи (endpoint, DNS) у сервера со снятым интерфейсом
+// проходит без подтверждения и без команд.
+func TestUpdate_RecordOnlyFields_InterfaceGone(t *testing.T) {
+	f := query.NewFakeNDMS()
+	s := newServiceWithOracle(t, f, nil, storage.ManagedServer{
+		InterfaceName: "Wireguard3", Address: "10.66.66.1", Mask: "255.255.255.0", ListenPort: 51820,
+	})
+	ep := "vpn.example.org"
+	if err := s.Update(context.Background(), "Wireguard3", UpdateServerRequest{
+		Address: "10.66.66.1", Mask: "255.255.255.0", ListenPort: 51820, Endpoint: &ep,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Posts) != 0 || f.E != 0 || f.Phantoms != 0 {
+		t.Fatalf("posts=%v E=%d phantoms=%d", f.Posts, f.E, f.Phantoms)
+	}
+	if sv, _ := s.settings.GetManagedServerByID("Wireguard3"); sv.Endpoint != ep {
+		t.Fatalf("endpoint = %q", sv.Endpoint)
+	}
+	// Правка, которую надо слать в NDMS, — отказ без команд.
+	if err := s.Update(context.Background(), "Wireguard3", UpdateServerRequest{
+		Address: "10.66.66.1", Mask: "255.255.255.0", ListenPort: 51821,
+	}); err == nil || !strings.Contains(err.Error(), "интерфейс Wireguard3 снят в NDMS") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(f.Posts) != 0 {
+		t.Fatalf("posts=%v", f.Posts)
+	}
+}
+
+// failListAfterPost — poster, после первого поста которого список интерфейсов
+// перестаёт читаться: сбой приходится на подтверждение посреди потока.
+type failListAfterPost struct{ f *query.FakeNDMS }
+
+func (p failListAfterPost) Post(ctx context.Context, payload any) (json.RawMessage, error) {
+	r, err := p.f.Post(ctx, payload)
+	p.f.FailList(errors.New("rci down"))
+	return r, err
+}
+
+// internet-only → full: выходы не подтвердились — static NAT не снят, и
+// запись не смеет сказать «снят» (иначе правила-сироты на роутере).
+func TestSetNATMode_FullAfterInternetOnly_WANListError_KeepsStored(t *testing.T) {
+	f := query.NewFakeNDMS(ndms.Interface{ID: "Wireguard3", Type: "Wireguard"}, ndms.Interface{ID: "PPPoE0"})
+	s := newServiceWithOracle(t, f, nil, storage.ManagedServer{InterfaceName: "Wireguard3", NATMode: "internet-only", NATStaticWANs: []string{"PPPoE0"}})
+	s.transport = failListAfterPost{f}
+	if err := s.SetNATMode(context.Background(), "Wireguard3", "full"); err == nil {
+		t.Fatal("сбой чтения выходов принят за успех")
+	}
+	sv, _ := s.settings.GetManagedServerByID("Wireguard3")
+	if sv.NATMode != "internet-only" || len(sv.NATStaticWANs) != 1 || sv.NATStaticWANs[0] != "PPPoE0" {
+		t.Fatalf("запись изменена: mode=%s wans=%v", sv.NATMode, sv.NATStaticWANs)
+	}
+	for _, p := range f.Posts {
+		if strings.Contains(p, `"static"`) {
+			t.Fatalf("static по неподтверждённому выходу: %s", p)
+		}
+	}
+}
+
+// internet-only → full, выходы не подтвердились: `ip nat` уже включён —
+// откатывается, роутер не остаётся полуприменённым (F555).
+func TestSetNATMode_FullAfterInternetOnly_WANListError_NATRolledBack(t *testing.T) {
+	f := query.NewFakeNDMS(ndms.Interface{ID: "Wireguard3", Type: "Wireguard"}, ndms.Interface{ID: "PPPoE0"})
+	s := newServiceWithOracle(t, f, nil, storage.ManagedServer{InterfaceName: "Wireguard3", NATMode: "internet-only", NATStaticWANs: []string{"PPPoE0"}})
+	s.transport = failListAfterPost{f}
+	if err := s.SetNATMode(context.Background(), "Wireguard3", "full"); err == nil {
+		t.Fatal("сбой чтения выходов принят за успех")
+	}
+	var nat []string
+	for _, p := range f.Posts {
+		if strings.Contains(p, `"nat"`) {
+			nat = append(nat, p)
+		}
+	}
+	if len(nat) == 0 || nat[len(nat)-1] != `{"ip":{"nat":[{"interface":"Wireguard3","no":true}]}}` {
+		t.Fatalf("ip nat не откачен: %v", nat)
+	}
+	if f.E != 0 || f.Phantoms != 0 {
+		t.Fatalf("E=%d phantoms=%d", f.E, f.Phantoms)
+	}
+}
+
+// failNATUndo — failListAfterPost, который вдобавок отвергает `no ip nat`.
+type failNATUndo struct{ f *query.FakeNDMS }
+
+func (p failNATUndo) Post(ctx context.Context, payload any) (json.RawMessage, error) {
+	if js, _ := json.Marshal(payload); strings.Contains(string(js), `"nat":[`) {
+		return nil, errors.New("injected: undo")
+	}
+	return failListAfterPost(p).Post(ctx, payload)
+}
+
+// Откат `ip nat` сам не удался — это видно в ответе, а не только в журнале.
+func TestSetNATMode_FullRollbackFails_InError(t *testing.T) {
+	f := query.NewFakeNDMS(ndms.Interface{ID: "Wireguard3", Type: "Wireguard"}, ndms.Interface{ID: "PPPoE0"})
+	s := newServiceWithOracle(t, f, nil, storage.ManagedServer{InterfaceName: "Wireguard3", NATMode: "internet-only", NATStaticWANs: []string{"PPPoE0"}})
+	s.transport = failNATUndo{f}
+	err := s.SetNATMode(context.Background(), "Wireguard3", "full")
+	if err == nil || !strings.Contains(err.Error(), "injected: undo") {
+		t.Fatalf("err = %v, want отказ отката в ошибке", err)
+	}
+}
+
+// internet-only → none, список не прочитан: ни одной команды — `no ip nat`
+// не уходит раньше снятия static (F555).
+func TestApplyNATMode_NoneAfterInternetOnly_ListError_NoCommands(t *testing.T) {
+	f := query.NewFakeNDMS(ndms.Interface{ID: "Wireguard3", Type: "Wireguard"}, ndms.Interface{ID: "PPPoE0"})
+	s := newServiceWithOracle(t, f, nil)
+	f.FailList(errors.New("rci down"))
+	if _, err := s.applyNATModeRaw(context.Background(), confirmed(t, "Wireguard3"), "none", []string{"PPPoE0"}); err == nil {
+		t.Fatal("сбой чтения выходов принят за успех")
+	}
+	if len(f.Posts) != 0 {
+		t.Fatalf("команды при неизвестном состоянии: %v", f.Posts)
+	}
+}
+
+// Legacy internet-only без сохранённых выходов, маршрут по умолчанию не
+// прочитан: снимать static не на что опереться — ошибка, а не тихий nil (F556).
+func TestRemoveStaticNATs_LegacyNoWANs_RouteError_Fails(t *testing.T) {
+	f := query.NewFakeNDMS(ndms.Interface{ID: "Wireguard3", Type: "Wireguard"}) // /show/ip/route вне модели — отказ
+	s := newServiceWithOracle(t, f, nil)
+	if err := s.removeStaticNATs(context.Background(), confirmed(t, "Wireguard3"), nil); err == nil {
+		t.Fatal("непрочитанный маршрут по умолчанию принят за «снимать нечего»")
+	}
+	if len(f.Posts) != 0 {
+		t.Fatalf("posts=%v", f.Posts)
+	}
+}
+
+// Список интерфейсов не прочитан — пересечение подсети не проверить:
+// отказ, а не пропуск проверки (F573, решение 4).
+func TestValidateServerParams_ListError_FailsClosed(t *testing.T) {
+	f := query.NewFakeNDMS()
+	s := newServiceWithOracle(t, f, nil)
+	f.FailList(errors.New("rci down"))
+	if err := s.validateServerParams(context.Background(), "10.66.66.1", "255.255.255.0", 51820, "", nil, nil); err == nil {
+		t.Fatal("проверка пересечения подсети молча пропущена")
+	}
+}
+
+func TestDelete_PresentInternetOnly_StaticThenNoInterface(t *testing.T) {
+	f := query.NewFakeNDMS(ndms.Interface{ID: "Wireguard3", Type: "Wireguard"}, ndms.Interface{ID: "PPPoE0"})
+	s := newServiceWithOracle(t, f, nil, storage.ManagedServer{InterfaceName: "Wireguard3", NATMode: "internet-only", NATStaticWANs: []string{"PPPoE0"}})
+	if err := s.Delete(context.Background(), "Wireguard3"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		`{"ip":{"static":[{"interface":"Wireguard3","no":true,"to-interface":"PPPoE0"}]}}`,
+		`{"interface":{"Wireguard3":{"no":true}}}`,
+	}
+	if strings.Join(f.Posts, "\n") != strings.Join(want, "\n") || f.E != 0 || f.Phantoms != 0 {
+		t.Fatalf("posts:\n%s\nE=%d phantoms=%d", strings.Join(f.Posts, "\n"), f.E, f.Phantoms)
+	}
+}
+
+func TestDelete_PresentLANSegments_ACLThenNoInterface(t *testing.T) {
+	f := query.NewFakeNDMS(ndms.Interface{ID: "Wireguard3", Type: "Wireguard"})
+	s := newServiceWithOracle(t, f, map[string]string{
+		"/show/running-config": `{"message":["access-list AWGM_Wireguard3","    permit ip 10.66.66.0 255.255.255.0 192.168.1.0 255.255.255.0","!","interface Wireguard3","    ip access-group AWGM_Wireguard3 in","!"]}`,
+	}, storage.ManagedServer{InterfaceName: "Wireguard3", NATMode: "none", LANSegments: []string{"Bridge0"}})
+	if err := s.Delete(context.Background(), "Wireguard3"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		`{"parse":"no interface Wireguard3 ip access-group AWGM_Wireguard3 in"}`,
+		`{"parse":"no access-list AWGM_Wireguard3"}`,
+		`{"interface":{"Wireguard3":{"no":true}}}`,
+	}
+	// Чтения POST-ом (show interface после правки) — не команды.
+	var cmds []string
+	for _, p := range f.Posts {
+		if !strings.HasPrefix(p, `{"show"`) {
+			cmds = append(cmds, p)
+		}
+	}
+	if strings.Join(cmds, "\n") != strings.Join(want, "\n") || f.E != 0 || f.Phantoms != 0 {
+		t.Fatalf("commands:\n%s\nE=%d phantoms=%d", strings.Join(cmds, "\n"), f.E, f.Phantoms)
+	}
+}
+
+// Решение 4: список не прочитан — отказ без команд.
+func TestListError_SetEnabledAndDeletePeer_NoCommands(t *testing.T) {
+	f := query.NewFakeNDMS(ndms.Interface{ID: "Wireguard3", Type: "Wireguard"})
+	s := newServiceWithOracle(t, f, nil, storage.ManagedServer{InterfaceName: "Wireguard3",
+		Peers: []storage.ManagedPeer{{PublicKey: "K"}}})
+	f.FailList(errors.New("rci down"))
+	if err := s.SetEnabled(context.Background(), "Wireguard3", false); err == nil {
+		t.Fatal("SetEnabled: must fail closed")
+	}
+	if err := s.DeletePeer(context.Background(), "Wireguard3", "K"); err == nil {
+		t.Fatal("DeletePeer: must fail closed")
+	}
+	if len(f.Posts) != 0 {
+		t.Fatalf("posts=%v", f.Posts)
+	}
+	if sv, _ := s.settings.GetManagedServerByID("Wireguard3"); len(sv.Peers) != 1 {
+		t.Fatal("пир обязан остаться в записи для повтора")
+	}
+}
+
+// F574: исходный слот занят чужим Wireguard1, которого память ещё не знает
+// (ни списком, ни хуком). Create попадает в существующую запись — ответ без
+// «interface created»: failed, ни настроек, ни сноса, чужая запись цела.
+func TestRestore_HiddenForeignSlot_FailsNoConfigure(t *testing.T) {
+	sv := restoreServerWithPeers(1)
+	f := query.NewFakeNDMS()
+	s := newServiceWithOracle(t, f, map[string]string{
+		"/show/rc/ip/route":    `[]`,
+		"/show/running-config": `{"message":[]}`,
+	})
+	f.HideCreated(1)
+	f.Add(ndms.Interface{ID: "Wireguard1", Type: "Wireguard"})
+	f.HideCreated(0)
+	posts := len(f.Posts)
+	out := s.Restore(context.Background(), []ManagedServerExport{sv}, RestoreOptions{})
+	if len(out) != 1 || out[0].Action != "failed" || !strings.Contains(out[0].Error, "имя уже занято") {
+		t.Fatalf("outcome %+v", out)
+	}
+	if len(f.Posts)-posts != 1 || !f.Has("Wireguard1") || f.E != 0 {
+		t.Fatalf("posts=%v has=%v E=%d", f.Posts[posts:], f.Has("Wireguard1"), f.E)
+	}
+}
+
+// failConfigure — FakeNDMS, отвергающий настройку сервера (description).
+type failConfigure struct{ f *query.FakeNDMS }
+
+func (p failConfigure) Post(ctx context.Context, payload any) (json.RawMessage, error) {
+	if js, _ := json.Marshal(payload); strings.Contains(string(js), `"description"`) {
+		return nil, errors.New("injected: configure")
+	}
+	return p.f.Post(ctx, payload)
+}
+
+// M3: restore берёт живой сервер того же ключа (записи в storage нет) и
+// падает на настройке — живой сервер, существовавший до restore, не сносится.
+// Создан restore'ом — сносится, как раньше.
+func TestRestore_ExistingOKFailure_KeepsLiveServer(t *testing.T) {
+	sv := restoreServerWithPeers(1)
+	sv.InterfaceName = "Wireguard1"
+	f := query.NewFakeNDMS(ndms.Interface{ID: "Wireguard1", Type: "Wireguard"})
+	f.SetDetail("Wireguard1", json.RawMessage(`{"wireguard":{"public-key":"`+mustDerivePublicKey(t, sv.PrivateKey)+`"}}`))
+	s := newServiceWithOracle(t, f, map[string]string{"/show/rc/ip/route": `[]`, "/show/running-config": `{"message":[]}`})
+	s.transport = failConfigure{f}
+	out := s.Restore(context.Background(), []ManagedServerExport{sv}, RestoreOptions{})
+	if len(out) != 1 || out[0].Action != "failed" || !strings.Contains(out[0].Error, "injected: configure") {
+		t.Fatalf("outcome %+v", out)
+	}
+	if !f.Has("Wireguard1") || f.E != 0 {
+		t.Fatalf("живой сервер снесён: has=%v E=%d posts=%v", f.Has("Wireguard1"), f.E, f.Posts)
+	}
+}
+
+// Созданный restore'ом (слот был пуст) при отказе настройки сносится.
+func TestRestore_CreatedFailure_Dropped(t *testing.T) {
+	sv := restoreServerWithPeers(1)
+	f := query.NewFakeNDMS()
+	f.ExpectCreate("Wireguard1")
+	s := newServiceWithOracle(t, f, map[string]string{"/show/rc/ip/route": `[]`, "/show/running-config": `{"message":[]}`})
+	s.transport = failConfigure{f}
+	out := s.Restore(context.Background(), []ManagedServerExport{sv}, RestoreOptions{})
+	if len(out) != 1 || out[0].Action != "failed" || f.Has("Wireguard1") {
+		t.Fatalf("outcome %+v has=%v", out, f.Has("Wireguard1"))
+	}
+}
+
+// S3 F595 (стенд 30.09, сирота Wireguard5, 2.3): имя переиспользовано, и
+// ifdestroyed прежнего воплощения доходит, пока список Confirm в полёте.
+// Метка противоречит ответу — одно перечитывание; запись есть — `no
+// interface` уходит, запись настроек удалена, сироты нет.
+func TestDelete_StaleDestroyedInFlight_RemovesRecord(t *testing.T) {
+	ctx := context.Background()
+	f := query.NewFakeNDMS(ndms.Interface{ID: "Wireguard5", Type: "Wireguard", State: "up"})
+	s := newServiceWithOracle(t, f, nil, storage.ManagedServer{InterfaceName: "Wireguard5"})
+	if _, err := s.queries.Interfaces.List(ctx); err != nil { // карта тёплая, как в проде
+		t.Fatal(err)
+	}
+	f.Remove("Wireguard5")                                                  // прежнее воплощение
+	f.Add(ndms.Interface{ID: "Wireguard5", Type: "Wireguard", State: "up"}) // новое, без дренажа
+	var once sync.Once
+	f.InList(func() {
+		once.Do(func() {
+			for _, h := range f.HooksFor("Wireguard5") {
+				if h.Type == "ifdestroyed" {
+					s.queries.Interfaces.OnDestroyed(h.ID) // устаревший хук — в полёте списка
+				}
+			}
+		})
+	})
+
+	before := f.ListCalls()
+	if err := s.Delete(ctx, "Wireguard5"); err != nil {
+		t.Fatal(err)
+	}
+	lists := f.ListCalls() - before
+	if !slices.Contains(f.Posts, `{"interface":{"Wireguard5":{"no":true}}}`) || f.Has("Wireguard5") {
+		t.Fatalf("сирота: запись есть=%v; posts=%v", f.Has("Wireguard5"), f.Posts)
+	}
+	if lists != 2 {
+		t.Fatalf("списков за Delete = %d, want 2 (ответ + перечитывание по противоречию)", lists)
+	}
+	if _, ok := s.settings.GetManagedServerByID("Wireguard5"); ok {
+		t.Fatal("запись настроек не удалена")
+	}
+	if f.E != 0 || f.Phantoms != 0 {
+		t.Fatalf("E=%d Phantoms=%d", f.E, f.Phantoms)
+	}
+}

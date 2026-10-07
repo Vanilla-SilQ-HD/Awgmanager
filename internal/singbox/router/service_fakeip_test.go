@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hoaxisr/awg-manager/internal/netdev"
 	"github.com/hoaxisr/awg-manager/internal/singbox/orchestrator"
 	"github.com/hoaxisr/awg-manager/internal/storage"
 )
@@ -56,6 +57,18 @@ func (l *callLog) count(want string) int {
 type recOpkgTun struct {
 	log    *callLog
 	failAt string
+	// records — записи NDMS по имени → description для OpkgTunRecord; nil —
+	// записей нет, и включение идёт в Create (R45).
+	records map[string]string
+}
+
+func (r *recOpkgTun) OpkgTunRecord(_ context.Context, name string) (string, bool, error) {
+	d, ok := r.records[name]
+	return d, ok, r.maybeFail("Record")
+}
+func (r *recOpkgTun) SetSecurityLevel(_ context.Context, name, level string) error {
+	r.log.add("SetSecurityLevel:" + name + ":" + level)
+	return r.maybeFail("SetSecurityLevel")
 }
 
 func (r *recOpkgTun) maybeFail(label string) error {
@@ -93,17 +106,22 @@ func (r *recOpkgTun) SetPermitAllACL(_ context.Context, name string) error {
 	r.log.add("SetPermitACL:" + name)
 	return r.maybeFail("SetPermitACL")
 }
-func (r *recOpkgTun) RemovePermitAllACL(_ context.Context, name string) error {
+func (r *recOpkgTun) RemovePermitAllACLs(_ context.Context, name string) error {
 	r.log.add("RemovePermitACL:" + name)
 	return nil
+}
+
+// SetPermitAllACLs пишет те же метки, что и два отдельных вызова, — в
+// журнале видно, какие семейства поставлены.
+func (r *recOpkgTun) SetPermitAllACLs(ctx context.Context, name string, withV6 bool) error {
+	if err := r.SetPermitAllACL(ctx, name); err != nil || !withV6 {
+		return err
+	}
+	return r.SetPermitAllACLv6(ctx, name)
 }
 func (r *recOpkgTun) SetPermitAllACLv6(_ context.Context, name string) error {
 	r.log.add("SetPermitACLv6:" + name)
 	return r.maybeFail("SetPermitACLv6")
-}
-func (r *recOpkgTun) RemovePermitAllACLv6(_ context.Context, name string) error {
-	r.log.add("RemovePermitACLv6:" + name)
-	return nil
 }
 func (r *recOpkgTun) ClearIPv6Address(_ context.Context, name string) error {
 	r.log.add("ClearIPv6Address:" + name)
@@ -129,6 +147,19 @@ func (r *recOpkgTun) SetDescription(_ context.Context, name, desc string) error 
 type recStaticRoutes struct {
 	log    *callLog
 	failAt string
+	// binds — сколько раз подтверждали интерфейс (у прод-адаптера — чтение
+	// списка NDMS); absent/bindErr — ответ ForInterface.
+	binds   int
+	absent  bool
+	bindErr error
+}
+
+func (r *recStaticRoutes) ForInterface(context.Context, string) (BoundStaticRoutes, bool, error) {
+	r.binds++
+	if r.bindErr != nil || r.absent {
+		return nil, false, r.bindErr
+	}
+	return r, true, nil
 }
 
 func (r *recStaticRoutes) AddStaticRoute(_ context.Context, route StaticRouteSpec) error {
@@ -1088,7 +1119,13 @@ func stubOrphanNetdev(t *testing.T, present bool) func() int {
 	oldDelete := fakeIPLinkDelete
 	deletes := 0
 	fakeIPLinkPresent = func(context.Context, string) bool { return present }
-	fakeIPLinkDelete = func(_ context.Context, _ string) error { deletes++; return nil }
+	fakeIPLinkDelete = func(_ context.Context, gate *netdev.SwapGate, _ string) error {
+		if gate == nil {
+			t.Error("снос opkgtunN без барьера списков (SwapGate nil)")
+		}
+		deletes++
+		return nil
+	}
 	t.Cleanup(func() { fakeIPLinkPresent = oldPresent; fakeIPLinkDelete = oldDelete })
 	return func() int { return deletes }
 }

@@ -255,7 +255,7 @@ func newServersPeerHarness(t *testing.T, seedPeer bool) (*ServersHandler, *stora
 	fg := query.NewFakeGetter()
 	fg.SetJSON("/show/interface/", `{"Wireguard0":{"id":"Wireguard0","type":"Wireguard","description":"Wireguard VPN Server","state":"up","link":"up","address":"10.9.0.1","mask":"255.255.255.0"`+peers+`}}`)
 	// Обогащение списка серверов читает rc каждого: без него List — ошибка (F510).
-	fg.SetJSON("/show/rc/interface/Wireguard0", rc)
+	fg.SetRC("Wireguard0", rc)
 	// Удаление пира снимает маршруты с его меткой по свежему чтению (#713).
 	fg.SetJSON("/show/rc/ip/route", `[]`)
 	fg.SetJSON("/show/running-config", `{"message":["interface PPPoE0","    ip global 32767","!"]}`)
@@ -456,7 +456,8 @@ func TestServersHandler_UpdateServerPeer_SignatureWithoutSecret(t *testing.T) {
 func newServerConfHarness(t *testing.T, ascJSON string, ndnsJSON ...string) *ServersHandler {
 	t.Helper()
 	fg := query.NewFakeGetter()
-	fg.SetJSON("/show/rc/interface/"+harnessServerID+"/wireguard/asc", ascJSON)
+	fg.SetJSON("/show/interface/", `{"`+harnessServerID+`":{"id":"`+harnessServerID+`","type":"Wireguard"}}`)
+	fg.SetRC(harnessServerID, `{"wireguard":{"asc":`+ascJSON+`}}`)
 	// KeenDNS по умолчанию не настроен: Endpoint собирается по WAN.
 	if len(ndnsJSON) > 0 {
 		fg.SetRaw("/show/ndns", []byte(ndnsJSON[0]))
@@ -513,6 +514,30 @@ func TestServersHandler_GenerateServerPeerConf_SignatureFromPeerAndOnlyWithASC(t
 			}
 		}
 	})
+}
+
+// ASC сервера не прочитались — .conf не отдаётся: файл без строк Jc/H1…
+// выглядит правильным, а клиент с обфускацией не подключится (F549).
+func TestServersHandler_GenerateServerPeerConf_ASCReadFailure(t *testing.T) {
+	fg := query.NewFakeGetter()
+	fg.SetJSON("/show/interface/", `{"`+harnessServerID+`":{"id":"`+harnessServerID+`","type":"Wireguard"}}`)
+	fg.SetError("/show/rc/interface/", errors.New("rci down"))
+	queries := query.NewQueries(query.Deps{Getter: fg, Logger: query.NopLogger()})
+	store := storage.NewSettingsStore(t.TempDir())
+	if _, err := store.Load(); err != nil {
+		t.Fatal(err)
+	}
+	h := NewServersHandler(queries, store, nil, &appLogSpy{})
+
+	server := &ndms.WireguardServer{ID: harnessServerID, ListenPort: 51820, MTU: 1420}
+	sec := storage.ServerPeerSecret{PrivateKey: "PRIV", TunnelIP: "10.9.0.2/32"}
+	conf, err := h.generateServerPeerConf(context.Background(), server, peerFixturePubKey, sec, "1.2.3.4")
+	if err == nil {
+		t.Fatalf("сбой чтения ASC проглочен, отдан конфиг:\n%s", conf)
+	}
+	if conf != "" {
+		t.Fatalf("при ошибке конфиг не пуст:\n%s", conf)
+	}
 }
 
 // Резолвер пира WG-сервера роутера: свой → LAN-адрес роутера → строки нет.

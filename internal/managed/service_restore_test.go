@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"reflect"
 	"strings"
 	"testing"
@@ -17,7 +19,7 @@ import (
 type restoreLiveGetter struct {
 	live  map[string]restoreLiveEntry
 	asc   map[string]map[string]string
-	rcErr error // сбой чтения /show/rc/interface/<X>
+	rcErr error // сбой чтения дерева /show/rc/interface/
 	ifErr error // сбой чтения /show/interface/
 }
 
@@ -29,25 +31,29 @@ type restoreLiveEntry struct {
 }
 
 func (g *restoreLiveGetter) Get(ctx context.Context, path string, out any) error {
-	if strings.HasPrefix(path, "/show/rc/interface/") && strings.HasSuffix(path, "/wireguard/asc") {
-		iface := strings.TrimSuffix(strings.TrimPrefix(path, "/show/rc/interface/"), "/wireguard/asc")
-		src, ok := g.asc[iface]
-		if !ok {
-			src = map[string]string{
-				"jc": "0", "jmin": "0", "jmax": "0", "s1": "0", "s2": "0",
-				"h1": "", "h2": "", "h3": "", "h4": "",
-				"s3": "0", "s4": "0",
-			}
-		}
-		b, _ := json.Marshal(src)
-		return json.Unmarshal(b, out)
-	}
-	// rc интерфейса без пиров: обогащение WGServers.Get без него — ошибка (F510).
-	if strings.HasPrefix(path, "/show/rc/interface/") && !strings.Contains(strings.TrimPrefix(path, "/show/rc/interface/"), "/") {
+	// Дерево rc (F546): присутствующие интерфейсы без пиров, ASC — последний
+	// записанный POST-ом.
+	if path == "/show/rc/interface/" {
 		if g.rcErr != nil {
 			return g.rcErr
 		}
-		return json.Unmarshal([]byte(`{}`), out)
+		tree := map[string]any{}
+		for name, ent := range g.live {
+			if !ent.Present {
+				continue
+			}
+			src, ok := g.asc[name]
+			if !ok {
+				src = map[string]string{
+					"jc": "0", "jmin": "0", "jmax": "0", "s1": "0", "s2": "0",
+					"h1": "", "h2": "", "h3": "", "h4": "",
+					"s3": "0", "s4": "0",
+				}
+			}
+			tree[name] = map[string]any{"wireguard": map[string]any{"asc": src}}
+		}
+		b, _ := json.Marshal(tree)
+		return json.Unmarshal(b, out)
 	}
 	if path != "/show/interface/" {
 		return errors.New("unsupported path: " + path)
@@ -75,6 +81,15 @@ func (g *restoreLiveGetter) Get(ctx context.Context, path string, out any) error
 			"description":    ManagedServerDescription,
 			"address":        addr,
 			"mask":           mask,
+			// Runtime сервера — из снимка списка (F546): поля те же, что у
+			// точечного ответа (GetRaw ниже).
+			"state":     "up",
+			"link":      "up",
+			"connected": "yes",
+			"wireguard": map[string]any{
+				"public-key": ent.PublicKey,
+				"peer":       []map[string]any{},
+			},
 		}
 		raw, _ := json.Marshal(entry)
 		m[name] = raw
@@ -154,93 +169,16 @@ func (g *restoreLiveGetter) applyPost(payload map[string]interface{}) {
 	}
 }
 
+// GetRaw/Post — точечных чтений интерфейса нет (F546): список — Get, имена
+// ядра — таблица ndms.KernelName.
 func (g *restoreLiveGetter) GetRaw(ctx context.Context, path string) ([]byte, error) {
-	if !strings.HasPrefix(path, "/show/interface/") {
-		return nil, errors.New("unsupported path: " + path)
-	}
-	name := strings.TrimPrefix(path, "/show/interface/")
-	ent, ok := g.live[name]
-	if !ok || !ent.Present {
-		return []byte{}, nil
-	}
-	addr := ent.Address
-	if addr == "" {
-		addr = "10.0.0.1"
-	}
-	mask := ent.Mask
-	if mask == "" {
-		mask = "255.255.255.0"
-	}
-	wire := map[string]any{
-		"id":             name,
-		"interface-name": name,
-		"type":           "Wireguard",
-		"description":    ManagedServerDescription,
-		"address":        addr,
-		"mask":           mask,
-		"state":          "up",
-		"link":           "up",
-		"connected":      "yes",
-		"wireguard": map[string]any{
-			"public-key": ent.PublicKey,
-			"peer":       []map[string]any{},
-		},
-	}
-	return json.Marshal(wire)
+	return nil, errors.New("unsupported path: " + path)
 }
 
 func (g *restoreLiveGetter) Post(ctx context.Context, payload any) (json.RawMessage, error) {
-	top, ok := payload.(map[string]any)
-	if !ok {
-		return nil, errors.New("unsupported payload")
-	}
-	show, ok := top["show"].(map[string]any)
-	if !ok {
-		return nil, errors.New("unsupported payload.show")
-	}
-	ifaceReq, ok := show["interface"].(map[string]any)
-	if !ok {
-		return nil, errors.New("unsupported payload.show.interface")
-	}
-	name, _ := ifaceReq["name"].(string)
-	if name == "" {
-		return nil, errors.New("empty interface name")
-	}
-	ent, ok := g.live[name]
-	if !ok || !ent.Present {
-		return []byte(`{"show":{"interface":{}}}`), nil
-	}
-	addr := ent.Address
-	if addr == "" {
-		addr = "10.0.0.1"
-	}
-	mask := ent.Mask
-	if mask == "" {
-		mask = "255.255.255.0"
-	}
-	wire := map[string]any{
-		"id":             name,
-		"interface-name": name,
-		"type":           "Wireguard",
-		"description":    ManagedServerDescription,
-		"address":        addr,
-		"mask":           mask,
-		"state":          "up",
-		"link":           "up",
-		"connected":      "yes",
-		"wireguard": map[string]any{
-			"public-key": ent.PublicKey,
-			"peer":       []map[string]any{},
-		},
-	}
-	resp := map[string]any{
-		"show": map[string]any{
-			"interface": wire,
-		},
-	}
-	raw, _ := json.Marshal(resp)
-	return raw, nil
+	return nil, errors.New("unsupported payload")
 }
+
 func mustDerivePublicKey(t *testing.T, privateKey string) string {
 	t.Helper()
 	pub, err := derivePublicKeyFromPrivate(privateKey)
@@ -273,11 +211,13 @@ func TestRestore_CreatesNewServerHappyPath(t *testing.T) {
 	getter := &stateAwareGetter{store: store}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	outcomes := s.Restore(context.Background(), []ManagedServerExport{{
 		InterfaceName: "Wireguard0",
@@ -324,11 +264,13 @@ func TestRestoreDrift_CreatesInterfaceWhenOnlyStorageExists(t *testing.T) {
 	getter := &restoreLiveGetter{live: map[string]restoreLiveEntry{"Wireguard0": {Present: false}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	drift, err := s.Drift(context.Background())
 	if err != nil {
@@ -363,11 +305,13 @@ func TestRestoreDrift_CreatesInterfaceAndPeers(t *testing.T) {
 	getter := &restoreLiveGetter{live: map[string]restoreLiveEntry{"Wireguard0": {Present: false}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	drift, err := s.Drift(context.Background())
 	if err != nil {
@@ -409,11 +353,13 @@ func TestRestore_DoesNotCleanupWhenCreateFails(t *testing.T) {
 	getter := &restoreLiveGetter{live: map[string]restoreLiveEntry{"Wireguard0": {Present: false}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{err: errors.New("already exists")}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	out := s.Restore(context.Background(), []ManagedServerExport{{
 		InterfaceName: "Wireguard0",
@@ -463,11 +409,13 @@ func TestRestore_MergeRejectsDuplicatePeerPublicKey(t *testing.T) {
 	}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	out := s.Restore(context.Background(), []ManagedServerExport{{
 		InterfaceName: "Wireguard0",
@@ -518,11 +466,13 @@ func TestRestore_MergeRejectsInvalidPublicKey(t *testing.T) {
 	}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	out := s.Restore(context.Background(), []ManagedServerExport{{
 		InterfaceName: "Wireguard0",
@@ -572,11 +522,13 @@ func TestRestore_MergeASCSignatureReachesPeersAddedInSameMerge(t *testing.T) {
 	}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	newPeer := validPeerKey(57)
 	asc := json.RawMessage(`{"jc":3,"jmin":77,"jmax":266,"s1":18,"s2":29,"h1":"103994526","h2":"1201929360","h3":"2403636727","h4":"3602647725","i1":"<b 0x0a>"}`)
@@ -617,11 +569,13 @@ func TestRestore_MalformedASCFailsWithoutPartialWrite(t *testing.T) {
 	getter := &restoreLiveGetter{live: map[string]restoreLiveEntry{"Wireguard0": {Present: false}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	out := s.Restore(context.Background(), []ManagedServerExport{{
 		InterfaceName: "Wireguard0",
@@ -668,13 +622,15 @@ func TestRestore_MergeASCFailureStillReportsAddedPeers(t *testing.T) {
 	}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	// Без onPost роутер «не принимает» ASC: readback остаётся нулевым и
 	// verifyASCParamsApplied падает уже после того, как пир добавлен.
 	poster := &fakePoster{}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	asc := json.RawMessage(`{"jc":3,"jmin":77,"jmax":266,"s1":18,"s2":29,"h1":"103994526","h2":"1201929360","h3":"2403636727","h4":"3602647725"}`)
 	out := s.Restore(context.Background(), []ManagedServerExport{{
@@ -724,11 +680,13 @@ func TestRestore_MergeAppliesASCAndPersistsIFields(t *testing.T) {
 	}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	asc := json.RawMessage(`{"jc":3,"jmin":77,"jmax":266,"s1":18,"s2":29,"h1":"103994526","h2":"1201929360","h3":"2403636727","h4":"3602647725","i1":"AA","i2":"BB","i3":"CC","i4":"DD","i5":"EE"}`)
 	out := s.Restore(context.Background(), []ManagedServerExport{{
@@ -799,11 +757,13 @@ func TestRestore_PolicyNoneDoesNotEmitClearOnCreate(t *testing.T) {
 	getter := &restoreLiveGetter{live: map[string]restoreLiveEntry{"Wireguard0": {Present: false}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	out := s.Restore(context.Background(), []ManagedServerExport{{
 		InterfaceName: "Wireguard0",
 		Address:       "10.80.0.1",
@@ -841,11 +801,13 @@ func TestRestore_PolicyProfileEmitsSetOnCreate(t *testing.T) {
 	getter := &restoreLiveGetter{live: map[string]restoreLiveEntry{"Wireguard0": {Present: false}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	out := s.Restore(context.Background(), []ManagedServerExport{{
 		InterfaceName: "Wireguard0",
 		Address:       "10.81.0.1",
@@ -926,11 +888,13 @@ func TestRestore_RenamePersistRollbackRestoresOldOnAddFailure(t *testing.T) {
 	}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	// Drift-mode direct call to exercise rename persist path.
 	out := s.restoreWithMode(context.Background(), []ManagedServerExport{{
@@ -956,11 +920,13 @@ func TestRestore_InvalidPrivateKeyConflictsBeforeRCI(t *testing.T) {
 	getter := &restoreLiveGetter{live: map[string]restoreLiveEntry{"Wireguard0": {Present: false}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	out := s.Restore(context.Background(), []ManagedServerExport{{
 		InterfaceName: "Wireguard0",
@@ -1007,11 +973,13 @@ func TestRestore_LiveSameAddressMaskButDifferentIdentityDoesNotMerge(t *testing.
 	}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	out := s.Restore(context.Background(), []ManagedServerExport{{
 		InterfaceName: "Wireguard0",
@@ -1072,7 +1040,7 @@ func TestRestore_LiveInterfaceWithNilWGServersIsTreatedAsForeignOccupied(t *test
 		WGServers: nil,
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	out := s.Restore(context.Background(), []ManagedServerExport{{
 		InterfaceName: "Wireguard0",
@@ -1114,11 +1082,13 @@ func TestRestore_AllowRenumberWithStorageSameIdentityUsesRenamePersistMode(t *te
 	}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	out := s.Restore(context.Background(), []ManagedServerExport{{
 		InterfaceName: "Wireguard0",
@@ -1159,8 +1129,10 @@ func TestRestore_RenumberDoesNotExcludeOldForeignSlotFromConflicts(t *testing.T)
 	}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	s := &Service{settings: store, queries: queries}
 
@@ -1184,11 +1156,13 @@ func TestRestore_AddPeerRespectsEnabledFlag(t *testing.T) {
 	getter := &restoreLiveGetter{live: map[string]restoreLiveEntry{"Wireguard0": {Present: false}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	out := s.Restore(context.Background(), []ManagedServerExport{{
 		InterfaceName: "Wireguard0",
@@ -1254,11 +1228,13 @@ func TestRestore_AppliesASCAndPersistsIFields(t *testing.T) {
 	getter := &restoreLiveGetter{live: map[string]restoreLiveEntry{"Wireguard0": {Present: false}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	asc := json.RawMessage(`{"jc":3,"jmin":77,"jmax":266,"s1":18,"s2":29,"h1":"103994526","h2":"1201929360","h3":"2403636727","h4":"3602647725","i1":"AA","i2":"BB","i3":"CC","i4":"DD","i5":"EE"}`)
 	out := s.Restore(context.Background(), []ManagedServerExport{{
@@ -1329,11 +1305,13 @@ func TestRestore_OldBackupServerSignatureGoesToPeers(t *testing.T) {
 	getter := &restoreLiveGetter{live: map[string]restoreLiveEntry{"Wireguard0": {Present: false}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	// Бэкап до схемы 36: сигнатура лежит у сервера, ASC-снимка нет.
 	out := s.Restore(context.Background(), []ManagedServerExport{{
@@ -1376,11 +1354,13 @@ func TestRestore_WithoutASC_DoesNotAutoApplyASC(t *testing.T) {
 	getter := &restoreLiveGetter{live: map[string]restoreLiveEntry{"Wireguard0": {Present: false}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	out := s.Restore(context.Background(), []ManagedServerExport{{
 		InterfaceName: "Wireguard0",
@@ -1465,11 +1445,14 @@ func TestRestore_InternetOnly_PersistsNATStaticWANs(t *testing.T) {
 	store := storage.NewSettingsStore(dir)
 	_, _ = store.Load()
 
-	getter := &restoreLiveGetter{live: map[string]restoreLiveEntry{"Wireguard0": {Present: false}}}
+	// PPPoE0 — выход static NAT: ссылка на него подтверждается списком (F546).
+	getter := &restoreLiveGetter{live: map[string]restoreLiveEntry{"Wireguard0": {Present: false}, "PPPoE0": {Present: true, Address: "100.64.0.2"}}}
 	ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 	queries := &query.Queries{
-		Interfaces: ifaces,
-		WGServers:  query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Interfaces:    ifaces,
+		WGServers:     query.NewWGServerStore(getter, query.NopLogger(), ifaces),
+		Peers:         query.NewPeerStore(query.NopLogger(), ifaces),
+		RunningConfig: query.NewRunningConfigStore(getter, query.NopLogger()),
 	}
 
 	// Wire a Routes store that reports PPPoE0 as the default gateway.
@@ -1478,7 +1461,7 @@ func TestRestore_InternetOnly_PersistsNATStaticWANs(t *testing.T) {
 	queries.Routes = query.NewRouteStore(routeGetter, query.NopLogger())
 
 	poster := &fakePoster{onPost: getter.applyPost}
-	s := &Service{settings: store, transport: poster, queries: queries}
+	s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	out := s.Restore(context.Background(), []ManagedServerExport{{
 		InterfaceName: "Wireguard0",
@@ -1528,7 +1511,7 @@ func TestRestore_LiveReadFailureIsErrorNotConflict(t *testing.T) {
 			ifaces := query.NewInterfaceStoreWithTTL(getter, query.NopLogger(), 0, 0)
 			queries := &query.Queries{Interfaces: ifaces, WGServers: query.NewWGServerStore(getter, query.NopLogger(), ifaces)}
 			poster := &fakePoster{onPost: getter.applyPost}
-			s := &Service{settings: store, transport: poster, queries: queries}
+			s := &Service{settings: store, transport: poster, queries: queries, commands: testCommands(poster, queries), log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 			out := s.Restore(context.Background(), []ManagedServerExport{{InterfaceName: "Wireguard0", Address: "10.64.0.1", Mask: "255.255.255.0", ListenPort: 51854, PrivateKey: priv, Policy: "none"}}, RestoreOptions{AllowRenumber: true})
 			if len(out) != 1 || out[0].Action != "failed" || !strings.Contains(out[0].Error, "не удалось прочитать конфигурацию Wireguard0") {
 				t.Fatalf("outcomes: %+v", out)

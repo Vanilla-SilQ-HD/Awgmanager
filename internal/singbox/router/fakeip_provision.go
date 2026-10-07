@@ -2,6 +2,8 @@ package router
 
 import (
 	"context"
+	"fmt"
+	"slices"
 
 	"github.com/hoaxisr/awg-manager/internal/ndms/query"
 	"github.com/hoaxisr/awg-manager/internal/storage"
@@ -27,6 +29,11 @@ type StaticRouteSpec struct {
 // OpkgTunProvisioner manages the fakeip-tun kernel interface lifecycle via NDMS.
 type OpkgTunProvisioner interface {
 	CreateOpkgTunWithSecurityLevel(ctx context.Context, name, description, securityLevel string) error
+	// OpkgTunRecord — запись name в СВЕЖЕМ списке NDMS: есть ли она и её
+	// description. По нему включение решает, создавать запись или
+	// переиспользовать удержанную (R45).
+	OpkgTunRecord(ctx context.Context, name string) (description string, ok bool, err error)
+	SetSecurityLevel(ctx context.Context, name, level string) error
 	SetIPGlobal(ctx context.Context, name string) error
 	DeleteOpkgTun(ctx context.Context, name string) error
 	SetAddress(ctx context.Context, name, address, mask string) error
@@ -39,22 +46,37 @@ type OpkgTunProvisioner interface {
 	// SetDescription — переименование живого интерфейса (настраиваемое
 	// описание policy-tun, healPolicyTunDescription).
 	SetDescription(ctx context.Context, name, description string) error
-	// SetPermitAllACL / RemovePermitAllACL — NDMS-native разрешение трафика в
-	// интерфейс: permit-all access-list `_WEBADMIN_<name>` + `ip access-group
-	// … in` + auto-delete (как галка доступа в веб-морде). Без него firewall
-	// NDMS (isolate-private и т.п.) режет LAN→tun форвард и DNS на tun-адрес.
+	// SetPermitAllACL — NDMS-native разрешение трафика в интерфейс: permit-all
+	// access-list `_WEBADMIN_<name>` + `ip access-group … in` + auto-delete (как
+	// галка доступа в веб-морде). Без него firewall NDMS (isolate-private и т.п.)
+	// режет LAN→tun форвард и DNS на tun-адрес.
 	SetPermitAllACL(ctx context.Context, name string) error
-	RemovePermitAllACL(ctx context.Context, name string) error
-	// SetPermitAllACLv6 / RemovePermitAllACLv6 — то же для IPv6: у NDMS под v6
-	// ОТДЕЛЬНОЕ пространство списков (`ipv6 access-list` + `ipv6 access-group`),
-	// и v4-разрешение его не покрывает. Ставится только когда у интерфейса есть
-	// v6-адрес — на интерфейсе без v6 разрешать нечего.
+	// SetPermitAllACLv6 — то же для IPv6: у NDMS под v6 ОТДЕЛЬНОЕ пространство
+	// списков (`ipv6 access-list` + `ipv6 access-group`), и v4-разрешение его не
+	// покрывает. Ставится только когда у интерфейса есть v6-адрес — на
+	// интерфейсе без v6 разрешать нечего.
 	SetPermitAllACLv6(ctx context.Context, name string) error
-	RemovePermitAllACLv6(ctx context.Context, name string) error
+	// SetPermitAllACLs — v4 и (withV6) v6 по одному чтению running-config:
+	// включение ставит оба, чтение стоит ≈89 тиков ndm (F607).
+	SetPermitAllACLs(ctx context.Context, name string, withV6 bool) error
+	// RemovePermitAllACLs снимает permit-all обоих семейств по одному чтению
+	// running-config; шлёт только то, что в нём есть (F606).
+	RemovePermitAllACLs(ctx context.Context, name string) error
 }
 
 // StaticRouteProvider manages NDMS auto static routes for the fakeip pool + reject route.
 type StaticRouteProvider interface {
+	BoundStaticRoutes
+	// ForInterface подтверждает iface ОДНИМ чтением списка NDMS и отдаёт
+	// исполнителя для серии Add/Remove по нему (F546: иначе чтение на каждый
+	// CIDR). ok=false — интерфейса нет. Значение живёт в пределах одного
+	// цикла/потока: в поля не класть, между тиками не держать.
+	ForInterface(ctx context.Context, iface string) (BoundStaticRoutes, bool, error)
+}
+
+// BoundStaticRoutes — Add/Remove статических маршрутов. У значения из
+// ForInterface Interface спеки обязан совпадать с подтверждённым.
+type BoundStaticRoutes interface {
 	AddStaticRoute(ctx context.Context, route StaticRouteSpec) error
 	RemoveStaticRoute(ctx context.Context, route StaticRouteSpec) error
 }
@@ -185,4 +207,41 @@ func resolveFakeIPParamsWith(base FakeIPTunParams, sr storage.SingboxRouterSetti
 		p.RealServer = sr.FakeIPRealServer
 	}
 	return p
+}
+
+// provisionOpkgTun — запись OpkgTun под включение режима (R45). Запись по
+// имени смотрится свежим списком:
+//   - нет — создание F569 (голое создание → подтверждение → настройки) сразу
+//     под описанием want;
+//   - есть с одним из своих описаний (own: применённое и ожидаемое из записи
+//     владения, см. policyTunOwnDescriptions) — удержанная нами (выключение
+//     policy-tun её не сносит): Create по ней невозможен (живое устройство
+//     записи — отказ F569, на 5.01+ ещё и ErrNotCreated), поэтому её только
+//     настраиваем и, если описание в настройках сменили, переименовываем в
+//     want (Create по живой записи делал бы это сам);
+//   - есть с чужим description — отказ без единой команды. want в own не
+//     входит намеренно: пользовательское имя не уникально, и чужой OpkgTun
+//     под ним признавался бы своим (policytun_description.go).
+//
+// reused=true — запись переиспользована, не создана этим включением: откат
+// обязан её удержать (holdOpkgTun), а не снести — сносом умер бы permit
+// пользователя в `ip policy` (M1, решение владельца 01.10).
+func (s *ServiceImpl) provisionOpkgTun(ctx context.Context, ndmsName, want, securityLevel string, own ...string) (reused bool, err error) {
+	desc, ok, err := s.deps.OpkgTun.OpkgTunRecord(ctx, ndmsName)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return false, s.deps.OpkgTun.CreateOpkgTunWithSecurityLevel(ctx, ndmsName, want, securityLevel)
+	}
+	if !slices.Contains(own, desc) {
+		return false, fmt.Errorf("запись %s уже есть и не наша (description %q)", ndmsName, desc)
+	}
+	if err := s.deps.OpkgTun.SetSecurityLevel(ctx, ndmsName, securityLevel); err != nil {
+		return true, err
+	}
+	if desc != want {
+		return true, s.deps.OpkgTun.SetDescription(ctx, ndmsName, want)
+	}
+	return true, nil
 }

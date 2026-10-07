@@ -26,9 +26,10 @@ func NewRouteCommands(p Poster, s *SaveCoordinator, q *query.Queries) *RouteComm
 }
 
 // StaticRouteSpec describes a static route mutation. Exactly one of
-// Host (/32) or Network+Mask must be set.
+// Host (/32) or Network+Mask must be set. Интерфейс подтверждён свежим
+// списком (F546).
 type StaticRouteSpec struct {
-	Interface string
+	Interface query.Confirmed
 	Host      string
 	Network   string
 	Mask      string
@@ -42,7 +43,8 @@ type StaticRouteSpec struct {
 	V6 bool
 }
 
-func (c *RouteCommands) SetDefaultRoute(ctx context.Context, name string) error {
+func (c *RouteCommands) SetDefaultRoute(ctx context.Context, iface query.Confirmed) error {
+	name := iface.Name()
 	payload := map[string]any{
 		"ip": map[string]any{
 			"route": map[string]any{"default": true, "interface": name},
@@ -51,7 +53,8 @@ func (c *RouteCommands) SetDefaultRoute(ctx context.Context, name string) error 
 	return c.mutate(ctx, payload, "set default route "+name)
 }
 
-func (c *RouteCommands) RemoveDefaultRoute(ctx context.Context, name string) error {
+func (c *RouteCommands) RemoveDefaultRoute(ctx context.Context, iface query.Confirmed) error {
+	name := iface.Name()
 	payload := map[string]any{
 		"ip": map[string]any{
 			"route": map[string]any{"default": true, "interface": name, "no": true},
@@ -60,7 +63,8 @@ func (c *RouteCommands) RemoveDefaultRoute(ctx context.Context, name string) err
 	return c.mutateTolerant(ctx, payload, "remove default route "+name, isNetlinkFileExists)
 }
 
-func (c *RouteCommands) SetIPv6DefaultRoute(ctx context.Context, name string) error {
+func (c *RouteCommands) SetIPv6DefaultRoute(ctx context.Context, iface query.Confirmed) error {
+	name := iface.Name()
 	payload := map[string]any{
 		"ipv6": map[string]any{
 			"route": map[string]any{"default": true, "interface": name},
@@ -69,7 +73,8 @@ func (c *RouteCommands) SetIPv6DefaultRoute(ctx context.Context, name string) er
 	return c.mutate(ctx, payload, "set ipv6 default route "+name)
 }
 
-func (c *RouteCommands) RemoveIPv6DefaultRoute(ctx context.Context, name string) error {
+func (c *RouteCommands) RemoveIPv6DefaultRoute(ctx context.Context, iface query.Confirmed) error {
+	name := iface.Name()
 	payload := map[string]any{
 		"ipv6": map[string]any{
 			"route": map[string]any{"default": true, "interface": name, "no": true},
@@ -164,8 +169,12 @@ func (c *RouteCommands) RemoveHostRoute(ctx context.Context, host string) error 
 // NDMS нет вовсе (маршрут живёт в ядре), и там снимается наследство прежних
 // версий — по нему подписи нет и быть не может.
 //
-// Конфигурацию прочитать не удалось — падаем на слепую форму: лучше снять
-// лишнее, чем оставить собственный маршрут на роутере.
+// Не прочиталась running-config — падаем на слепую форму: лучше снять
+// лишнее, чем оставить собственный маршрут на роутере. Не прочитался список
+// интерфейсов — ошибка, ни одной команды, слепой формы нет (R20).
+//
+// Запись на интерфейс, которого нет в свежем списке, не трогаем: снимать её
+// нечем, команда по отсутствующему — E в журнале ndm (F546).
 func (c *RouteCommands) RemoveOwnHostRoute(ctx context.Context, host, comment string) error {
 	if comment == "" || c.queries == nil || c.queries.RunningConfig == nil {
 		return c.RemoveHostRoute(ctx, host)
@@ -180,8 +189,20 @@ func (c *RouteCommands) RemoveOwnHostRoute(ctx context.Context, host, comment st
 	}
 	// Пустой список — снимать нечего, и это успех: записи, за которую отвечает
 	// вызывающий, на роутере нет.
+	names := ownHostRouteIfaces(lines, host, comment, v6)
+	if len(names) == 0 {
+		return nil
+	}
+	present, err := c.queries.Interfaces.ConfirmEach(ctx, names)
+	if err != nil {
+		return fmt.Errorf("remove own host route %s: %w", host, err)
+	}
 	var firstErr error
-	for _, iface := range ownHostRouteIfaces(lines, host, comment, v6) {
+	for _, name := range names {
+		iface, ok := present[name]
+		if !ok {
+			continue
+		}
 		spec := StaticRouteSpec{Host: host, Interface: iface, V6: v6}
 		if rmErr := c.RemoveStaticRoute(ctx, spec); rmErr != nil && firstErr == nil {
 			firstErr = rmErr
@@ -251,10 +272,13 @@ func commentOf(fields []string) string {
 // в ::/0 — то есть в ДЕФОЛТНЫЙ маршрут интерфейса. Форма стенд-проверена
 // 2026-08-24: сам роутер хранит запись как {prefix, interface, auto, comment}.
 func (c *RouteCommands) AddStaticRoute(ctx context.Context, route StaticRouteSpec) error {
+	if err := requireRouteIface(route); err != nil {
+		return err
+	}
 	// Общая часть у обеих форм одна и та же; различаются только ключ
 	// назначения (prefix против host|network+mask) и внешний ключ.
 	inner := map[string]any{
-		"interface": route.Interface,
+		"interface": route.Interface.Name(),
 		"auto":      true,
 	}
 	if route.Reject {
@@ -268,13 +292,6 @@ func (c *RouteCommands) AddStaticRoute(ctx context.Context, route StaticRouteSpe
 		prefix, err := v6Prefix(route)
 		if err != nil {
 			return err
-		}
-		if route.Interface == "" {
-			// Стенд 5.01: ЛЮБОЙ v6-маршрут без интерфейса роутер отвергает
-			// («no input») — проверено и на host-, и на сетевой форме. Отказ
-			// здесь даёт причину в журнале вместо загадочного отказа RCI, а
-			// для reject это ещё и разница между kill-switch и утечкой.
-			return fmt.Errorf("ipv6 route without interface: %+v", route)
 		}
 		inner["prefix"] = prefix
 		return c.mutate(ctx, map[string]any{"ipv6": map[string]any{"route": inner}}, "add ipv6 static route")
@@ -293,6 +310,9 @@ func (c *RouteCommands) AddStaticRoute(ctx context.Context, route StaticRouteSpe
 // it emits {prefix, interface, no} under "ipv6" — ключ ИМЕННО prefix, см.
 // v6Prefix; for v4 it emits {interface, no, host|network+mask} under "ip".
 func (c *RouteCommands) RemoveStaticRoute(ctx context.Context, route StaticRouteSpec) error {
+	if err := requireRouteIface(route); err != nil {
+		return err
+	}
 	if route.V6 {
 		prefix, err := v6Prefix(route)
 		if err != nil {
@@ -302,7 +322,7 @@ func (c *RouteCommands) RemoveStaticRoute(ctx context.Context, route StaticRoute
 			"ipv6": map[string]any{
 				"route": map[string]any{
 					"prefix":    prefix,
-					"interface": route.Interface,
+					"interface": route.Interface.Name(),
 					"no":        true,
 				},
 			},
@@ -310,7 +330,7 @@ func (c *RouteCommands) RemoveStaticRoute(ctx context.Context, route StaticRoute
 		return c.mutateTolerant(ctx, payload, "remove ipv6 static route", toleratesRouteRemoval)
 	}
 	inner := map[string]any{
-		"interface": route.Interface,
+		"interface": route.Interface.Name(),
 		"no":        true,
 	}
 	if route.Host != "" {
@@ -323,6 +343,19 @@ func (c *RouteCommands) RemoveStaticRoute(ctx context.Context, route StaticRoute
 		"ip": map[string]any{"route": inner},
 	}
 	return c.mutateTolerant(ctx, payload, "remove static route", toleratesRouteRemoval)
+}
+
+// requireRouteIface — спека без интерфейса (нулевой Confirmed: поле пропущено
+// в литерале, сканер такого не видит) в NDMS не уходит. У v6 это ещё и факт
+// стенда 5.01: ЛЮБОЙ v6-маршрут без интерфейса роутер отвергает («no input»)
+// — и host-, и сетевую форму; для reject отказ здесь — разница между
+// kill-switch и утечкой. У v4 форма без интерфейса адресовала бы маршрут
+// мимо подтверждения (F546).
+func requireRouteIface(route StaticRouteSpec) error {
+	if route.Interface.Name() == "" {
+		return fmt.Errorf("static route without interface: %+v", route)
+	}
+	return nil
 }
 
 // mutate is a thin wrapper over postMutation with RouteCommands' fixed

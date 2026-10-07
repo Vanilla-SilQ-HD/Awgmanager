@@ -125,6 +125,16 @@ func (p *Process) signal(pid int, sig syscall.Signal) error {
 	return syscall.Kill(pid, sig)
 }
 
+// signalGen delivers sig to a spawned generation's child through its
+// *os.Process (race-free against the monitor's cmd.Wait); the signalFn
+// test seam still wins when set.
+func (p *Process) signalGen(g *processGen, sig syscall.Signal) error {
+	if p.signalFn != nil {
+		return p.signalFn(g.pid, sig)
+	}
+	return g.proc.Signal(sig)
+}
+
 // processGen holds per-run (per-Start) state. One instance is created by
 // each startLocked and captured by that run's exit-monitor goroutine;
 // deliberate is atomic because stopLocked (under startMu) and the
@@ -135,6 +145,27 @@ type processGen struct {
 	// crash. Set by stopLocked BEFORE signalling, so it is already
 	// observable when cmd.Wait returns.
 	deliberate atomic.Bool
+	// pid — дочерний процесс этого поколения; reaped закрывается, когда
+	// cmd.Wait вернулся (ребёнок пожат). Это единственный источник правды
+	// «наш движок ещё жив»: pid-файл и /proc-опознание (IsRunning) могут
+	// сказать «не работает» при живом ребёнке (F583), и тогда без этой
+	// ссылки его никто не гасил.
+	pid    int
+	reaped chan struct{}
+	// proc — сигналы ребёнку идут через него: os.Process.Signal
+	// синхронизирован с wait4 и после пожатия отвечает ErrProcessDone, а не
+	// бьёт по переиспользованному pid, как голый kill(pid).
+	proc *os.Process
+}
+
+// alive reports whether this generation's child has not been reaped yet.
+func (g *processGen) alive() bool {
+	select {
+	case <-g.reaped:
+		return false
+	default:
+		return true
+	}
 }
 
 func NewProcess(binary, configPath, pidPath string) *Process {
@@ -146,9 +177,7 @@ func NewProcess(binary, configPath, pidPath string) *Process {
 		startCmd: func(bin string, args ...string) (*exec.Cmd, error) {
 			return exec.Command(bin, args...), nil
 		},
-		signalFn: func(pid int, sig syscall.Signal) error {
-			return syscall.Kill(pid, sig)
-		},
+		// signalFn не задан: nil = настоящие сигналы (signal/signalGen).
 	}
 }
 
@@ -192,6 +221,17 @@ func (p *Process) StartSpawned() (spawned bool, err error) {
 func (p *Process) startLocked() (spawned bool, err error) {
 	if running, _ := p.IsRunning(); running {
 		return false, nil
+	}
+	// Инвариант F583: не больше одного движка (`sing-box run`) на Process.
+	// IsRunning мог ответить «нет» при живом ребёнке прошлого поколения
+	// (pid-файл снят, /proc-опознание не сошлось, Stop сдался после
+	// SIGKILL) — тогда прежде чем спавнить, гасим и пожинаем его штатным
+	// stopLocked. Не пожат — не спавним второй.
+	if p.curGen != nil && p.curGen.alive() {
+		_ = p.stopLocked()
+		if p.curGen.alive() {
+			return false, fmt.Errorf("previous sing-box pid %d not reaped after SIGKILL", p.curGen.pid)
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(p.pidPath), 0755); err != nil {
 		return false, err
@@ -252,7 +292,10 @@ func (p *Process) startLocked() (spawned bool, err error) {
 	tailCtx, tailCancel := p.startTails(false)
 
 	if err := p.writePID(cmd.Process.Pid); err != nil {
-		_ = syscall.Kill(cmd.Process.Pid, syscall.SIGTERM)
+		// Ребёнок только что заспавнен и ещё ничего не делал — гасим сразу
+		// SIGKILL: SIGTERM + неограниченный Wait под startMu вешал бы Start,
+		// если процесс SIGTERM не обработает.
+		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 		tailCancel()
 		return false, err
@@ -261,11 +304,13 @@ func (p *Process) startLocked() (spawned bool, err error) {
 	// stopLocked взводит его перед сигналом. Монитор ниже замыкается на
 	// СВОЮ генерацию, поэтому следующий Start (создающий новую) не может
 	// ретроактивно очистить флаг предшественника (FIX-C).
-	gen := &processGen{}
+	gen := &processGen{pid: cmd.Process.Pid, reaped: make(chan struct{}), proc: cmd.Process}
 	p.curGen = gen
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- cmd.Wait()
+		err := cmd.Wait()
+		close(gen.reaped)
+		errCh <- err
 	}()
 	select {
 	case waitErr := <-errCh:
@@ -527,48 +572,94 @@ func (p *Process) Close() {
 
 // stopLocked is the lock-free body of Stop. Must be called with startMu held.
 func (p *Process) stopLocked() error {
-	pid, err := p.readPID()
-	if err != nil {
-		return nil // nothing to stop
+	// Живой ребёнок текущего поколения — цель независимо от pid-файла:
+	// файл мог быть уже снят или указывать на чужой pid, а ребёнок жив
+	// (F583). Его смерть наблюдаем по reaped (cmd.Wait вернулся), а не по
+	// kill(0), который проходит и на незапожатом зомби. Без живого
+	// поколения — прежний путь по pid-файлу (адоптированный процесс).
+	gen := p.curGen
+	if gen != nil && !gen.alive() {
+		gen = nil
+	}
+	var pid int
+	if gen != nil {
+		pid = gen.pid
+	} else {
+		var err error
+		if pid, err = p.readPID(); err != nil {
+			return nil // nothing to stop
+		}
+	}
+	alive := func() bool {
+		if gen != nil {
+			return gen.alive()
+		}
+		return isAlive(pid)
+	}
+	sig := func(s syscall.Signal) {
+		if gen != nil {
+			_ = p.signalGen(gen, s)
+			return
+		}
+		_ = p.signal(pid, s)
 	}
 	// Mark the upcoming exit of the CURRENT generation as deliberate
 	// BEFORE the signal lands so its exit-monitor goroutine never
-	// mistakes our own SIGTERM/SIGKILL for a crash. nil = процесс из pid
-	// файла спавнили не мы (например, предыдущий awgm) — монитора нет,
-	// метить нечего.
-	if p.curGen != nil {
-		p.curGen.deliberate.Store(true)
+	// mistakes our own SIGTERM/SIGKILL for a crash. Метим только живого
+	// ребёнка: уже пожатое поколение или зомби (умер сам, монитор ещё не
+	// пожал — например, упал сразу после SIGHUP в Reload) — это падение,
+	// а не наш стоп. Процесс из pid-файла, спавненный не нами (предыдущий
+	// awgm), монитора не имеет — метить нечего.
+	if gen != nil && !isZombie(pid) {
+		gen.deliberate.Store(true)
 	}
-	_ = p.signal(pid, syscall.SIGTERM)
+	sig(syscall.SIGTERM)
 	// Wait up to 3s
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		if !isAlive(pid) {
+		if !alive() {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	if isAlive(pid) {
-		_ = p.signal(pid, syscall.SIGKILL)
+	if alive() {
+		sig(syscall.SIGKILL)
 		// Brief poll for the kernel to reap the SIGKILL'd process before
 		// removing the pid record. Without this, a follow-up Start that
 		// sees a missing pidfile could spawn a second process alongside
 		// a not-yet-dead-but-being-killed one.
 		killDeadline := time.Now().Add(500 * time.Millisecond)
 		for time.Now().Before(killDeadline) {
-			if !isAlive(pid) {
+			if !alive() {
 				break
 			}
 			time.Sleep(50 * time.Millisecond)
 		}
 	}
-	// Whether this pid was ours (spawned) or adopted, it is gone (or we
-	// gave up waiting after SIGKILL) — the next Start must spawn a real
-	// child rather than treating a stale attached=true as "already
-	// running". No-op for a spawned process (already false).
+	// Пережил SIGKILL (D-state) — процесс не остановлен: pid-файл
+	// оставляем, чтобы IsRunning (и демон после своего рестарта) видел
+	// живой движок и не спавнил второй, и честно возвращаем ошибку.
+	if alive() {
+		return fmt.Errorf("sing-box pid %d survived SIGKILL", pid)
+	}
+	// Whether this pid was ours (spawned) or adopted, it is gone — the
+	// next Start must spawn a real child rather than treating a stale
+	// attached=true as "already running". No-op for a spawned process
+	// (already false).
 	p.attached = false
 	_ = os.Remove(p.pidPath)
 	return nil
+}
+
+// isZombie reports whether pid has exited but is not reaped yet (state Z
+// in /proc/<pid>/stat). Ошибка чтения — false: считаем живым, как раньше.
+func isZombie(pid int) bool {
+	b, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if err != nil {
+		return false
+	}
+	i := strings.LastIndexByte(string(b), ')')
+	return i >= 0 && i+2 < len(b) && b[i+2] == 'Z'
 }
 
 // Reload acquires startMu for the entire stop+start sequence so callers

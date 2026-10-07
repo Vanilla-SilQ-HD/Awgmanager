@@ -24,19 +24,26 @@ func (fakeOpkgTunProvisioner) SetAddress(context.Context, string, string, string
 func (fakeOpkgTunProvisioner) SetIPv6Address(context.Context, string, string) error { return nil }
 func (fakeOpkgTunProvisioner) ClearAddress(context.Context, string) error           { return nil }
 func (fakeOpkgTunProvisioner) SetPermitAllACL(context.Context, string) error        { return nil }
-func (fakeOpkgTunProvisioner) RemovePermitAllACL(context.Context, string) error     { return nil }
 func (fakeOpkgTunProvisioner) SetPermitAllACLv6(context.Context, string) error      { return nil }
-func (fakeOpkgTunProvisioner) RemovePermitAllACLv6(context.Context, string) error   { return nil }
+func (fakeOpkgTunProvisioner) SetPermitAllACLs(context.Context, string, bool) error { return nil }
+func (fakeOpkgTunProvisioner) RemovePermitAllACLs(context.Context, string) error    { return nil }
 func (fakeOpkgTunProvisioner) ClearIPv6Address(context.Context, string) error       { return nil }
 func (fakeOpkgTunProvisioner) SetMTU(context.Context, string, int) error            { return nil }
 func (fakeOpkgTunProvisioner) InterfaceUp(context.Context, string) error            { return nil }
 func (fakeOpkgTunProvisioner) InterfaceDown(context.Context, string) error          { return nil }
-func (fakeOpkgTunProvisioner) SetDescription(context.Context, string, string) error { return nil }
+func (fakeOpkgTunProvisioner) OpkgTunRecord(context.Context, string) (string, bool, error) {
+	return "", false, nil
+}
+func (fakeOpkgTunProvisioner) SetSecurityLevel(context.Context, string, string) error { return nil }
+func (fakeOpkgTunProvisioner) SetDescription(context.Context, string, string) error   { return nil }
 
 type fakeStaticRouteProvider struct{}
 
 func (fakeStaticRouteProvider) AddStaticRoute(context.Context, StaticRouteSpec) error    { return nil }
 func (fakeStaticRouteProvider) RemoveStaticRoute(context.Context, StaticRouteSpec) error { return nil }
+func (f fakeStaticRouteProvider) ForInterface(context.Context, string) (BoundStaticRoutes, bool, error) {
+	return f, true, nil
+}
 
 type fakeOpkgTunIndexLister struct{}
 

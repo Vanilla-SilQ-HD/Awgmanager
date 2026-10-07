@@ -55,11 +55,14 @@ func (c *RouteCommands) NetworkRouteOwner(ctx context.Context, network, mask, if
 // слепой формы нет намеренно: там снималось наследство прежних версий, здесь
 // чужая запись на той же паре — пользовательская.
 func (c *RouteCommands) RemoveOwnNetworkRoute(ctx context.Context, spec StaticRouteSpec) (bool, error) {
+	if err := requireRouteIface(spec); err != nil {
+		return false, err
+	}
 	network, mask := spec.Network, spec.Mask
 	if spec.Host != "" {
 		network, mask = spec.Host, "255.255.255.255"
 	}
-	_, own, err := c.NetworkRouteOwner(ctx, network, mask, spec.Interface, spec.Comment)
+	_, own, err := c.NetworkRouteOwner(ctx, network, mask, spec.Interface.Name(), spec.Comment)
 	if err != nil || !own {
 		return false, err
 	}

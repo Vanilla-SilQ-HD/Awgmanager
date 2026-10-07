@@ -12,7 +12,6 @@ import (
 	"github.com/hoaxisr/awg-manager/internal/auth"
 	"github.com/hoaxisr/awg-manager/internal/connections"
 	"github.com/hoaxisr/awg-manager/internal/diagnostics"
-	"github.com/hoaxisr/awg-manager/internal/events"
 	"github.com/hoaxisr/awg-manager/internal/mcp"
 	"github.com/hoaxisr/awg-manager/internal/mcp/localdeps"
 	"github.com/hoaxisr/awg-manager/internal/openapi"
@@ -187,7 +186,6 @@ func (s *Server) buildRouteHandlers() *routeHandlers {
 	h.diagRunner = diagnostics.NewRunner(diagnostics.Deps{
 		TunnelService:        s.tunnelService,
 		NDMSQueries:          s.ndmsQueries,
-		NDMSTransport:        s.ndmsTransport,
 		KmodLoader:           s.kmodLoader,
 		TunnelStore:          s.tunnels,
 		LogService:           &diagLogAdapter{svc: s.loggingService},
@@ -199,14 +197,7 @@ func (s *Server) buildRouteHandlers() *routeHandlers {
 		AppLogger:            s.loggingService,
 	})
 	h.diagHandler = api.NewDiagnosticsHandler(h.diagRunner)
-	// Типизированный nil в интерфейсе не равен nil, поэтому проверка тут, а не
-	// в обработчике: иначе его собственный гейт «зависимость не собрана» не
-	// сработал бы и отказ приехал бы паникой на вызове.
-	var orphanNDMS api.OrphanIfaceNDMS
-	if s.ndmsCommands != nil && s.ndmsCommands.Interfaces != nil {
-		orphanNDMS = s.ndmsCommands.Interfaces
-	}
-	h.orphanIfaceHandler = api.NewOrphanIfaceHandler(s.orphanExclusiveFn, orphanNDMS, s.loggingService)
+	h.orphanIfaceHandler = api.NewOrphanIfaceHandler(s.orphanExclusiveFn, s.orphanNDMS, s.loggingService)
 	h.orphanIfaceHandler.SetTunnelListPublisher(h.tunnelsHandler.PublishTunnelList)
 	if s.foreignIfaces != nil {
 		h.foreignIfaceHandler = api.NewForeignIfaceHandler(s.foreignIfaces)
@@ -267,18 +258,18 @@ func (s *Server) registerCoreRoutes(mux *http.ServeMux, h *routeHandlers) {
 	// SSE event stream (protected)
 	mux.HandleFunc("/api/events", h.guarded(h.eventsHandler.Stream))
 
-	// NDM hooks (public - called from shell scripts). Also carries the
-	// former /api/wan/event traffic via iflayerchanged layer=ipv4.
+	// NDM hooks: приходят через spool (events.SpoolReader → api.HookSink),
+	// HTTP-входа нет. Also carries the former /api/wan/event traffic via
+	// iflayerchanged layer=ipv4.
 	h.hookHandler = api.NewHookHandler(s.tunnelService, s.orch, h.appLog)
 	if s.ndmsDispatcher != nil {
 		h.hookHandler.SetDispatcher(s.ndmsDispatcher)
 	}
+	if s.ndmsQueries != nil && s.ndmsQueries.Interfaces != nil {
+		h.hookHandler.SetSystemNames(s.ndmsQueries.Interfaces)
+	}
 	if s.tunnelService != nil {
 		h.hookHandler.SetWANModel(s.tunnelService.WANModel())
-		// Wire the self-create gate so importNativeWG can suppress the
-		// ifcreated-driven snapshot republish while its store.Save is
-		// still pending.
-		s.tunnelService.SetSelfCreateGate(h.hookHandler)
 	}
 	if s.proxyRuntimeNudge != nil {
 		h.hookHandler.SetProxyRuntimeNudge(s.proxyRuntimeNudge)
@@ -289,9 +280,8 @@ func (s *Server) registerCoreRoutes(mux *http.ServeMux, h *routeHandlers) {
 	if s.ipv4RunningHook != nil {
 		h.hookHandler.SetIPv4RunningHook(s.ipv4RunningHook)
 	}
-	mux.HandleFunc("/api/hook/ndms", h.hookHandler.HandleNDMS)
 
-	// WAN status (protected) — event ingress is now /api/hook/ndms.
+	// WAN status (protected) — event ingress is the NDMS hook spool.
 	mux.HandleFunc("/api/wan/status", h.guarded(h.wanHandler.GetStatus))
 
 }
@@ -776,46 +766,19 @@ func (s *Server) wireCrossHandlers(mux *http.ServeMux, h *routeHandlers) {
 	}
 
 	// Composite tunnels snapshot builder — used by GET /api/tunnels/all
-	// and by the hook-driven resource:invalidated refresher to assemble
-	// the {tunnels, external, system} payload the polling store reads.
+	// to assemble the {tunnels, external, system} payload the polling
+	// store reads.
 	tsb := api.NewTunnelsSnapshotBuilder()
 	tsb.SetTunnelsHandler(h.tunnelsHandler)
 	tsb.SetExternalHandler(h.externalHandler)
 	tsb.SetSystemTunnelsHandler(h.systemTunnelHandler)
 
-	// Wire hook-driven tunnel invalidation so the UI drops destroyed
-	// tunnel cards (including system tunnels) without a browser refresh.
-	// The closure invalidates the in-memory NDMS caches so the next
-	// poll reads fresh data, then publishes resource:invalidated; the
-	// frontend tunnels store responds by refetching /api/tunnels/all.
-	invalidateTunnelsOnHook := func(ctx context.Context) {
-		_ = ctx
-		// NDMS cache invalidation stays — hook events signal that the
-		// system view has changed, so our in-memory caches must drop
-		// their entries before the next poll.
-		if s.ndmsQueries != nil {
-			if s.ndmsQueries.WGServers != nil {
-				s.ndmsQueries.WGServers.InvalidateAll()
-			}
-			if s.ndmsQueries.Interfaces != nil {
-				s.ndmsQueries.Interfaces.InvalidateAll()
-			}
-		}
-		s.bus.PublishInvalidated(events.ResourceTunnels, "ndms-hook")
-		// Серверы живут в том же кэше WGServers и в том же дереве
-		// интерфейсов. Появление и исчезновение интерфейса меняет и их
-		// список — без этой публикации страница «Серверы» узнавала бы о
-		// сервере, заведённом мимо панели, только по таймеру опроса (F364).
-		s.bus.PublishInvalidated(events.ResourceServers, "ndms-hook")
-	}
-	h.hookHandler.SetTunnelRefresher(invalidateTunnelsOnHook)
 	// Injects the composite {tunnels, external, system} builder used by
 	// GetAll so /api/tunnels/all returns the exact shape the polling
 	// store expects.
 	h.tunnelsHandler.SetTunnelsSnapshotBuilder(func(ctx context.Context) map[string]interface{} {
 		return tsb.Build(ctx)
 	})
-	h.tunnelsHandler.SetSelfCreateGate(h.hookHandler)
 
 	// DNS routing diagnostics
 	if s.dnsCheckService != nil {

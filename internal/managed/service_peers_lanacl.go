@@ -89,7 +89,7 @@ func (s *Service) lanACLState(ctx context.Context, iface string) (exists, bound 
 		return false, false, fmt.Errorf("read running-config: %w", err)
 	}
 	acl := "AWGM_" + iface
-	return slices.Contains(lines, "access-list "+acl), slices.Contains(query.InterfaceAccessGroupsOf(lines, iface), acl), nil
+	return slices.Contains(lines, "access-list "+acl), slices.Contains(query.InterfaceAccessGroupsOf(lines, iface, query.ACLv4), acl), nil
 }
 
 // applyPeerSubnetsACL применяет правку: permit добавленных сетей в каждый
@@ -102,14 +102,16 @@ func (s *Service) lanACLState(ctx context.Context, iface string) (exists, bound 
 // ctx), ошибка наверх; отказ пересборки — ошибка наверх (списка до неё не
 // было или он не работал). Успех — undo для отката при отказе следующего
 // шага. Вызывающий держит LockPeerSubnets.
-func (s *Service) applyPeerSubnetsACL(ctx context.Context, server *storage.ManagedServer, e peerACLEdit) (undo func(context.Context), err error) {
+//
+// conf — интерфейс сервера, подтверждённый вызывающим (нужен пересборке).
+func (s *Service) applyPeerSubnetsACL(ctx context.Context, conf query.Confirmed, server *storage.ManagedServer, e peerACLEdit) (undo func(context.Context), err error) {
 	iface := server.InterfaceName
 	if e.rebuild {
-		if err := s.applyLANSegmentsRaw(ctx, iface, server.Address, server.Mask, server.LANSegments, e.newNets); err != nil {
+		if err := s.applyLANSegmentsRaw(ctx, conf, server.Address, server.Mask, server.LANSegments, e.newNets); err != nil {
 			return nil, fmt.Errorf("LAN ACL rebuild: %w", err)
 		}
 		return func(ctx context.Context) {
-			if err := s.applyLANSegmentsRaw(ctx, iface, server.Address, server.Mask, server.LANSegments, e.oldNets); err != nil {
+			if err := s.applyLANSegmentsRaw(ctx, conf, server.Address, server.Mask, server.LANSegments, e.oldNets); err != nil {
 				s.appLog.Warn("lan-acl", iface, "список не пересобран при откате: "+err.Error())
 			}
 		}, nil

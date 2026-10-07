@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hoaxisr/awg-manager/internal/ndms"
 	ndmscommand "github.com/hoaxisr/awg-manager/internal/ndms/command"
 	ndmsquery "github.com/hoaxisr/awg-manager/internal/ndms/query"
 	"github.com/hoaxisr/awg-manager/internal/storage"
@@ -21,20 +22,30 @@ import (
 )
 
 // newOS5Lifecycle — OS5-оператор над записывающим RCI-постером и записывающим
-// ip: ни один вызов не уходит на хост. queries=nil: opkgTunRecord отвечает
-// «нет», и ColdStart идёт по ветке CreateOpkgTun (это тоже RCI в poster).
+// ip: ни один вызов не уходит на хост. Записи OpkgTun10 в оракуле нет, её
+// создание объявлено (ExpectCreate): ColdStart идёт по ветке CreateOpkgTun.
 func newOS5Lifecycle(t *testing.T) (*OperatorOS5Impl, *recordingPoster, *ipRunRecorder) {
 	t.Helper()
-	poster := &recordingPoster{}
-	o, rec := newOS5LifecycleOn(t, poster, ndmsquery.NewFakeGetter(), &MockBackend{}, false)
+	f := ndmsquery.NewFakeNDMS()
+	f.ExpectCreate("OpkgTun10")
+	o, poster, rec := newOS5Oracle(t, f, &MockBackend{})
+	return o, poster, rec
+}
+
+// newOS5Oracle — оператор над оракулом f: список, точечные чтения и команды
+// идут в один FakeNDMS (E и фантомы считаются там).
+func newOS5Oracle(t *testing.T, f *ndmsquery.FakeNDMS, be *MockBackend) (*OperatorOS5Impl, *recordingPoster, *ipRunRecorder) {
+	t.Helper()
+	poster := &recordingPoster{f: f}
+	o, rec := newOS5LifecycleOn(t, poster, f, be, true)
 	return o, poster, rec
 }
 
 // newOS5LifecycleOn — та же сборка с подставными постером, снимком NDMS и
-// бэкендом; withQueries=true отдаёт оператору queries, и opkgTunRecord
-// отвечает по снимку getter'а (`/show/interface/`).
-func newOS5LifecycleOn(t *testing.T, poster ndmscommand.Poster, getter *ndmsquery.FakeGetter,
-	backend *MockBackend, withQueries bool) (*OperatorOS5Impl, *ipRunRecorder) {
+// бэкендом; withQueries=true отдаёт оператору queries, и confirmOpkgTun
+// отвечает по списку getter'а (`/show/interface/`).
+func newOS5LifecycleOn(t *testing.T, poster ndmscommand.Poster, getter ndmsquery.Getter,
+	backend Backend, withQueries bool) (*OperatorOS5Impl, *ipRunRecorder) {
 	t.Helper()
 	queries := ndmsquery.NewQueries(ndmsquery.Deps{
 		Getter: getter,
@@ -187,9 +198,7 @@ func TestColdStart_GateUsesFreshReadNotStaleCache(t *testing.T) {
 
 	// NDMS сейчас (снаружи awg-manager описание переписали на имя туннеля)
 	// отвечает по-другому — хука на это не было, кэш остался «csqtt».
-	getter.SetPostInterface("OpkgTun10", `{"show":{"interface":{
-		"id":"OpkgTun10","type":"OpkgTun","state":"up","link":"down","description":"Germany"
-	}}}`)
+	getter.SetJSON("/show/interface/", `{"OpkgTun10":{"id":"OpkgTun10","type":"OpkgTun","state":"up","link":"down","description":"Germany"}}`)
 
 	if err := o.ColdStart(context.Background(), lifecycleCfg(t)); err != nil {
 		t.Fatalf("ColdStart должен был пройти по свежему ответу (наша запись): %v", err)
@@ -213,9 +222,7 @@ func TestColdStart_GateRefusesOnFreshForeignRecord(t *testing.T) {
 	}
 
 	// NDMS сейчас отвечает про чужую запись — кэш этого не видел.
-	getter.SetPostInterface("OpkgTun10", `{"show":{"interface":{
-		"id":"OpkgTun10","type":"OpkgTun","state":"up","link":"down","description":"csqtt"
-	}}}`)
+	getter.SetJSON("/show/interface/", `{"OpkgTun10":{"id":"OpkgTun10","type":"OpkgTun","state":"up","link":"down","description":"csqtt"}}`)
 
 	err := o.ColdStart(context.Background(), lifecycleCfg(t))
 	var foreign *ForeignRecordError
@@ -392,8 +399,8 @@ func TestReconcile_KernelAddressCarriesUserPrefix(t *testing.T) {
 // interfaceDownBestEffort не исполняется (шва у сна нет — реальный тест
 // его не пинует).
 func TestStop_DownsKernelAndNDMS(t *testing.T) {
-	poster := &recordingPoster{}
-	o, rec := newOS5LifecycleOn(t, poster, ndmsquery.NewFakeGetter(), &MockBackend{running: true}, false)
+	f := ndmsquery.NewFakeNDMS(ndms.Interface{ID: "OpkgTun10", Type: "OpkgTun", Description: "Germany"})
+	o, poster, rec := newOS5Oracle(t, f, &MockBackend{running: true})
 	if err := o.Stop(context.Background(), "awg10", "Germany"); err != nil {
 		t.Fatal(err)
 	}
@@ -758,29 +765,37 @@ func TestReconcile_KeepsRunningKernelInterface(t *testing.T) {
 
 // Устройство пересоздаётся, если его нет (rmmod, ручной ip link del) — и если
 // записи OpkgTun в NDMS не было: на живом kernel-устройстве NDMS отвергает
-// ip address (exit 122), запись надо ставить на свежее. `ip link del` из
-// Reconcile — только для живого amneziawg под свежей записью; отсутствующее
-// или не-amneziawg устройство сносит сам backend.Start (там гейт F500).
+// ip address (exit 122), запись надо ставить на свежее. Живое amneziawg под
+// свежей записью пересоздаёт backend.Recreate (del + add одной подменой под
+// барьером, R61); отсутствующее или не-amneziawg устройство — backend.Start
+// (там гейт F500). Своего `ip link del` у Reconcile нет.
+// Мутация: Recreate → Start в ветке running → живое не пересоздано, красный.
 func TestReconcile_RecreatesKernelInterface(t *testing.T) {
 	cases := []struct {
-		name    string
-		backend *MockBackend
-		wantDel bool
+		name         string
+		backend      *MockBackend
+		wantRecreate bool
 	}{
 		{"устройства нет", &MockBackend{}, false},
 		{"устройство живо, записи OpkgTun нет", &MockBackend{running: true, pid: 1}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			o, rec := newOS5LifecycleOn(t, &recordingPoster{}, ndmsquery.NewFakeGetter(), tc.backend, false)
+			f := ndmsquery.NewFakeNDMS()
+			f.ExpectCreate("OpkgTun10")
+			o, _, rec := newOS5Oracle(t, f, tc.backend)
 			if err := o.Reconcile(context.Background(), lifecycleCfg(t)); err != nil {
 				t.Fatal(err)
 			}
-			if got := hasCall(rec.Calls, "/opt/sbin/ip link del dev opkgtun10"); got != tc.wantDel {
-				t.Fatalf("ip link del = %v, want %v:\n%s", got, tc.wantDel, strings.Join(rec.Calls, "\n"))
+			if hasCall(rec.Calls, "/opt/sbin/ip link del dev opkgtun10") {
+				t.Fatalf("голый ip link del мимо барьера:\n%s", strings.Join(rec.Calls, "\n"))
 			}
-			if !slices.Equal(tc.backend.StartCalls, []string{"opkgtun10"}) {
-				t.Fatalf("устройство не пересоздано: start=%v", tc.backend.StartCalls)
+			created := tc.backend.StartCalls
+			if tc.wantRecreate {
+				created = tc.backend.RecreateCalls
+			}
+			if !slices.Equal(created, []string{"opkgtun10"}) || len(tc.backend.StartCalls)+len(tc.backend.RecreateCalls) != 1 {
+				t.Fatalf("устройство не пересоздано: start=%v recreate=%v", tc.backend.StartCalls, tc.backend.RecreateCalls)
 			}
 		})
 	}

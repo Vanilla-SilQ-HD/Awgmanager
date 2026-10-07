@@ -170,6 +170,7 @@ func TestSaveCoordinator_SingleRequestTriggersSave(t *testing.T) {
 	poster := &fakePoster{}
 	pub := &fakePublisher{}
 	sc := NewSaveCoordinator(poster, pub, 20*time.Millisecond, 100*time.Millisecond, 0, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	sc.Request()
 	time.Sleep(50 * time.Millisecond)
@@ -183,6 +184,7 @@ func TestSaveCoordinator_MultipleRequestsCoalesce(t *testing.T) {
 	poster := &fakePoster{}
 	pub := &fakePublisher{}
 	sc := NewSaveCoordinator(poster, pub, 30*time.Millisecond, 500*time.Millisecond, 0, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	for i := 0; i < 5; i++ {
 		sc.Request()
@@ -200,6 +202,7 @@ func TestSaveCoordinator_MaxWaitCapsDelay(t *testing.T) {
 	pub := &fakePublisher{}
 	// Tight maxWait; debounce is larger than the whole test window.
 	sc := NewSaveCoordinator(poster, pub, 500*time.Millisecond, 80*time.Millisecond, 0, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	start := time.Now()
 	// Issue Requests faster than debounce so debounce would never fire,
@@ -235,6 +238,7 @@ func TestSaveCoordinator_PublishesStatusTransitions(t *testing.T) {
 	poster := &fakePoster{sleep: 20 * time.Millisecond}
 	pub := &fakePublisher{}
 	sc := NewSaveCoordinator(poster, pub, 15*time.Millisecond, 100*time.Millisecond, 0, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	sc.Request()
 	time.Sleep(80 * time.Millisecond)
@@ -264,6 +268,7 @@ func TestSaveCoordinator_RetryOnFailure(t *testing.T) {
 
 	pub := &fakePublisher{}
 	sc := NewSaveCoordinator(poster, pub, 10*time.Millisecond, 100*time.Millisecond, 0, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 	sc.SetRetryPolicy(20*time.Millisecond, 3) // 3 retries, 20ms apart
 
 	sc.Request()
@@ -327,6 +332,7 @@ func TestSaveCoordinator_RetrySucceedsClearsError(t *testing.T) {
 
 	pub := &fakePublisher{}
 	sc := NewSaveCoordinator(poster, pub, 10*time.Millisecond, 100*time.Millisecond, 0, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 	sc.SetRetryPolicy(20*time.Millisecond, 3)
 
 	sc.Request()
@@ -345,6 +351,7 @@ func TestSaveCoordinator_FlushBypassesDebounce(t *testing.T) {
 	poster := &fakePoster{}
 	pub := &fakePublisher{}
 	sc := NewSaveCoordinator(poster, pub, 500*time.Millisecond, 1*time.Second, 0, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	sc.Request()
 	// Immediately Flush — debounce would otherwise keep Save pending.
@@ -362,6 +369,7 @@ func TestSaveCoordinator_FlushClearsFailedState(t *testing.T) {
 
 	pub := &fakePublisher{}
 	sc := NewSaveCoordinator(poster, pub, 10*time.Millisecond, 50*time.Millisecond, 0, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 	sc.SetRetryPolicy(10*time.Millisecond, 1)
 
 	sc.Request()
@@ -382,6 +390,7 @@ func TestSaveCoordinator_FlushFailureGoesToFailed(t *testing.T) {
 	poster.SetError(errors.New("flash write failed"))
 	pub := &fakePublisher{}
 	sc := NewSaveCoordinator(poster, pub, 100*time.Millisecond, 500*time.Millisecond, 0, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	err := sc.Flush(context.Background())
 	if err == nil {
@@ -399,15 +408,13 @@ func TestSaveCoordinator_FlushFailureGoesToFailed(t *testing.T) {
 }
 
 func TestSaveCoordinator_FlushConcurrentWithInFlightFire(t *testing.T) {
-	// A fire() is mid-POST when Flush is called. saveMu serialises the
-	// two POSTs but the state machine must not clobber itself, and the
-	// terminal state must reflect Flush's outcome.
-	//
-	// Without the flushInProgress guard, fire()'s post-POST state write
-	// would overwrite Flush's state.
+	// A fire() is mid-POST when Flush is called. saveSem serialises the
+	// two POSTs (with their flights) so the state machine must not clobber
+	// itself, and the terminal state must reflect Flush's outcome.
 	poster := &fakePoster{sleep: 60 * time.Millisecond}
 	pub := &fakePublisher{}
 	sc := NewSaveCoordinator(poster, pub, 10*time.Millisecond, 100*time.Millisecond, 0, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	sc.Request()
 	// Ждём ВХОДА fire в Post, а не «наверное, уже вошёл через 25 мс». Сон
@@ -425,22 +432,18 @@ func TestSaveCoordinator_FlushConcurrentWithInFlightFire(t *testing.T) {
 	// Горутина fire дозавершается — ждём состояние, а не миллисекунды.
 	st := waitState(t, sc, SaveStateIdle)
 
-	// ГРАНИЦА ЭТОГО ТЕСТА: он НЕ пинит гард flushInProgress — снятие любой из
-	// двух его точек оставляет тест зелёным, потому что исход сходится к Idle
-	// несколькими путями. Он держит другое, и это тоже нужное: сценарий
-	// «Flush поверх ЛЕТЯЩЕГО fire» действительно воспроизводится (ждём сигнал
-	// входа в Post, а не спим наугад), состояние терминальное, pending снят.
-	// Сами гарды пинуют TestSaveCoordinator_LateFireDoesNotResurrectRetry
-	// (хвостовой) и TestSaveCoordinator_FireDispatchedDuringFlushYields
-	// (входной) — каждому нужен СВОЙ порядок событий (CF11).
+	// ГРАНИЦА ЭТОГО ТЕСТА: сериализацию он не пинит — исход сходится к Idle
+	// несколькими путями. Он держит другое: сценарий «Flush поверх ЛЕТЯЩЕГО
+	// fire» действительно воспроизводится (ждём сигнал входа в Post, а не
+	// спим наугад), состояние терминальное, pending снят. Порядок пинуют
+	// TestSaveCoordinator_LateFireDoesNotResurrectRetry и
+	// TestSaveCoordinator_FireDispatchedDuringFlushWaits (CF11).
 	if st.PendingCount != 0 {
 		t.Errorf("pending after Flush: want 0, got %d", st.PendingCount)
 	}
 
 	// Hints are just invalidation nudges now; verify they were emitted
-	// for both the Flush-driven transitions and the fire() path. The
-	// flushInProgress guard in setStateLocked's caller prevents fire
-	// from clobbering state after Flush — we rely on Status() above.
+	// for both the Flush-driven transitions and the fire() path.
 	if len(pub.Hints()) == 0 {
 		t.Fatal("no hints published")
 	}
@@ -450,6 +453,7 @@ func TestSaveCoordinator_StatusSnapshot(t *testing.T) {
 	poster := &fakePoster{}
 	pub := &fakePublisher{}
 	sc := NewSaveCoordinator(poster, pub, 20*time.Millisecond, 100*time.Millisecond, 0, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	// Fresh coordinator: Idle, 0 pending.
 	if st := sc.Status(); st.State != SaveStateIdle || st.PendingCount != 0 {
@@ -481,6 +485,7 @@ func TestSaveCoordinator_fire_OnSuccess_InvalidatesRunningConfig(t *testing.T) {
 	inv := &mockInvalidator{}
 	sc := NewSaveCoordinator(poster, pub, 10*time.Millisecond, 100*time.Millisecond,
 		20*time.Millisecond, inv)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	sc.Request()
 	// debounce 10ms + post 0ms + settle 20ms = ~30ms. Wait 100ms for safety.
@@ -498,6 +503,7 @@ func TestSaveCoordinator_fire_OnSuccess_SettlesBeforeInvalidate(t *testing.T) {
 	settle := 50 * time.Millisecond
 	sc := NewSaveCoordinator(poster, pub, 5*time.Millisecond, 100*time.Millisecond,
 		settle, inv)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	t0 := time.Now()
 	sc.Request()
@@ -520,6 +526,7 @@ func TestSaveCoordinator_fire_OnSuccess_PublishesSettledHint(t *testing.T) {
 	inv := &mockInvalidator{}
 	sc := NewSaveCoordinator(poster, pub, 5*time.Millisecond, 100*time.Millisecond,
 		10*time.Millisecond, inv)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	sc.Request()
 	time.Sleep(80 * time.Millisecond)
@@ -545,6 +552,7 @@ func TestSaveCoordinator_fire_OnFailure_DoesNotInvalidate(t *testing.T) {
 	inv := &mockInvalidator{}
 	sc := NewSaveCoordinator(poster, pub, 5*time.Millisecond, 100*time.Millisecond,
 		10*time.Millisecond, inv)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 	sc.SetRetryPolicy(50*time.Millisecond, 0) // disable retry — single attempt then fail
 
 	sc.Request()
@@ -561,6 +569,7 @@ func TestSaveCoordinator_fire_ZeroSettleDelay_SkipsSettle(t *testing.T) {
 	inv := &mockInvalidator{}
 	sc := NewSaveCoordinator(poster, pub, 5*time.Millisecond, 100*time.Millisecond,
 		0, inv) // settleDelay = 0
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	sc.Request()
 	time.Sleep(80 * time.Millisecond)
@@ -580,6 +589,7 @@ func TestSaveCoordinator_fire_NilInvalidator_SkipsSettle(t *testing.T) {
 	pub := &fakePublisher{}
 	sc := NewSaveCoordinator(poster, pub, 5*time.Millisecond, 100*time.Millisecond,
 		20*time.Millisecond, nil) // invalidator = nil
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	sc.Request()
 	time.Sleep(80 * time.Millisecond)
@@ -598,6 +608,7 @@ func TestSaveCoordinator_fire_Retry_InvalidatesOnceAfterFinalSuccess(t *testing.
 	inv := &mockInvalidator{}
 	sc := NewSaveCoordinator(poster, pub, 5*time.Millisecond, 100*time.Millisecond,
 		10*time.Millisecond, inv)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 	sc.SetRetryPolicy(20*time.Millisecond, 3)
 
 	// First attempt fails, second attempt succeeds.
@@ -622,6 +633,7 @@ func TestSaveCoordinator_Flush_OnSuccess_InvalidatesImmediately(t *testing.T) {
 	// settleDelay 1s, but Flush should invalidate WITHOUT sleep.
 	sc := NewSaveCoordinator(poster, pub, 5*time.Millisecond, 100*time.Millisecond,
 		1*time.Second, inv)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	t0 := time.Now()
 	if err := sc.Flush(context.Background()); err != nil {
@@ -644,6 +656,7 @@ func TestSaveCoordinator_Flush_OnFailure_DoesNotInvalidate(t *testing.T) {
 	inv := &mockInvalidator{}
 	sc := NewSaveCoordinator(poster, pub, 5*time.Millisecond, 100*time.Millisecond,
 		10*time.Millisecond, inv)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	if err := sc.Flush(context.Background()); err == nil {
 		t.Fatalf("Flush should have returned error")
@@ -660,6 +673,7 @@ func TestSaveCoordinator_Flush_NilInvalidator_DoesNotPanic(t *testing.T) {
 	// invalidator = nil
 	sc := NewSaveCoordinator(poster, pub, 5*time.Millisecond, 100*time.Millisecond,
 		10*time.Millisecond, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
 	if err := sc.Flush(context.Background()); err != nil {
 		t.Fatalf("Flush returned error: %v", err)
@@ -667,33 +681,21 @@ func TestSaveCoordinator_Flush_NilInvalidator_DoesNotPanic(t *testing.T) {
 	// Success — no panic.
 }
 
-// CF11: гард `flushInProgress` в ХВОСТЕ fire() — тот, что после POST. Смысл
-// его в том, что терминальным состоянием владеет Flush, и опоздавший fire не
-// имеет права ни переписать исход, ни ВОСКРЕСИТЬ цикл ретраев: Flush
-// останавливает таймер в самом начале, а fire на своём отказе завёл бы новый
-// уже после этого — и на роутер ушёл бы лишний Save, которого никто не просил.
-//
-// Прежний тест (`…FlushConcurrentWithInFlightFire`) гард не различал: с
-// maxRetries=0 отказавший fire уходил в Failed без таймера, и оба исхода
-// сходились к Idle. Различитель здесь — ТРЕТИЙ POST: он существует только
-// без гарда.
-//
-// Порядок детерминирован: Flush блокируется на saveMu, пока летит POST от
-// fire, поэтому хвост fire выполняется, когда `flushInProgress` уже взведён и
-// ещё не снят (Flush в это время сидит в своём POST).
+// CF11: терминальным состоянием после Flush владеет Flush — опоздавший fire
+// не имеет права ВОСКРЕСИТЬ цикл ретраев: его отказ заводит таймер ретрая до
+// того, как Flush получит saveSem, а Flush гасит таймер, взяв saveSem (П25:
+// гарда flushInProgress больше нет — fire и Flush сериализованы saveSem).
+// Различитель — ТРЕТИЙ POST: он существует только без гашения.
 //
 // Отрицательное утверждение на фиксированном окне: ждать нечего. Направление
 // риска — ложный ЗЕЛЁНЫЙ, если Flush-POST растянется дольше `retryDelay`
-// (150 мс) и воскрешённый ретрай заглушит входной гард; под нагрузкой на
-// одном ядре мутант ловится 10/10 (2026-09-02). При флейке этого класса —
-// первый подозреваемый. Часы координатора (`time.AfterFunc`,
-// `save.go:150,221`) не инжектируются — детерминированный вариант требует
-// шва таймера; решение — принять.
+// (150 мс). При флейке этого класса — первый подозреваемый.
 func TestSaveCoordinator_LateFireDoesNotResurrectRetry(t *testing.T) {
 	poster := &fakePoster{sleep: 60 * time.Millisecond}
 	poster.SetError(errors.New("NDMS отказал"))
 	pub := &fakePublisher{}
 	sc := NewSaveCoordinator(poster, pub, 10*time.Millisecond, 100*time.Millisecond, 0, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 	// Ретрай ЕСТЬ (иначе гарду нечего защищать) и он ПОЗЖЕ конца Flush:
 	// иначе воскрешённый ретрай приходит, пока Flush ещё в своём POST, и его
 	// глушит ВХОДНОЙ гард — тогда снятие хвостового ничем не проявляется.
@@ -724,46 +726,32 @@ func TestSaveCoordinator_LateFireDoesNotResurrectRetry(t *testing.T) {
 	}
 }
 
-// Второй гард — ВХОДНОЙ, в голове fire(). Он про другой порядок: fire
-// диспетчеризован таймером, пока Flush уже начал свой POST. Без гарда fire
-// возьмёт saveMu следом за Flush и отправит ВТОРОЙ Save, которого никто не
-// просил, — на роутере это лишняя запись конфигурации.
-//
-// Отрицательное утверждение на фиксированном окне 200 мс: пока Flush держит
-// POST, диспетчеризованный тем временем fire() обязан упереться во ВХОДНОЙ
-// гард `flushInProgress` (save.go:169-171) и вернуться ДО `saveMu.Lock`/
-// `Post` — второго POST быть не должно. Ретрая на этом пути нет:
-// `SetRetryPolicy` не вызывается, а входной гард отсекает fire() раньше
-// POST, до ветки, что заводит повторный таймер при ошибке. Риск у этого окна
-// — направленный иначе, чем в соседнем тесте: если под нагрузкой таймер
-// fire() (`time.AfterFunc`, 10 мс) реально диспетчеризуется ПОЗЖЕ конца
-// Flush-POST (120 мс), `flushInProgress` к этому моменту уже снят, входной
-// гард не срабатывает, и POST уходит по-настоящему — тест падает КРАСНЫМ на
-// корректном коде (это уже не гонка «fire во время Flush», а независимый
-// Request после его завершения). Часы координатора (`time.AfterFunc`) не
-// инжектируются — шов таймера не заводим, решение принято.
-func TestSaveCoordinator_FireDispatchedDuringFlushYields(t *testing.T) {
+// fire, диспетчеризованный таймером, пока Flush держит свой POST, не шлёт
+// второй Save параллельно: ждёт saveSem и идёт после Flush (П25: гард
+// flushInProgress снят — Request во время POST Flush мог не попасть в его
+// запись, и уступка теряла бы его до следующей правки).
+// Мутация: fire без saveSem → второй POST во время Flush, красный.
+func TestSaveCoordinator_FireDispatchedDuringFlushWaits(t *testing.T) {
 	poster := &fakePoster{sleep: 120 * time.Millisecond}
 	pub := &fakePublisher{}
 	sc := NewSaveCoordinator(poster, pub, 10*time.Millisecond, 100*time.Millisecond, 0, nil)
+	sc.SetSaveTimings(SaveEventCap, 0, SaveAfterRemoval)
 
-	// Flush идёт в фоне и держит POST 120 мс.
 	done := make(chan error, 1)
 	go func() { done <- sc.Flush(context.Background()) }()
 	waitCalls(t, poster, 1, "Flush не вошёл в Post")
 
 	// Пока Flush в POST — просим Save: его таймер (10 мс) сработает внутри
-	// окна Flush, и fire обязан уступить.
+	// окна Flush.
 	sc.Request()
+	time.Sleep(50 * time.Millisecond)
+	if got := poster.Calls(); got != 1 {
+		t.Fatalf("POST'ов %d во время Flush, ждали 1", got)
+	}
 	if err := <-done; err != nil {
 		t.Fatalf("Flush: %v", err)
 	}
-	waitState(t, sc, SaveStateIdle)
-
-	time.Sleep(200 * time.Millisecond)
-	if got := poster.Calls(); got != 1 {
-		t.Errorf("POST'ов %d, ждали 1 (только Flush): fire не уступил владение состоянием", got)
-	}
+	waitCalls(t, poster, 2, "отложенный Request после Flush не сохранён")
 }
 
 // payloadMentionsIPv6 — команда пришла в v6-форме (внешний ключ "ipv6").

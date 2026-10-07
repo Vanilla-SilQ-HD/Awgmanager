@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/hoaxisr/awg-manager/internal/ndms"
+	"github.com/hoaxisr/awg-manager/internal/ndms/query"
 	"github.com/hoaxisr/awg-manager/internal/ndms/types"
 	"github.com/hoaxisr/awg-manager/internal/pingcheck"
 	"github.com/hoaxisr/awg-manager/internal/storage"
@@ -65,7 +66,12 @@ func (r *Runner) collectSystem(ctx context.Context) SystemInfo {
 		}
 	}
 
-	info.RouterDetails = routerinfo.Collect()
+	// Температура радио — из общего снимка списка, не своим чтением (F580).
+	var ifaces *query.Snapshot
+	if r.deps.NDMSQueries != nil {
+		ifaces, _ = r.deps.NDMSQueries.Interfaces.Snapshot(ctx, query.SnapshotRecent)
+	}
+	info.RouterDetails = routerinfo.Collect(ifaces)
 
 	return info
 }
@@ -123,6 +129,14 @@ func (r *Runner) collectTunnels(ctx context.Context) []TunnelInfo {
 		}
 	}
 
+	// Состояние NDMS — из ОДНОГО снимка полного списка на отчёт: по имени
+	// NDMS не спрашивают (F546), запрос по снятому без хука интерфейсу писал
+	// бы E. Список не прочитан — состояния в отчёте нет, как при сбое чтения.
+	var snap *query.Snapshot
+	if r.deps.NDMSQueries != nil {
+		snap, _ = r.deps.NDMSQueries.Interfaces.Snapshot(ctx, query.SnapshotRecent)
+	}
+
 	var infos []TunnelInfo
 	for _, t := range tunnels {
 		// Зеркальная запись прокси-выхода WDTT — не наш туннель: её жизненным
@@ -174,8 +188,8 @@ func (r *Runner) collectTunnels(ctx context.Context) []TunnelInfo {
 		// NDMS interface state (using resolved ndmsName)
 		// For nativewg, this output is reused for Connection data
 		var ndmsJSON string
-		if r.deps.NDMSTransport != nil && ndmsName != "" {
-			if raw, err := r.deps.NDMSTransport.GetRaw(ctx, "/show/interface/"+ndmsName); err == nil {
+		if snap != nil {
+			if raw, ok := snap.Raw(ndmsName); ok {
 				ndmsJSON = string(raw)
 				ti.Interface.NDMSState = ndmsJSON
 			}

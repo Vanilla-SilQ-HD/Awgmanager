@@ -478,8 +478,8 @@ func isExecutable(path string) bool {
 // must not bring sing-box back up. Cleared by Control("start"/"restart") or an
 // explicit router Enable (ClearManualStop).
 //
-// В режиме NDMS Proxy disabled пропускает SyncProxies и, при наличии
-// сигнала, делает one-shot orphan cleanup.
+// В режиме NDMS Proxy disabled пропускает SyncProxies; уборку по флагу
+// needsOrphanCleanup делает тик сторожа (orphanCleanupIfFlagged).
 func (o *Operator) Reconcile(ctx context.Context) error {
 	defer perftrace.LogDuration(o.runtimeLogger, "perf", "Reconcile", "total", time.Now())
 	if o.manuallyStopped.Load() {
@@ -536,13 +536,6 @@ func (o *Operator) Reconcile(ctx context.Context) error {
 		return nil
 	}
 	if !o.isNDMSProxyEnabled() {
-		if o.needsOrphanCleanup.CompareAndSwap(true, false) {
-			if err := o.removeOrphanSingboxProxies(ctx); err != nil {
-				if o.runtimeLogger != nil {
-					o.runtimeLogger.Warn("reconcile", "", "orphan cleanup: "+err.Error())
-				}
-			}
-		}
 		if o.runtimeLogger != nil {
 			o.runtimeLogger.Info("reconcile", "", fmt.Sprintf("done (ndms-proxy disabled) tunnels=%d", len(tunnels)))
 		}

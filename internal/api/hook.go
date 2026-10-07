@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
-	"net/http"
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -11,7 +11,6 @@ import (
 	"github.com/hoaxisr/awg-manager/internal/ndms/events"
 	ndmsquery "github.com/hoaxisr/awg-manager/internal/ndms/query"
 	"github.com/hoaxisr/awg-manager/internal/orchestrator"
-	"github.com/hoaxisr/awg-manager/internal/response"
 )
 
 // HookDispatcher is the subset of events.Dispatcher that HookHandler
@@ -26,12 +25,11 @@ type HookWANModel interface {
 	SetUp(kernelName string, up bool) (changed bool)
 }
 
-// TunnelHookInvalidator is invoked on ifcreated / ifdestroyed hooks so
-// the handler can drop stale NDMS caches and publish a
-// `resource:invalidated` hint for the tunnels resource. Every connected
-// SSE client then refetches `/api/tunnels/all` and the UI drops/adds
-// tunnel cards without a browser refresh.
-type TunnelHookInvalidator func(ctx context.Context)
+// HookSystemNames — карта имён ядра кэша интерфейсов (query.InterfaceStore).
+// Эхо id и не похожее на имя ядра она отбрасывает сама.
+type HookSystemNames interface {
+	OnSystemName(id, name string)
+}
 
 // ProxyRuntimeNudge подталкивает прокси-рантайм: пока посев не состоялся,
 // повторяет боот, после — будит воркеров. Зовётся по WAN UP: холодный старт
@@ -41,36 +39,18 @@ type ProxyRuntimeNudge func(reason string)
 
 // HookHandler handles NDM hook events.
 type HookHandler struct {
-	svc            TunnelService
-	orch           *orchestrator.Orchestrator
-	dispatcher     HookDispatcher // may be nil until SetDispatcher is called
-	wanModel       HookWANModel   // may be nil until SetWANModel is called
-	refreshTunnels TunnelHookInvalidator
-	proxyNudge     ProxyRuntimeNudge
-	endpointNudge  func()
-	ipv4Running    func(ndmsID string)
-	log            *logging.ScopedLogger
-	wanLog         *logging.ScopedLogger
-	// selfCreateGate counts in-flight awg-manager-initiated NDMS interface
-	// creations. While > 0, ifcreated hook events suppress their automatic
-	// snapshot rebroadcast — the caller (importer / Create path) is
-	// responsible for publishing a fresh snapshot AFTER it has persisted
-	// the tunnel to awg-manager's store. Otherwise the hook-triggered
-	// snapshot fires before the Save and the new NDMS interface appears
-	// briefly in the "system tunnels" list as a ghost duplicate of the
-	// managed tunnel.
-	selfCreateGate atomic.Int32
+	svc           TunnelService
+	orch          *orchestrator.Orchestrator
+	dispatcher    HookDispatcher // may be nil until SetDispatcher is called
+	wanModel      HookWANModel   // may be nil until SetWANModel is called
+	systemNames   HookSystemNames
+	proxyNudge    ProxyRuntimeNudge
+	endpointNudge func()
+	ipv4Running   func(ndmsID string)
+	uptime        func() float64 // nil — events.ReadUptime; см. SetUptimeReader
+	log           *logging.ScopedLogger
+	wanLog        *logging.ScopedLogger
 }
-
-// EnterSelfCreate marks the start of an awg-manager-initiated NDMS
-// interface creation. Pair with ExitSelfCreate via defer.
-func (h *HookHandler) EnterSelfCreate() { h.selfCreateGate.Add(1) }
-
-// ExitSelfCreate marks the end of an awg-manager-initiated NDMS
-// interface creation. Callers MUST publish a fresh tunnels invalidation
-// hint themselves after this (typically via TunnelsHandler.publishTunnelList)
-// so UIs see the finalized state.
-func (h *HookHandler) ExitSelfCreate() { h.selfCreateGate.Add(-1) }
 
 // NewHookHandler creates a new hook event handler.
 func NewHookHandler(svc TunnelService, orch *orchestrator.Orchestrator, appLogger logging.AppLogger) *HookHandler {
@@ -97,12 +77,10 @@ func (h *HookHandler) SetWANModel(m HookWANModel) {
 	h.wanModel = m
 }
 
-// SetTunnelRefresher wires the callback that invalidates NDMS caches
-// and publishes a tunnels `resource:invalidated` hint on ifcreated /
-// ifdestroyed. Without it, the UI keeps showing cards for tunnels that
-// NDMS has already torn down (reported bug).
-func (h *HookHandler) SetTunnelRefresher(fn TunnelHookInvalidator) {
-	h.refreshTunnels = fn
+// SetSystemNames подключает карту имён ядра: system_name хука ложится в неё
+// синхронно, до WAN-модели (см. Handle).
+func (h *HookHandler) SetSystemNames(n HookSystemNames) {
+	h.systemNames = n
 }
 
 // SetProxyRuntimeNudge wires the proxy-runtime callback fired on WAN up:
@@ -127,99 +105,127 @@ func (h *HookHandler) SetIPv4RunningHook(fn func(ndmsID string)) {
 	h.ipv4Running = fn
 }
 
-// HandleNDMS is the unified hook endpoint. The shared forwarder script
-// installed into /opt/etc/ndm/{iflayerchanged,ifcreated,ifdestroyed,
-// ifipchanged}.d/ POSTs here with a `type` discriminator. The handler
-// parses the form into a typed events.Event, enqueues it into the
-// Dispatcher for cache invalidation, and (for iflayerchanged only) also
-// forwards to the orchestrator for tunnel-lifecycle decisions.
+// SetUptimeReader подменяет источник аптайма для «hook age» (тесты).
+func (h *HookHandler) SetUptimeReader(fn func() float64) {
+	h.uptime = fn
+}
+
+// HookSink — приёмник событий spool (events.SpoolReader) с первых секунд
+// жизни демона. Читатель обязан стартовать ДО установки хук-скриптов и до
+// первого чтения списка интерфейсов, а готовый HookHandler появляется только
+// в registerRoutes (srv.Start), заметно позже.
 //
-// POST /api/hook/ndms
+// Поэтому «Handle — единственная точка входа» нарушено только на окне
+// старта: пока сервер не опубликовал готовый обработчик, событие идёт лишь
+// в диспетчер (тот же enqueueHook, с которого начинается Handle) — кэш его
+// получает, и UI тоже: публикацию делает диспетчер после списка. Реакции
+// оркестратора и WAN-модели на хуки этого окна теряются — ровно как до F571
+// терялся отказанный HTTP POST, пока листенера не было.
 //
-//	  type=iflayerchanged|ifcreated|ifdestroyed|ifipchanged
-//	  id=<ndms-interface-id>
-//	  system_name=<kernel-name>
-//	  layer=<conf|link|ipv4|ipv6|ctrl>      (layerchanged only)
-//	  level=<running|disabled|...>          (layerchanged only)
-//	  address=<ipv4>                        (ipchanged only)
-//	  up=<0|1>
-//	  connected=<0|1>
-//
-//		@Summary		NDMS shell hook
-//		@Description	Called from router scripts (public). Form fields: type, id, system_name, layer, etc.
-//		@Tags			hook
-//		@Accept			x-www-form-urlencoded
-//		@Produce		json
-//		@Param			type	formData	string	true	"Event type (iflayerchanged, ifcreated, ...)"
-//		@Success		200	{object}	APIEnvelope
-//		@Failure		400	{object}	APIErrorEnvelope
-//		@Failure		500	{object}	APIErrorEnvelope
-//		@Router			/hook/ndms [post]
-func (h *HookHandler) HandleNDMS(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		response.MethodNotAllowed(w)
+// Вердикт «свой/чужой» (Event.Own) выносится здесь, ДО ветвления, один раз
+// на событие и в порядке прихода (П22): кредиты своих хуков гасятся по
+// порядку FIFO, а за точкой входа порядок теряется (оркестратор — горутина
+// на событие). Окно старта вердикт тоже получает.
+type HookSink struct {
+	dispatcher HookDispatcher
+	claimer    OwnHookClaimer
+	ready      atomic.Pointer[HookHandler]
+}
+
+// OwnHookClaimer — кредиты своих хуков (query.InterfaceStore, П21): гашение
+// кредита этого имени и вида; true — хук наш.
+type OwnHookClaimer interface {
+	ClaimOwnCreated(id string) bool
+	ClaimOwnDestroyed(id string) bool
+	ClaimOwnConf(id, level string) bool
+}
+
+// NewHookSink создаёт приёмник; до Publish события идут только в d. claimer
+// nil — все хуки чужие (тесты; прод — страж проводки).
+func NewHookSink(d HookDispatcher, claimer OwnHookClaimer) *HookSink {
+	return &HookSink{dispatcher: d, claimer: claimer}
+}
+
+// Publish отдаёт приёмнику ПОЛНОСТЬЮ настроенный обработчик. Звать после
+// всех Set*: читатель spool зовёт Handle из своей горутины.
+func (s *HookSink) Publish(h *HookHandler) { s.ready.Store(h) }
+
+// Handle — sink для SpoolReader.
+func (s *HookSink) Handle(event events.Event) {
+	event = claimOwn(s.claimer, event)
+	if h := s.ready.Load(); h != nil {
+		h.Handle(event)
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		response.BadRequest(w, "parse form: "+err.Error())
-		return
+	enqueueHook(s.dispatcher, event)
+}
+
+// claimOwn — единственное место гашения кредитов (сканер
+// TestClaimOwn_OnlyInHookSink): ifcreated, ifdestroyed и грань слоя conf;
+// прочие хуки и claimer == nil — Own=false.
+func claimOwn(c OwnHookClaimer, e events.Event) events.Event {
+	e.Own = false
+	if c == nil {
+		return e
+	}
+	switch {
+	case e.Type == events.EventIfCreated:
+		e.Own = c.ClaimOwnCreated(e.ID)
+	case e.Type == events.EventIfDestroyed:
+		e.Own = c.ClaimOwnDestroyed(e.ID)
+	case e.Type == events.EventIfLayerChanged && e.Layer == "conf":
+		e.Own = c.ClaimOwnConf(e.ID, e.Level)
+	}
+	return e
+}
+
+// enqueueHook ставит событие в диспетчер (инвалидация кэшей, неблокирующе).
+func enqueueHook(d HookDispatcher, event events.Event) {
+	if d != nil {
+		d.Enqueue(event)
+	}
+}
+
+// Handle обрабатывает разобранное событие хука: диспетчер (инвалидация
+// кэшей и публикация списка туннелей), WAN-модель и оркестратор.
+// Синхронна только WAN-модель: на незнакомом интерфейсе SetUp
+// перечитывает список WAN (RCI); остальное уходит в горутины.
+func (h *HookHandler) Handle(event events.Event) {
+	// Возраст хука (В1, F595): сколько строка ждала между скриптом и нами.
+	// Только журнал — ни здесь, ни дальше ScriptUptime в решениях не участвует
+	// (TestScriptUptime_OnlyLogged).
+	if event.ScriptUptime > 0 {
+		read := h.uptime
+		if read == nil {
+			read = events.ReadUptime
+		}
+		if now := read(); now > 0 {
+			h.log.Debug("hook", event.ID, fmt.Sprintf("hook age=%ds", int64(math.Round(now-event.ScriptUptime))))
+		}
 	}
 
-	typeStr := r.PostForm.Get("type")
-	event := events.Event{
-		Type:       events.EventType(typeStr),
-		ID:         r.PostForm.Get("id"),
-		SystemName: r.PostForm.Get("system_name"),
-		Layer:      r.PostForm.Get("layer"),
-		Level:      r.PostForm.Get("level"),
-		Address:    r.PostForm.Get("address"),
-	}
-	// up/connected форвардер тоже присылает, и мы их НЕ разбираем: состояние
-	// линка берётся из iflayerchanged, а этим полям доверять нельзя
-	// (InterfaceStore.OnIPChanged). Лишние поля формы безвредны.
-
-	switch event.Type {
-	case events.EventIfLayerChanged, events.EventIfCreated,
-		events.EventIfDestroyed, events.EventIfIPChanged:
-		// OK
-	default:
-		response.BadRequest(w, "unknown hook type: "+typeStr)
-		return
+	// 0) Имя ядра из хука — в кэш синхронно (I3, F570): SetUp WAN-модели ниже
+	// на незнакомом имени перечитывает ListWAN, а тот читает только память.
+	// Через одну лишь очередь диспетчера имя горячо подключённого модема
+	// доходило бы позже, и первый WAN up терялся. Диспетчер повторит то же
+	// (идемпотентно). OnSystemName до очереди — чтобы ListWAN в этом же Handle
+	// знал имя; порядок с воркером неважен: хук карту не трогает, имя снятого
+	// id снимет список.
+	if event.SystemName != "" && h.systemNames != nil {
+		h.systemNames.OnSystemName(event.ID, event.SystemName)
 	}
 
 	// 1) Enqueue into Dispatcher for cache invalidation (async, non-blocking).
-	if h.dispatcher != nil {
-		h.dispatcher.Enqueue(event)
-	}
+	// Своё создание/снятие/грань conf — по вердикту точки входа (event.Own,
+	// HookSink.Handle); чужие ifcreated/ifdestroyed диспетчер публикует после
+	// списка своей пачки.
+	enqueueHook(h.dispatcher, event)
 
 	// 1a) Смена адреса интерфейса — повод перепроверить DDNS-имена: страж
 	// пройдётся вне очереди. Вызов неблокирующий (будит чужую горутину), так
 	// что ответ на хук он не задерживает.
 	if event.Type == events.EventIfIPChanged && h.endpointNudge != nil {
 		h.endpointNudge()
-	}
-
-	// 1b) On interface create/destroy, rebroadcast the tunnel list so
-	// every connected UI client drops/adds the card without a browser
-	// refresh. Runs in a goroutine so the hook POST acks immediately.
-	//
-	// Exception: if awg-manager is currently creating an interface itself
-	// (EnterSelfCreate was called), the corresponding ifcreated would fire
-	// before our code has persisted the tunnel to our store. Publishing a
-	// snapshot at that moment would show the new interface in the "system"
-	// list (because managedNativeWGNames can't see a tunnel that isn't in
-	// the store yet) — a ghost duplicate that vanishes on next refresh.
-	// Skip; the creator publishes its own snapshot after Save.
-	if event.Type == events.EventIfCreated && h.selfCreateGate.Load() > 0 {
-		// Self-initiated creation: skip auto-refresh.
-	} else if event.Type == events.EventIfCreated || event.Type == events.EventIfDestroyed {
-		if h.refreshTunnels != nil {
-			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-				defer cancel()
-				h.refreshTunnels(ctx)
-			}()
-		}
 	}
 
 	// 2) For iflayerchanged, route to the orchestrator:
@@ -240,6 +246,7 @@ func (h *HookHandler) HandleNDMS(w http.ResponseWriter, r *http.Request) {
 					NDMSName: e.ID,
 					Layer:    e.Layer,
 					Level:    e.Level,
+					Own:      e.Own,
 				}); err != nil {
 					h.log.Warn("hook", e.ID, "orchestrator HandleEvent failed: "+err.Error())
 				}
@@ -247,8 +254,24 @@ func (h *HookHandler) HandleNDMS(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.log.Info("hook", event.ID, fmt.Sprintf("ndms: type=%s layer=%s level=%s", event.Type, event.Layer, event.Level))
-	response.Success(w, map[string]interface{}{"ok": true})
+	// 3) ifdestroyed — в оркестратор явным событием: реакция на снятие нашей
+	// записи OpkgTun не зависит от layer-хуков (#328, F569). Свой снос
+	// оркестратор узнаёт по вердикту точки входа (event.Own).
+	if event.Type == events.EventIfDestroyed && h.orch != nil {
+		go func(e events.Event) {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := h.orch.HandleEvent(ctx, orchestrator.Event{
+				Type:     orchestrator.EventNDMSIfDestroyed,
+				NDMSName: e.ID,
+				Own:      e.Own,
+			}); err != nil {
+				h.log.Warn("hook", e.ID, "orchestrator HandleEvent failed: "+err.Error())
+			}
+		}(event)
+	}
+
+	h.log.Info("hook", event.ID, fmt.Sprintf("ndms: type=%s layer=%s level=%s own=%v", event.Type, event.Layer, event.Level, event.Own))
 }
 
 // handleWANLayerEvent processes an iflayerchanged hook with layer=ipv4.

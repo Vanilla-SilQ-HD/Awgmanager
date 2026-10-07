@@ -21,4 +21,13 @@ type Event struct {
 	Layer      string // "conf" | "link" | "ipv4" | "ipv6" | "ctrl" (layerchanged only)
 	Level      string // "running" | "disabled" | ... (layerchanged only)
 	Address    string // IPv4 address (ipchanged only)
+	// ScriptUptime — аптайм роутера (с), когда хук-скрипт писал строку (`t=`);
+	// 0 — поля нет или оно не число. Только диагностика: HookHandler.Handle
+	// пишет по нему «hook age» в журнал. В решениях не используется
+	// (TestScriptUptime_OnlyLogged).
+	ScriptUptime float64
+	// Own — свой хук по кредиту (П21/П22): ifcreated/ifdestroyed или грань
+	// слоя conf от нашей же команды. Ставит только точка входа spool
+	// (api.HookSink.Handle); диспетчер и оркестратор вердикт не пересчитывают.
+	Own bool
 }

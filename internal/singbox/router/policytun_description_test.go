@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hoaxisr/awg-manager/internal/netdev"
 	"github.com/hoaxisr/awg-manager/internal/storage"
 )
 
@@ -725,6 +726,7 @@ func TestReleasePolicyTunForRemoval_CustomDescription(t *testing.T) {
 	scan := &recOpkgTunScan{ids: map[string][]string{"Awgmanager": {"OpkgTun2"}}}
 
 	if err := ReleasePolicyTunForRemoval(context.Background(), Deps{
+		SwapGate:    &netdev.SwapGate{},
 		Settings:    store,
 		OpkgTun:     opkg,
 		OpkgTunScan: scan.scan,

@@ -37,6 +37,14 @@ var (
 	ErrDNSServerIndexOutOfRange = errors.New("dns server index out of range")
 	ErrDNSInvalidServer         = errors.New("dns rule references unknown server tag")
 
+	// ErrIfaceAbsent — интерфейса нет в свежем списке NDMS; команда по нему не
+	// уходила (адаптеры подтверждения cmd/awg-manager, F546).
+	ErrIfaceAbsent = errors.New("нет в NDMS")
+	// ErrWANAbsent — выхода static NAT нет в свежем списке NDMS; команда не
+	// уходила. Не ErrIfaceAbsent: включение отвечает ошибкой, восстановление —
+	// «возвращать не на что» (F563).
+	ErrWANAbsent = errors.New("выхода нет в NDMS")
+
 	ErrPolicyNotConfigured = errors.New("router policy not configured (settings.policyName is empty)")
 	ErrPolicyMissing       = errors.New("policy has no fwmark in NDMS (deleted or has no permitted interface)")
 

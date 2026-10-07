@@ -12,6 +12,7 @@ import (
 	"github.com/hoaxisr/awg-manager/internal/hydraroute"
 	"github.com/hoaxisr/awg-manager/internal/logging"
 	ndmscommand "github.com/hoaxisr/awg-manager/internal/ndms/command"
+	ndmsevents "github.com/hoaxisr/awg-manager/internal/ndms/events"
 	"github.com/hoaxisr/awg-manager/internal/opkgtun"
 	"github.com/hoaxisr/awg-manager/internal/pingcheck"
 	"github.com/hoaxisr/awg-manager/internal/presets"
@@ -41,13 +42,11 @@ import (
 func (a *app) setupTunnels() {
 	// Create tunnel service components
 	a.wgClient = wg.New()
-	a.backendImpl = backend.NewKernel()
+	a.backendImpl = backend.NewKernel(a.swapGate)
 	a.stateMgr = state.New(a.ndmsQueries.Interfaces, a.wgClient, a.backendImpl, a.loggingService)
 	firewallMgr := firewall.New(true /* mssClamp */, osdetect.Is5(), a.loggingService)
 
 	// Build NDMS CQRS Commands eagerly so the Operator can consume them.
-	// HookNotifier is wired later (ndmsCommands.SetHookNotifier(orch)) once
-	// the orchestrator exists — this breaks the construction cycle.
 	a.eventBus = events.NewBus()
 	a.ndmsSaveCoord = ndmscommand.NewSaveCoordinator(
 		a.ndmsTransportClient,
@@ -57,12 +56,23 @@ func (a *app) setupTunnels() {
 		env.DurationDefault("AWG_NDMS_SAVE_SETTLE_DELAY", 2*time.Second),
 		a.ndmsQueries.RunningConfig,
 	)
+	a.ndmsSaveCoord.SetLogger(eventsLogger(a.loggingService))
+	// Шина событий ndm — конец нашего сохранения (ConfigurationSaved, П25).
+	// Сразу за координатором и до любой команды: события ловятся с первого
+	// POST. Сокета может не быть (ndm грузится): клиент подключается сам, а
+	// до того сохранения ждут saveFallback (дефолт координатора — шина
+	// отключена). Ошибка Start (не linux) — не фатальна, как у spool.
+	ndmBus := ndmsevents.NewSaveBusReader(ndmsevents.DefaultBusPath, a.ndmsSaveCoord, eventsLogger(a.loggingService))
+	if err := ndmBus.Start(); err != nil {
+		a.bootLog.Warn("ndm-event-bus", "", err.Error())
+	} else {
+		a.deferOnExit(ndmBus.Stop)
+	}
 	a.ndmsCommands = ndmscommand.NewCommands(ndmscommand.Deps{
-		Poster:       a.ndmsTransportClient,
-		Save:         a.ndmsSaveCoord,
-		Queries:      a.ndmsQueries,
-		HookNotifier: nil, // wired after orchestrator construction below
-		IsOS5:        osdetect.Is5,
+		Poster:  a.ndmsTransportClient,
+		Save:    a.ndmsSaveCoord,
+		Queries: a.ndmsQueries,
+		IsOS5:   osdetect.Is5,
 	})
 
 	a.operator = ops.NewOperator(a.ndmsQueries, a.ndmsCommands, a.wgClient, a.backendImpl, firewallMgr)

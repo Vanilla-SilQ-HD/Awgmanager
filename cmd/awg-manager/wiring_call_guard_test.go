@@ -6,25 +6,110 @@ import (
 	"testing"
 )
 
-// Проводку хуков однажды уже вырезали из setupOrchestrator заодно с соседним
-// блоком: сборка и тесты этого не заметили, потому что пропущенный оператор
-// молчит. wireHookNotifiers покрыт своим тестом, но он проверяет помощника, а
-// не то, что его кто-то зовёт, — эта проверка закрывает именно вызов.
-func TestSetupOrchestrator_WiresHookNotifiers(t *testing.T) {
+// Слушатель существования диспетчера — единственный путь, которым UI узнаёт о
+// внешнем создании/снятии интерфейса (tunnels, servers). Пропавший вызов
+// сборка и тесты диспетчера не заметят.
+func TestSetupEventWiring_WiresExistencePublisher(t *testing.T) {
 	src, err := os.ReadFile("wiring_routing.go")
 	if err != nil {
 		t.Fatalf("чтение проводки: %v", err)
 	}
 	body := string(src)
-	start := strings.Index(body, "func (a *app) setupOrchestrator()")
+	start := strings.Index(body, "func (a *app) setupEventWiring()")
 	if start < 0 {
-		t.Fatal("setupOrchestrator не найдена — проверку надо переписать под новое имя")
+		t.Fatal("setupEventWiring не найдена — проверку надо переписать под новое имя")
 	}
 	end := strings.Index(body[start:], "\n}\n")
 	if end < 0 {
-		t.Fatal("не видно конца setupOrchestrator")
+		t.Fatal("не видно конца setupEventWiring")
 	}
-	if !strings.Contains(body[start:start+end], "wireHookNotifiers(") {
-		t.Fatal("setupOrchestrator не зовёт wireHookNotifiers: операторы останутся без источника ожидаемых хуков")
+	if !strings.Contains(body[start:start+end], "SetExistenceListed(existencePublisher(") {
+		t.Fatal("setupEventWiring не вешает existencePublisher: UI не узнает о внешнем создании/снятии интерфейса")
+	}
+}
+
+// П22: вердикт «свой хук» выносит точка входа spool по кредитам стора
+// интерфейсов. Без claimer'а (nil-безопасен, п.10) каждый свой хук — чужой:
+// список и публикация на каждое своё создание/снятие, проба и замок
+// оркестратора на свой ifdestroyed, своя грань conf — в settle/окно. Сборка и
+// тесты пакетов этого не заметят.
+// Мутация: NewHookSink(a.ndmsDispatcher, nil) → красный.
+func TestWiring_HookSinkClaimsFromInterfaces(t *testing.T) {
+	src, err := os.ReadFile("wiring_core.go")
+	if err != nil {
+		t.Fatalf("чтение проводки: %v", err)
+	}
+	if !strings.Contains(string(src), "api.NewHookSink(a.ndmsDispatcher, a.ndmsQueries.Interfaces)") {
+		t.Fatal("точка входа spool не гасит кредиты стора интерфейсов: свои хуки станут чужими")
+	}
+}
+
+// П25: конец нашего сохранения — событие ConfigurationSaved шины ndm. Без
+// клиента шины координатор остаётся «без шины»: полёт кончается ответом на
+// POST, и `no interface` идёт во время записи (D-N3). Сборка и тесты пакетов
+// этого не заметят. Клиент — сразу за координатором (busUp до первого POST).
+// Мутация: убрать NewBusReader/Start или адаптер события → красный.
+func TestWiring_NDMBusWired(t *testing.T) {
+	src, err := os.ReadFile("wiring_tunnels.go")
+	if err != nil {
+		t.Fatalf("чтение проводки: %v", err)
+	}
+	body := string(src)
+	coord := strings.Index(body, "a.ndmsSaveCoord = ndmscommand.NewSaveCoordinator(")
+	bus := strings.Index(body, "ndmsevents.NewSaveBusReader(ndmsevents.DefaultBusPath, a.ndmsSaveCoord,")
+	cmds := strings.Index(body, "a.ndmsCommands = ndmscommand.NewCommands(")
+	if coord < 0 || bus < 0 || cmds < 0 || !(coord < bus && bus < cmds) {
+		t.Fatalf("клиент шины не между координатором и командами: coord=%d bus=%d cmds=%d", coord, bus, cmds)
+	}
+	for _, want := range []string{
+		"if err := ndmBus.Start(); err != nil {",
+		"a.deferOnExit(ndmBus.Stop)",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("в проводке шины нет %q", want)
+		}
+	}
+}
+
+// M2: уборка (`opkg remove`) сносит записи — туннели, managed `no interface`
+// после сохранения dnsRoutes.CleanupAll — и ждёт конец сохранения той же
+// шиной, что демон: без неё полёт кончался ответом POST, и `no` шёл во время
+// записи (D-N3). Fallback 0 у уборки запрещён.
+// Мутация: снять клиент шины или вернуть SetSaveTimings(…, 0, …) → красный.
+func TestWiring_CleanupNDMBusWired(t *testing.T) {
+	src, err := os.ReadFile("cleanup.go")
+	if err != nil {
+		t.Fatalf("чтение уборки: %v", err)
+	}
+	body := string(src)
+	coord := strings.Index(body, "cleanupNDMSSave := ndmscommand.NewSaveCoordinator(")
+	bus := strings.Index(body, "ndmsevents.NewSaveBusReader(ndmsevents.DefaultBusPath, cleanupNDMSSave,")
+	cmds := strings.Index(body, "cleanupNDMSCommands := ndmscommand.NewCommands(")
+	if coord < 0 || bus < 0 || cmds < 0 || !(coord < bus && bus < cmds) {
+		t.Fatalf("клиент шины уборки не между координатором и командами: coord=%d bus=%d cmds=%d", coord, bus, cmds)
+	}
+	for _, want := range []string{"if err := cleanupBus.Start(); err != nil {", "defer cleanupBus.Stop()"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("в уборке нет %q", want)
+		}
+	}
+	if strings.Contains(body, "SetSaveTimings(") {
+		t.Fatal("уборка переопределяет потолки сохранения (fallback 0 — `no` во время записи)")
+	}
+}
+
+// R1: последнее сохранение `opkg remove` — со своим бюджетом, не с ptCtx
+// снятий policy-tun: с шиной оно ждёт конец записи, и съеденный снятиями ctx
+// отказал бы до POST (снятые записи — сироты после ребута роутера).
+// Мутация: saveCtx от ptCtx → красный.
+func TestWiring_CleanupFinalSaveOwnBudget(t *testing.T) {
+	src, err := os.ReadFile("cleanup.go")
+	if err != nil {
+		t.Fatalf("чтение уборки: %v", err)
+	}
+	body := string(src)
+	if strings.Contains(body, ".Save(ptCtx)") || !strings.Contains(body, "(configSaver{sc: cleanupNDMSSave}).Save(saveCtx)") ||
+		!strings.Contains(body, "saveCtx, saveCancel := context.WithTimeout(context.Background(),") {
+		t.Fatal("последнее сохранение уборки делит ctx со снятиями policy-tun")
 	}
 }

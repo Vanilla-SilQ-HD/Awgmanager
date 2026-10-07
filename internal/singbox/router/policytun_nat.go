@@ -484,7 +484,9 @@ func (s *ServiceImpl) restorePolicyTunNAT(ctx context.Context, recorded []storag
 			if rec.PriorStaticWAN == "" {
 				continue
 			}
-			if err := s.deps.SegmentNAT.SetStaticNAT(ctx, rec.Name, rec.PriorStaticWAN); err != nil && !segmentGone(err) {
+			// Прежнего выхода больше нет — возвращать static не на что, запись
+			// снимается как восстановленная (F563).
+			if err := s.deps.SegmentNAT.SetStaticNAT(ctx, rec.Name, rec.PriorStaticWAN); err != nil && !segmentGone(err) && !errors.Is(err, ErrWANAbsent) {
 				errs = append(errs, fmt.Errorf("ip static %s %s: %w", rec.Name, rec.PriorStaticWAN, err))
 			}
 		}
@@ -495,9 +497,10 @@ func (s *ServiceImpl) restorePolicyTunNAT(ctx context.Context, recorded []storag
 // segmentGone распознаёт отказ роутера «такого интерфейса/сегмента нет».
 //
 // Формы NDMS: `no "X" IP interface found` (ip nat), `unknown interface "X"`
-// (ip static), `no such interface: X`. Предикат живёт здесь, а не тянется из
-// internal/ndms: router декаплен от ndms и знает о нём только через узкие
-// consumer-owned контракты.
+// (ip static), `no such interface: X`; плюс ErrIfaceAbsent от адаптера
+// подтверждения (F546) — команда тогда не уходит вовсе. Предикат живёт здесь, а
+// не тянется из internal/ndms: router декаплен от ndms и знает о нём только
+// через узкие consumer-owned контракты.
 //
 // Сегмент, удалённый пользователем, пока policy-tun работал, — штатный дрейф:
 // восстанавливать на нём нечего. Считать это провалом нельзя, иначе запись
@@ -506,6 +509,9 @@ func (s *ServiceImpl) restorePolicyTunNAT(ctx context.Context, recorded []storag
 func segmentGone(err error) bool {
 	if err == nil {
 		return false
+	}
+	if errors.Is(err, ErrIfaceAbsent) {
+		return true
 	}
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "ip interface found") ||

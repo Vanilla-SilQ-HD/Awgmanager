@@ -138,6 +138,7 @@ func (a *app) setupServer() {
 			},
 			OrphanIfaces:          orphanIfaces(a.opkgPool, a.ndmsQueries.Interfaces),
 			OrphanIfacesExclusive: orphanIfacesExclusive(a.opkgPool, a.ndmsQueries.Interfaces),
+			OrphanNDMS:            orphanNDMS{confirmingOpkgTun{a.ndmsCommands.Interfaces, a.ndmsQueries.Interfaces}, a.backendImpl},
 			ForeignIfaces: &foreignIfaces{
 				settings:  a.settingsStore,
 				pool:      a.opkgPool,
@@ -351,6 +352,7 @@ func (a *app) setupDeviceProxy() {
 	// trigger; the migration tax is at most one stale file fragment that
 	// gets stripped on the next Save/Enable.
 	a.srv.SetNDMSDispatcher(a.ndmsDispatcher)
+	a.srv.SetHookSink(a.ndmsHookSink)
 	a.srv.SetNDMSTransport(a.ndmsTransportClient)
 	a.srv.SetNDMSSaveCoordinator(a.ndmsSaveCoord)
 	a.srv.SetMetricsPoller(a.ndmsMetricsPoller)
@@ -403,9 +405,10 @@ func (a *app) setupRouter() {
 		PresetCatalog:          a.presetCatalog,
 		GeoData:                a.geoDataStore,
 		GeoTagCounts:           a.geoDataStore,
-		OpkgTun:                a.ndmsCommands.Interfaces, // *InterfaceCommands satisfies OpkgTunProvisioner directly
-		StaticRoutes:           &routerStaticRouteAdapter{routes: a.ndmsCommands.Routes},
+		OpkgTun:                confirmingOpkgTun{a.ndmsCommands.Interfaces, a.ndmsQueries.Interfaces},
+		StaticRoutes:           &routerStaticRouteAdapter{routes: a.ndmsCommands.Routes, ifaces: a.ndmsQueries.Interfaces},
 		OpkgTunIndices:         &routerOpkgTunIndexAdapter{store: a.ndmsQueries.Interfaces},
+		SwapGate:               a.swapGate,
 		// ОБЩИЙ пул, один на процесс и на все четыре подсистемы. Своя
 		// удерживающая запись из состава НЕ вычитается: режим узнаёт свой
 		// номер по ключу держателя, и пул отдаёт его пину по совпадению
@@ -413,8 +416,8 @@ func (a *app) setupRouter() {
 		// принадлежит ДРУГОМУ режиму, и вычитать было нечего.
 		OpkgTunPool:   a.opkgPool,
 		OpkgTunScan:   opkgTunScanner(a.ndmsQueries.Interfaces),
-		DefaultRoute:  a.ndmsCommands.Routes, // *RouteCommands satisfies DefaultRouteProvider directly
-		SegmentNAT:    a.ndmsCommands.NAT,    // *NATCommands satisfies SegmentNATProvider directly
+		DefaultRoute:  confirmingDefaultRoute{a.ndmsCommands.Routes, a.ndmsQueries.Interfaces},
+		SegmentNAT:    confirmingSegmentNAT{a.ndmsCommands.NAT, a.ndmsQueries.Interfaces},
 		Segments:      &routerSegmentDetailsAdapter{store: a.ndmsQueries.Interfaces},
 		RunningConfig: a.ndmsQueries.RunningConfig,
 		NATState:      &routerNATStateAdapter{nat: a.ndmsQueries.NAT, static: a.ndmsQueries.StaticNAT},
@@ -673,6 +676,11 @@ func (a *app) setupShutdown() {
 	// исполнять его надо под жизнью демона, иначе бут на нескольких туннелях
 	// обрывается посередине и повтора не будет.
 	a.orch.SetBaseContext(a.shutdownCtx)
+	// Сохранение на SIGTERM: shutdown-хуки ниже исполняются только перед
+	// syscall.Exec, а обычный выход идёт через onExit. Регистрация до
+	// shutdownCancel — исполнение после него (LIFO): фоновые действия уже
+	// отменены; шина ndm и транспорт зарегистрированы раньше — живы до конца.
+	a.deferOnExit(a.flushSaveOnShutdown)
 	a.deferOnExit(a.shutdownCancel)
 
 	// Start the monitoring scheduler now that shutdownCtx exists.
@@ -723,13 +731,7 @@ func (a *app) setupShutdown() {
 	a.srv.AddShutdownHook(a.sbOrch.Close)
 	a.srv.AddShutdownHook(a.nwgOp.Close)
 	a.srv.AddShutdownHook(a.tunnelService.Close)
-	a.srv.AddShutdownHook(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if err := a.ndmsSaveCoord.Flush(ctx); err != nil {
-			a.bootLog.Warn("ndms-savecoord-flush", "shutdown", err.Error())
-		}
-	})
+	a.srv.AddShutdownHook(a.flushSaveOnShutdown)
 	a.srv.AddShutdownHook(a.ndmsDispatcher.Stop)
 	a.srv.AddShutdownHook(a.sysfsTrafficPoller.Stop)
 	a.srv.AddShutdownHook(a.ndmsMetricsPoller.Stop)

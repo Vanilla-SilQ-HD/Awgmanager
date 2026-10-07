@@ -35,9 +35,12 @@ func nwgOperatorOnStub(t *testing.T) *nwg.OperatorNativeWG {
 		// длины. Без этого Start падал на разборе, и тест сохранения адреса
 		// зеленел только из-за дефекта F486 (адрес без маршрута).
 		// Список интерфейсов: поднятый интерфейс в нём есть, как на роутере —
-		// без него кэш InterfaceStore счёл бы его отсутствующим (F546).
+		// состояние nativewg читается из снимка списка, по имени не
+		// спрашивают (F546).
 		if r.Method == http.MethodGet && r.URL.Path == "/show/interface/" {
-			_, _ = w.Write([]byte(`{"Wireguard0":{"id":"Wireguard0","type":"Wireguard"}}`))
+			_, _ = w.Write([]byte(`{"Wireguard0":{"id":"Wireguard0","type":"Wireguard","link":"up","state":"up",
+				"summary":{"layer":{"conf":"running","link":"running"}},
+				"wireguard":{"status":"up","peer":[{"online":true}]}}}`))
 			return
 		}
 		if r.Method == http.MethodPost {
@@ -55,6 +58,7 @@ func nwgOperatorOnStub(t *testing.T) *nwg.OperatorNativeWG {
 	tr := transport.NewWithURL(srv.URL, transport.NewSemaphore(2))
 	q := query.NewQueries(query.Deps{Getter: tr, Logger: query.NopLogger(), IsOS5: func() bool { return true }})
 	sc := command.NewSaveCoordinator(tr, nopPublisher{}, 500*time.Millisecond, 5*time.Second, 0, nil)
+	sc.SetSaveTimings(command.SaveEventCap, 0, command.SaveAfterRemoval) // без шины событий
 	cmds := command.NewCommands(command.Deps{Poster: tr, Save: sc, Queries: q, IsOS5: func() bool { return true }})
 	op := nwg.NewOperator(q, cmds, tr, nil)
 	t.Cleanup(func() { op.Close(); tr.Close() })

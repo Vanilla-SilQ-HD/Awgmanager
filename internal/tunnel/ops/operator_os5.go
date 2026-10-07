@@ -13,6 +13,7 @@ import (
 	"github.com/hoaxisr/awg-manager/internal/ndms"
 	"github.com/hoaxisr/awg-manager/internal/ndms/command"
 	"github.com/hoaxisr/awg-manager/internal/ndms/query"
+	"github.com/hoaxisr/awg-manager/internal/netdev"
 	"github.com/hoaxisr/awg-manager/internal/storage"
 	"github.com/hoaxisr/awg-manager/internal/sys/exec"
 	"github.com/hoaxisr/awg-manager/internal/tunnel"
@@ -25,19 +26,38 @@ import (
 // interfaceReadyTimeout and socketReadyTimeout are defined in operator_os4.go
 // (shared between OS4 and OS5 implementations).
 
-// opkgTunRecord — запись OpkgTun по NDMS-имени: (nil, nil) — записи нет,
-// ошибка — «не знаем» (свежее чтение не удалось). q == nil — обвязка без
-// NDMS (тесты): записи нет.
+// confirmOpkgTun — запись OpkgTun по NDMS-имени из свежего полного списка:
+// ok=false — записи нет, ошибка — «не знаем» (список не прочитан). q == nil —
+// обвязка без NDMS (тесты), пустое имя — запись KeeneticOS 4.x: записи нет.
 //
-// Свежее чтение (Refresh), не кэш (Get): решения о владении зависят от
-// текущего описания записи, а внешняя правка (`interface OpkgTunN
-// description …`) не даёт NDMS-хука — кэш InterfaceStore может годами
-// хранить устаревшее описание (F532).
-func opkgTunRecord(ctx context.Context, q *query.Queries, name string) (*ndms.Interface, error) {
-	if q == nil {
-		return nil, nil
+// Свежий список, не кэш (Get): решения о владении зависят от текущего
+// описания записи, а внешняя правка (`interface OpkgTunN description …`) не
+// даёт NDMS-хука — кэш InterfaceStore может годами хранить устаревшее
+// описание (F532). Он же — доказательство для команд по записи (F546).
+func confirmOpkgTun(ctx context.Context, q *query.Queries, name string) (query.Confirmed, *ndms.Interface, bool, error) {
+	if q == nil || name == "" {
+		return query.Confirmed{}, nil, false, nil
 	}
-	return q.Interfaces.Refresh(ctx, name)
+	return q.Interfaces.Confirm(ctx, name)
+}
+
+// requireOpkgTun — Confirm для правки живого туннеля: записи нет —
+// ErrInterfaceGone с именем, команды по ней не шлются (F546). Kernel-туннель
+// запись заводит сам на старте — отсюда совет перезапустить. Запись от
+// KeeneticOS 4.x (NDMS-имени нет) — errOS4Tunnel.
+func (o *OperatorOS5Impl) requireOpkgTun(ctx context.Context, op, tunnelID string) (query.Confirmed, error) {
+	ndmsName := tunnel.NewNames(tunnelID).NDMSName
+	if ndmsName == "" {
+		return query.Confirmed{}, errOS4Tunnel(op, tunnelID)
+	}
+	iface, _, ok, err := confirmOpkgTun(ctx, o.queries, ndmsName)
+	if err != nil {
+		return query.Confirmed{}, tunnel.NewOpError(op, tunnelID, "ndms", fmt.Errorf("read OpkgTun record: %w", err))
+	}
+	if !ok {
+		return query.Confirmed{}, tunnel.NewOpError(op, tunnelID, "ndms", fmt.Errorf("%s: %w — перезапустите туннель, запись будет создана заново", ndmsName, tunnel.ErrInterfaceGone))
+	}
+	return iface, nil
 }
 
 // ForeignRecordError — запись OpkgTunN в NDMS есть, но её описание не наше и
@@ -64,21 +84,27 @@ func (e *ForeignRecordError) Error() string {
 // ДО любой RCI-записи, до backend.Start и без rollbackStart: сторонняя
 // программа завела запись на нашем номере (F517), её устройство не наше.
 // Ошибка чтения — тоже отказ: «не знаем» ≠ «записи нет», Create поверх
-// существующей записи переписал бы её описание.
-func (o *OperatorOS5Impl) ensureOpkgTunRecord(ctx context.Context, op string, cfg tunnel.Config, names tunnel.Names) (justCreated bool, err error) {
-	rec, err := opkgTunRecord(ctx, o.queries, names.NDMSName)
+// существующей записи переписал бы её описание. up — существующая запись в
+// State "up" (откат старта опустит её до подмены устройства, C3a).
+func (o *OperatorOS5Impl) ensureOpkgTunRecord(ctx context.Context, op string, cfg tunnel.Config, names tunnel.Names) (iface query.Confirmed, justCreated, up bool, err error) {
+	iface, rec, ok, err := confirmOpkgTun(ctx, o.queries, names.NDMSName)
 	if err != nil {
-		return false, tunnel.NewOpError(op, cfg.ID, "ndms", fmt.Errorf("read OpkgTun record: %w", err))
+		return query.Confirmed{}, false, false, tunnel.NewOpError(op, cfg.ID, "ndms", fmt.Errorf("read OpkgTun record: %w", err))
 	}
-	if rec == nil {
-		if err := o.commands.Interfaces.CreateOpkgTun(ctx, names.NDMSName, cfg.Name); err != nil {
-			return false, tunnel.NewOpError(op, cfg.ID, "ndms", fmt.Errorf("create OpkgTun: %w", err))
+	if !ok {
+		free, err := o.freeOpkgTunDevice(ctx, op, cfg.ID, names)
+		if err != nil {
+			return query.Confirmed{}, false, false, err
+		}
+		iface, err := o.commands.Interfaces.CreateOpkgTun(ctx, names.NDMSName, cfg.Name, free)
+		if err != nil {
+			return query.Confirmed{}, false, false, tunnel.NewOpError(op, cfg.ID, "ndms", fmt.Errorf("create OpkgTun: %w", err))
 		}
 		o.logInfo(op, cfg.ID, "Created OpkgTun in NDMS")
-		return true, nil
+		return iface, true, false, nil
 	}
 	if !o.recordIsOurs(ctx, rec, cfg.Name, names.IfaceName) {
-		return false, tunnel.NewOpError(op, cfg.ID, "ndms",
+		return query.Confirmed{}, false, false, tunnel.NewOpError(op, cfg.ID, "ndms",
 			&ForeignRecordError{NDMSName: names.NDMSName, Description: rec.Description, Want: cfg.Name})
 	}
 	if rec.Description != cfg.Name {
@@ -87,11 +113,34 @@ func (o *OperatorOS5Impl) ensureOpkgTunRecord(ctx context.Context, op string, cf
 		// записи старт не валит — запись всё равно наша.
 		o.logWarn(op, cfg.ID, fmt.Sprintf("описание записи %s %q ≠ имени туннеля %q; под записью живое amneziawg — запись наша, описание переписываем",
 			names.NDMSName, rec.Description, cfg.Name))
-		if err := o.commands.Interfaces.SetDescription(ctx, names.NDMSName, cfg.Name); err != nil {
+		if err := o.commands.Interfaces.SetDescription(ctx, iface, cfg.Name); err != nil {
 			o.logWarn(op, cfg.ID, "set description: "+err.Error())
 		}
 	}
-	return false, nil
+	return iface, false, rec.State == "up", nil
+}
+
+// freeOpkgTunDevice — доказательство «устройства opkgtunN нет» перед созданием
+// записи OpkgTunN: при живом устройстве NDMS запись не создаёт (C 0xcffd00a9,
+// стенд 5.01.C.6, F569). Так бывает после внешнего `no interface OpkgTunN` у
+// работающего туннеля — прошивка наше amneziawg не снимает. Устройство
+// сносится backend.Stop с гейтом держателя (F500): tun чужой программы не
+// трогаем — отказ с держателем, создания нет. Сессия WG всё равно потеряна
+// вместе с записью; Фаза 2 поднимет устройство заново.
+func (o *OperatorOS5Impl) freeOpkgTunDevice(ctx context.Context, op, tunnelID string, names tunnel.Names) (netdev.Free, error) {
+	free, err := netdev.Absent(names.IfaceName)
+	if errors.Is(err, netdev.ErrPresent) {
+		o.logInfo(op, tunnelID, fmt.Sprintf("записи %s в NDMS нет, а устройство %s живо — удаляем его перед созданием записи", names.NDMSName, names.IfaceName))
+		if serr := o.backend.Stop(ctx, names.IfaceName); serr != nil {
+			return free, tunnel.NewOpError(op, tunnelID, "kernel",
+				fmt.Errorf("устройство %s не удалено — запись %s не создать: %w", names.IfaceName, names.NDMSName, serr))
+		}
+		free, err = netdev.Absent(names.IfaceName)
+	}
+	if err != nil {
+		return free, tunnel.NewOpError(op, tunnelID, "kernel", err)
+	}
+	return free, nil
 }
 
 // recordIsOurs — единственное правило владения записью OpkgTunN (F517): её
@@ -200,11 +249,6 @@ type OperatorOS5Impl struct {
 	// Used to clean up DNS entries on Stop/Delete.
 	appliedDNS   map[string][]string
 	appliedDNSMu sync.RWMutex
-
-	// hookNotifier registers expected NDMS hooks for self-triggered changes,
-	// preventing infinite loops when our InterfaceUp/InterfaceDown calls
-	// trigger hooks that would otherwise cause orchestrator to react.
-	hookNotifier tunnel.HookNotifier
 }
 
 // NewOperatorOS5 creates a new OS5 operator.
@@ -236,20 +280,6 @@ func NewOperatorOS5(
 	return o
 }
 
-// SetHookNotifier sets the hook notifier for registering expected NDMS hooks.
-// Must be called before any operations that change NDMS interface state.
-func (o *OperatorOS5Impl) SetHookNotifier(hn tunnel.HookNotifier) {
-	o.hookNotifier = hn
-}
-
-// expectHook registers an expected NDMS hook to filter self-triggered events.
-// No-op if hookNotifier is not set.
-func (o *OperatorOS5Impl) expectHook(ndmsName, level string) {
-	if o.hookNotifier != nil {
-		o.hookNotifier.ExpectHook(ndmsName, level)
-	}
-}
-
 // ColdStart creates a tunnel from scratch or recreates from wrong type (tun → amneziawg).
 // Full sequence: OpkgTun → ip link del + ip link add amneziawg → NDMS config →
 // ip addr add → wg setconf → ip link set up → InterfaceUp → routes → firewall → Save.
@@ -267,10 +297,13 @@ func (o *OperatorOS5Impl) ColdStart(ctx context.Context, cfg tunnel.Config) erro
 	}
 
 	// === Phase 1: Ensure OpkgTun exists — and is OURS (F517) ===
-	justCreated, err := o.ensureOpkgTunRecord(ctx, "start", cfg, names)
+	iface, justCreated, up, err := o.ensureOpkgTunRecord(ctx, "start", cfg, names)
 	if err != nil {
 		return err // без rollbackStart: чужую запись и её устройство не трогаем
 	}
+	// applied — что из маршрутизации этот старт уже поставил (после успешного
+	// POST): откат снимает ровно это (stripRouting).
+	var applied stripRouting
 
 	// === Phase 2: kernel device (ip link add type amneziawg) ===
 	// Устройство — ДО NDMS-конфига: на записи OpkgTun без kernel-устройства
@@ -279,14 +312,25 @@ func (o *OperatorOS5Impl) ColdStart(ctx context.Context, cfg tunnel.Config) erro
 	// сносил устройство снова — туннель не стартовал никогда (стенд 5.01,
 	// 2026-09-05; трекер F97). Когда устройство появляется, запись сама
 	// возвращается из error в down и принимает адрес.
+	// Под up-записью tun NDMS (ребут): опустить до подмены (C3a); поднимет
+	// InterfaceUp ниже — он в старте безусловный.
+	// Down не прошёл — подмены нет (под running это C3b), запись и
+	// устройство не тронуты: откатывать нечего.
+	downed, err := o.downBeforeSwap(ctx, cfg.ID, names, iface, up)
+	if err != nil {
+		return tunnel.NewOpError("start", cfg.ID, "ndms", err)
+	}
+	if downed {
+		up = false
+	}
 	if err := o.backend.Start(ctx, names.IfaceName); err != nil {
-		o.rollbackStart(ctx, cfg.ID, names, justCreated)
+		o.rollbackStart(ctx, cfg, names, iface, justCreated, up, applied)
 		return tunnel.NewOpError("start", cfg.ID, "backend", err)
 	}
 
 	// Wait for interface to appear in /sys/class/net
 	if err := o.backend.WaitReady(ctx, names.IfaceName, interfaceReadyTimeout); err != nil {
-		o.rollbackStart(ctx, cfg.ID, names, justCreated)
+		o.rollbackStart(ctx, cfg, names, iface, justCreated, up, applied)
 		return tunnel.NewOpError("start", cfg.ID, "backend", fmt.Errorf("wait ready: %w", err))
 	}
 
@@ -298,13 +342,13 @@ func (o *OperatorOS5Impl) ColdStart(ctx context.Context, cfg tunnel.Config) erro
 	// does not re-apply stored config to the new kernel interface.
 	// SetAddress via RCI triggers NDMS to do "ip addr add" on the interface.
 	__addr, __mask := cfg.Address, maskFromPrefix(cfg.AddressPrefix)
-	if err := o.commands.Interfaces.SetAddress(ctx, names.NDMSName, __addr, __mask); err != nil {
-		o.rollbackStart(ctx, cfg.ID, names, justCreated)
+	if err := o.commands.Interfaces.SetAddress(ctx, iface, __addr, __mask); err != nil {
+		o.rollbackStart(ctx, cfg, names, iface, justCreated, up, applied)
 		return tunnel.NewOpError("start", cfg.ID, "ndms", fmt.Errorf("set address: %w", err))
 	}
 
-	if err := o.commands.Interfaces.SetMTU(ctx, names.NDMSName, cfg.MTU); err != nil {
-		o.rollbackStart(ctx, cfg.ID, names, justCreated)
+	if err := o.commands.Interfaces.SetMTU(ctx, iface, cfg.MTU); err != nil {
+		o.rollbackStart(ctx, cfg, names, iface, justCreated, up, applied)
 		return tunnel.NewOpError("start", cfg.ID, "ndms", fmt.Errorf("set MTU: %w", err))
 	}
 
@@ -324,15 +368,17 @@ func (o *OperatorOS5Impl) ColdStart(ctx context.Context, cfg tunnel.Config) erro
 
 	// Ensure ip global is set — it's not part of CreateOpkgTun anymore
 	// (split out to avoid premature nginx binding), so re-apply on every start.
-	if err := o.commands.Interfaces.SetIPGlobal(ctx, names.NDMSName); err != nil {
+	if err := o.commands.Interfaces.SetIPGlobal(ctx, iface); err != nil {
 		o.logWarn("start", cfg.ID, "Failed to set ip global: "+err.Error())
+	} else {
+		applied.global = true
 	}
 
 	o.logInfo("start", cfg.ID, "NDMS config applied (address + MTU + global)")
 
 	// Apply DNS servers (idempotent, re-applied on every start)
 	if len(cfg.DNS) > 0 {
-		if err := o.commands.Interfaces.SetDNS(ctx, names.NDMSName, cfg.DNS); err != nil {
+		if err := o.commands.Interfaces.SetDNS(ctx, iface, cfg.DNS); err != nil {
 			o.logWarn("start", cfg.ID, "Failed to set DNS: "+err.Error())
 		} else {
 			o.appliedDNSMu.Lock()
@@ -348,13 +394,13 @@ func (o *OperatorOS5Impl) ColdStart(ctx context.Context, cfg tunnel.Config) erro
 	}
 	if _, err := o.ipRun(ctx, "/opt/sbin/ip", "link", "set", "dev", names.IfaceName,
 		"txqueuelen", "1000", "mtu", fmt.Sprintf("%d", mtu)); err != nil {
-		o.rollbackStart(ctx, cfg.ID, names, justCreated)
+		o.rollbackStart(ctx, cfg, names, iface, justCreated, up, applied)
 		return tunnel.NewOpError("start", cfg.ID, "kernel", fmt.Errorf("configure interface: %w", err))
 	}
 	o.logInfo("start", cfg.ID, fmt.Sprintf("Kernel interface configured (mtu=%d, qlen=1000)", mtu))
 
 	if err := o.wg.SetConf(ctx, names.IfaceName, cfg.ConfPath); err != nil {
-		o.rollbackStart(ctx, cfg.ID, names, justCreated)
+		o.rollbackStart(ctx, cfg, names, iface, justCreated, up, applied)
 		return tunnel.NewOpError("start", cfg.ID, "wg", err)
 	}
 
@@ -364,15 +410,17 @@ func (o *OperatorOS5Impl) ColdStart(ctx context.Context, cfg tunnel.Config) erro
 	o.applyKernelAddresses(ctx, "start", cfg, names.IfaceName)
 
 	if result, err := o.ipRun(ctx, "/opt/sbin/ip", "link", "set", "up", "dev", names.IfaceName); err != nil {
-		o.rollbackStart(ctx, cfg.ID, names, justCreated)
+		o.rollbackStart(ctx, cfg, names, iface, justCreated, up, applied)
 		return tunnel.NewOpError("start", cfg.ID, "link", fmt.Errorf("ip link up: %w", exec.FormatError(result, err)))
 	}
 
-	// NDMS InterfaceUp sets conf: running (intent UP). Commands register
-	// the expected hook themselves via the HookNotifier wired at startup.
+	// NDMS InterfaceUp sets conf: running (intent UP). Кредит своей грани
+	// conf выдаёт сама команда (ExpectConf, только действующей).
 	// Always needed in Start: after Stop, InterfaceDown set conf: disabled.
-	if err := o.commands.Interfaces.InterfaceUp(ctx, names.NDMSName); err != nil {
-		o.rollbackStart(ctx, cfg.ID, names, justCreated)
+	// С этого POST запись может быть up и при его отказе — откат опустит её.
+	up = true
+	if err := o.commands.Interfaces.InterfaceUp(ctx, iface); err != nil {
+		o.rollbackStart(ctx, cfg, names, iface, justCreated, up, applied)
 		return tunnel.NewOpError("start", cfg.ID, "ndms", fmt.Errorf("interface up: %w", err))
 	}
 
@@ -401,12 +449,13 @@ func (o *OperatorOS5Impl) ColdStart(ctx context.Context, cfg tunnel.Config) erro
 	// Non-fatal: if NDMS is not ready (e.g. boot race), tunnel starts without
 	// default route. HandleWANUp will retry when WAN stabilizes.
 	if cfg.DefaultRoute {
-		if err := o.commands.Routes.SetDefaultRoute(ctx, names.NDMSName); err != nil {
+		if err := o.commands.Routes.SetDefaultRoute(ctx, iface); err != nil {
 			o.logWarn("start", cfg.ID, "Default route failed (non-fatal): "+err.Error())
 			o.appLog.Warn("start", cfg.ID, "Не удалось установить маршрут по умолчанию — будет повторная попытка при WAN UP")
 		} else {
+			applied.defaultRoute = true
 			if cfg.AddressIPv6 != "" {
-				if err := o.commands.Routes.SetIPv6DefaultRoute(ctx, names.NDMSName); err != nil {
+				if err := o.commands.Routes.SetIPv6DefaultRoute(ctx, iface); err != nil {
 					o.logWarn("start", cfg.ID, "Failed to set IPv6 default route: "+err.Error())
 				}
 			}
@@ -422,7 +471,7 @@ func (o *OperatorOS5Impl) ColdStart(ctx context.Context, cfg tunnel.Config) erro
 	// === Phase 7: Add firewall rules ===
 	// Use kernel interface name (opkgtun0), not NDMS name (OpkgTun0)
 	if err := o.firewall.AddRules(ctx, names.IfaceName); err != nil {
-		o.rollbackStart(ctx, cfg.ID, names, justCreated)
+		o.rollbackStart(ctx, cfg, names, iface, justCreated, up, applied)
 		return tunnel.NewOpError("start", cfg.ID, "firewall", err)
 	}
 
@@ -443,27 +492,58 @@ func (o *OperatorOS5Impl) ColdStart(ctx context.Context, cfg tunnel.Config) erro
 // лишь нашей записи — по правилу recordIsOurs с именем туннеля name. Пустое
 // name (карточки нет) описанием не совпадает ни с чем: без живого amneziawg
 // запись не трогаем.
+//
+// Запись подтверждается одним свежим списком в начале (F546): записи нет —
+// `conf: disabled` ставить некому, команда по имени её СОЗДАЛА бы, а наше
+// живое amneziawg сносится (записи нет ⇒ нашего устройства нет, F569); список не
+// прочитан — локальные шаги (устройство, host-route) всё равно делаются,
+// NDMS не трогаем, ошибка наружу.
 func (o *OperatorOS5Impl) Stop(ctx context.Context, tunnelID, name string) error {
 	names := tunnel.NewNames(tunnelID)
+	iface, rec, ok, confirmErr := confirmOpkgTun(ctx, o.queries, names.NDMSName)
 
 	running, _ := o.backend.IsRunning(ctx, names.IfaceName)
-	if running {
+	switch {
+	case running && confirmErr == nil && !ok && names.NDMSName != "":
+		// Записи нет, наше amneziawg живо (внешнее `no interface`): устройство
+		// сносим, а не опускаем — живое opkgtunN не даст NDMS создать запись
+		// на следующем старте (C 0xcffd00a9, F569).
+		if err := o.backend.Stop(ctx, names.IfaceName); err != nil {
+			o.logWarn("stop", tunnelID, "delete kernel interface: "+err.Error())
+		} else {
+			o.logInfo("stop", tunnelID, fmt.Sprintf("запись %s снята в NDMS — устройство %s удалено", names.NDMSName, names.IfaceName))
+			o.appLog.Info("stop", tunnelID, fmt.Sprintf("Запись %s снята в NDMS — устройство %s удалено", names.NDMSName, names.IfaceName))
+		}
+	case running:
 		if _, err := o.ipRun(ctx, "/opt/sbin/ip", "link", "set", "down", "dev", names.IfaceName); err != nil {
 			o.logWarn("stop", tunnelID, "ip link set down: "+err.Error())
 		}
 		// InterfaceDown sets conf: disabled — NDMS won't bring it up on its own.
-		o.interfaceDownBestEffort(ctx, tunnelID, names.NDMSName)
-	} else {
+		if ok {
+			o.interfaceDownBestEffort(ctx, tunnelID, iface)
+		}
+	default:
 		o.logInfo("stop", tunnelID, "kernel interface is not our amneziawg — link left untouched")
-		rec, err := opkgTunRecord(ctx, o.queries, names.NDMSName)
 		switch {
-		case err != nil:
-			o.logWarn("stop", tunnelID, "read OpkgTun record: "+err.Error()+" — conf: disabled not set")
-		case rec != nil && name != "" && o.recordIsOurs(ctx, rec, name, names.IfaceName):
-			o.interfaceDownBestEffort(ctx, tunnelID, names.NDMSName)
-		case rec != nil:
+		case ok && name != "" && o.recordIsOurs(ctx, rec, name, names.IfaceName):
+			o.interfaceDownBestEffort(ctx, tunnelID, iface)
+		case ok:
 			o.logInfo("stop", tunnelID, fmt.Sprintf("record %s is not ours (description %q) — conf: disabled not set", names.NDMSName, rec.Description))
 		}
+	}
+	// DNS, поставленный стартом, снимаем, как OS4 Stop (F561). Записи нет —
+	// снимать не с чего (ссылка на отсутствующий — E), трекинг забываем;
+	// список не прочитан — NDMS не трогаем, трекинг остаётся.
+	switch {
+	case ok:
+		o.clearAppliedDNS(ctx, tunnelID, iface)
+	case confirmErr == nil:
+		o.appliedDNSMu.Lock()
+		delete(o.appliedDNS, tunnelID)
+		o.appliedDNSMu.Unlock()
+	}
+	if confirmErr == nil && !ok {
+		o.logInfo("stop", tunnelID, "OpkgTun record absent in NDMS — conf: disabled not needed")
 	}
 
 	// Остановленному туннелю host-route не нужен, а карта маршрутов обязана
@@ -472,20 +552,24 @@ func (o *OperatorOS5Impl) Stop(ctx context.Context, tunnelID, name string) error
 	// который РАБОТАЕТ, маршрут удержит — снятие идёт общим путём с ref-count.
 	o.removeHostRouteIfUnused(ctx, "stop", tunnelID, "")
 
+	if confirmErr != nil {
+		return tunnel.NewOpError("stop", tunnelID, "ndms", fmt.Errorf("read OpkgTun record: %w — conf: disabled not set", confirmErr))
+	}
+
 	o.logInfo("stop", tunnelID, "Tunnel stopped (link down, conf: disabled)")
 	o.appLog.Info("stop", tunnelID, "Туннель остановлен")
 	return nil
 }
 
 // clearAppliedDNS removes DNS servers that were applied during Start and clears tracking.
-func (o *OperatorOS5Impl) clearAppliedDNS(ctx context.Context, tunnelID string, names tunnel.Names) {
+func (o *OperatorOS5Impl) clearAppliedDNS(ctx context.Context, tunnelID string, iface query.Confirmed) {
 	o.appliedDNSMu.Lock()
 	servers := o.appliedDNS[tunnelID]
 	delete(o.appliedDNS, tunnelID)
 	o.appliedDNSMu.Unlock()
 
 	if len(servers) > 0 {
-		_ = o.commands.Interfaces.ClearDNS(ctx, names.NDMSName, servers)
+		_ = o.commands.Interfaces.ClearDNS(ctx, iface, servers)
 		o.logInfo("stop", tunnelID, "DNS servers removed")
 	}
 }
@@ -493,33 +577,70 @@ func (o *OperatorOS5Impl) clearAppliedDNS(ctx context.Context, tunnelID string, 
 // interfaceDownBestEffort tries to set NDMS conf: disabled.
 // Retries up to 3 times for transient failures (NDMS busy/timeout).
 // Exit 122 = NDMS permanent rejection (already down) — not an error.
-func (o *OperatorOS5Impl) interfaceDownBestEffort(ctx context.Context, tunnelID, ndmsName string) {
-	// Commands register the expected "disabled" hook on each attempt via
-	// the HookNotifier wired at startup.
+// Возвращает ошибку последней попытки, если ни одна не прошла; вызывающие,
+// которым down — только уборка, её не смотрят.
+func (o *OperatorOS5Impl) interfaceDownBestEffort(ctx context.Context, tunnelID string, iface query.Confirmed) error {
+	// Кредит своей грани conf=disabled выдаёт каждая попытка сама
+	// (ExpectConf, только действующей; отказ — кредит назад).
+	var err error
 	for attempt := 1; attempt <= 3; attempt++ {
-		err := o.commands.Interfaces.InterfaceDown(ctx, ndmsName)
+		err = o.commands.Interfaces.InterfaceDown(ctx, iface)
 		if err == nil {
 			o.logInfo("stop", tunnelID, "Interface down (conf: disabled)")
-			return
+			return nil
 		}
 		if strings.Contains(err.Error(), "exit status 122") {
 			o.logInfo("stop", tunnelID, "InterfaceDown: already disabled (exit 122)")
-			return
+			return nil
 		}
 		o.logWarn("stop", tunnelID, fmt.Sprintf("InterfaceDown attempt %d/3 failed: %s", attempt, err))
 		if attempt < 3 {
 			time.Sleep(1 * time.Second)
 		}
 	}
-	// Not fatal — cleanup continues regardless.
 	// The enabled/disabled state is tracked in the program's own JSON storage.
+	return err
 }
 
 // Delete completely removes a tunnel.
 func (o *OperatorOS5Impl) Delete(ctx context.Context, stored *storage.AWGTunnel) error {
 	names := tunnel.NewNames(stored.ID)
 
-	// 1. Remove endpoint route from kernel (host route to VPN server via WAN).
+	// 1. Подтверждение записи — ДО любого сноса. Дальше снятие C3a
+	//    (removeOpkgTun): запись снимает всё своё: address, MTU,
+	//    security-level, ip global, default route, DNS name-servers.
+	//
+	// У записи от KeeneticOS 4.x NDMS-имени нет: удалять в NDMS нечего, а пустая
+	// строка уехала бы в RCI идентификатором интерфейса. Пропускаем шаг, но не
+	// отказываем — иначе такой туннель нельзя удалить, то есть и пересоздать.
+	//
+	// Записи нет в свежем списке — сносить в NDMS нечего, `no interface` по
+	// отсутствующему — строка E в журнале ndm (F546); устройство снимаем.
+	//
+	// Список не прочитан — ни host-route, ни устройство, ни NDMS, ни DNS не
+	// трогаем, ошибка наружу: оркестратор не удалит запись туннеля, повтор
+	// возможен. Устройство меняется только перед сносом записи, а без списка
+	// сносить её нельзя (L4, N3). Маршруты правил и мониторинг оркестратор
+	// снимает раньше, до вызова Delete (decideDelete) — они вне этого шага.
+	iface, rec, ok, confirmErr := confirmOpkgTun(ctx, o.queries, names.NDMSName)
+	if confirmErr != nil {
+		o.logWarn("delete", stored.ID, "read OpkgTun record: "+confirmErr.Error()+" — NDMS record and kernel interface kept")
+		return tunnel.NewOpError("delete", stored.ID, "ndms", fmt.Errorf("read OpkgTun record: %w", confirmErr))
+	}
+
+	// Удержание сохранения — до первого шага сноса (L6 финального ревью
+	// F595): отмена ожидания полёта (обрыв HTTP-запроса) отказывает Delete
+	// до снятия host-route, и туннель остаётся целым. removeOpkgTun берёт
+	// своё, вложенное — оно не ждёт: при удержании полёт не открывается.
+	if ok {
+		release, err := o.holdForRemoval(ctx, "delete", stored.ID)
+		if err != nil {
+			return tunnel.NewOpError("delete", stored.ID, "ndms", err)
+		}
+		defer release()
+	}
+
+	// 2. Remove endpoint route from kernel (host route to VPN server via WAN).
 	//    Uses persisted IP. Fallback to DNS for old tunnels without stored IP.
 	endpointIP := stored.ResolvedEndpointIP
 	if endpointIP == "" && stored.Peer.Endpoint != "" {
@@ -533,37 +654,42 @@ func (o *OperatorOS5Impl) Delete(ctx context.Context, stored *storage.AWGTunnel)
 	// маршрут не потеряет (F130/#867).
 	o.removeHostRouteIfUnused(ctx, "delete", stored.ID, endpointIP)
 
-	// 2. Remove NDMS interface — cleans everything:
-	//    address, MTU, security-level, ip global, default route, DNS name-servers
-	// DeleteOpkgTun triggers conf: disabled hook before removal.
-	//
-	// У записи от KeeneticOS 4.x NDMS-имени нет: удалять в NDMS нечего, а пустая
-	// строка уехала бы в RCI идентификатором интерфейса. Пропускаем шаг, но не
-	// отказываем — иначе такой туннель нельзя удалить, то есть и пересоздать.
-	if names.NDMSName != "" {
-		o.expectHook(names.NDMSName, "disabled")
-		if err := o.commands.Interfaces.DeleteOpkgTun(ctx, names.NDMSName); err != nil {
-			o.logWarn("delete", stored.ID, "DeleteOpkgTun: "+err.Error())
+	// 3. Запись NDMS вместе с устройством (removeOpkgTun, C3a). Отказ —
+	//    ошибка наружу, как у nwg: иначе запись туннеля уйдёт, а OpkgTunN
+	//    останется на роутере без хозяина (F559). Чужой держатель tun
+	//    (HeldError) — тоже отказ: `no interface` при нём не шлётся (X3),
+	//    запись туннеля остаётся (fail-closed).
+	//    Записи нет — снимаем только устройство: через backend.Stop с гейтом
+	//    держателя (F500) — tun чужой программы не наш, его не сносим, а
+	//    удаление нашей записи туннеля продолжаем.
+	var ndmsErr error
+	switch {
+	case ok:
+		// ColdStart и Reconcile ставят `ip global auto` безусловно при каждом подъёме,
+		// default — iff DefaultRoute: снимаем по своему состоянию, без чтений.
+		ndmsErr = o.removeOpkgTun(ctx, "delete", stored.ID, names, iface, rec.State == "up", true,
+			stripRouting{defaultRoute: stored.DefaultRoute, global: true})
+	default:
+		if names.NDMSName != "" {
+			o.logInfo("delete", stored.ID, "OpkgTun record absent in NDMS — nothing to delete there")
+		}
+		var held *backend.HeldError
+		if err := o.backend.Stop(ctx, names.IfaceName); errors.As(err, &held) {
+			o.logWarn("delete", stored.ID, "kernel interface kept: "+err.Error())
+			o.appLog.Warn("delete", stored.ID, "Интерфейс "+names.IfaceName+" не удалён: "+err.Error())
 		}
 	}
 
-	// 3. Remove kernel interface (our amneziawg — NDMS can't delete what we created).
-	//    Через backend.Stop — с гейтом держателя (F500): устройство, открытое
-	//    чужой программой, не наше — его не сносим, а удаление нашей записи
-	//    туннеля продолжаем. Прочие ошибки (устройства уже нет) — как прежде,
-	//    без шума.
-	var held *backend.HeldError
-	if err := o.backend.Stop(ctx, names.IfaceName); errors.As(err, &held) {
-		o.logWarn("delete", stored.ID, "kernel interface kept: "+err.Error())
-		o.appLog.Warn("delete", stored.ID, "Интерфейс "+names.IfaceName+" не удалён: "+err.Error())
-	}
-
-	// 4. Clear in-memory tracking (endpointRoutes уже забыт на шаге 1).
+	// 4. Clear in-memory tracking (endpointRoutes уже забыт на шаге 2).
 	//    Сохранения конфигурации среди шагов нет: его ведёт SaveCoordinator,
 	//    который сам сводит запросы всех команд в одну запись.
 	o.appliedDNSMu.Lock()
 	delete(o.appliedDNS, stored.ID)
 	o.appliedDNSMu.Unlock()
+
+	if ndmsErr != nil {
+		return tunnel.NewOpError("delete", stored.ID, "ndms", ndmsErr)
+	}
 
 	o.logInfo("delete", stored.ID, "Tunnel deleted")
 	o.appLog.Info("delete", stored.ID, "Туннель удалён")
@@ -583,7 +709,7 @@ func (o *OperatorOS5Impl) Reconcile(ctx context.Context, cfg tunnel.Config) erro
 	o.appLog.Info("reconcile", cfg.ID, "Восстановление конфигурации NDMS")
 
 	// === Phase 1: Ensure OpkgTun exists — and is OURS (F517) ===
-	justCreated, err := o.ensureOpkgTunRecord(ctx, "reconcile", cfg, names)
+	iface, justCreated, up, err := o.ensureOpkgTunRecord(ctx, "reconcile", cfg, names)
 	if err != nil {
 		return err // без rollbackStart: чужую запись и её устройство не трогаем
 	}
@@ -602,14 +728,25 @@ func (o *OperatorOS5Impl) Reconcile(ctx context.Context, cfg tunnel.Config) erro
 	} else {
 		// Живое amneziawg под только что созданной записью: backend.Start его
 		// не тронул бы (IsRunning=true), а SetAddress ниже требует свежее —
-		// сносим здесь. Отсутствующее или не-amneziawg устройство (plain tun
-		// после ребута) сносит сам backend.Start — и отказывает HeldError,
-		// если устройство держит чужая программа (F500). Сносить его тут
-		// значило бы обойти этот гейт.
+		// backend.Recreate (снос и создание одной подменой под барьером
+		// списков, D-N1). Отсутствующее или не-amneziawg устройство (plain
+		// tun после ребута) сносит сам backend.Start — и отказывает
+		// HeldError, если устройство держит чужая программа (F500).
+		recreate := o.backend.Start
 		if running {
-			o.ipRun(ctx, "/opt/sbin/ip", "link", "del", "dev", names.IfaceName)
+			recreate = o.backend.Recreate
+		} else {
+			// Под up-записью tun NDMS: опустить до подмены (C3a), поднять
+			// InterfaceUp ниже (по !up).
+			downed, err := o.downBeforeSwap(ctx, cfg.ID, names, iface, up)
+			if err != nil {
+				return tunnel.NewOpError("reconcile", cfg.ID, "ndms", err)
+			}
+			if downed {
+				up = false
+			}
 		}
-		if err := o.backend.Start(ctx, names.IfaceName); err != nil {
+		if err := recreate(ctx, names.IfaceName); err != nil {
 			return tunnel.NewOpError("reconcile", cfg.ID, "backend", err)
 		}
 		if err := o.backend.WaitReady(ctx, names.IfaceName, interfaceReadyTimeout); err != nil {
@@ -641,26 +778,26 @@ func (o *OperatorOS5Impl) Reconcile(ctx context.Context, cfg tunnel.Config) erro
 	// causing oversized encrypted packets that degrade upload throughput.
 	if justCreated {
 		__addr, __mask := cfg.Address, maskFromPrefix(cfg.AddressPrefix)
-		if err := o.commands.Interfaces.SetAddress(ctx, names.NDMSName, __addr, __mask); err != nil {
+		if err := o.commands.Interfaces.SetAddress(ctx, iface, __addr, __mask); err != nil {
 			return tunnel.NewOpError("reconcile", cfg.ID, "ndms", fmt.Errorf("set address: %w", err))
 		}
 		// v6 в NDMS не трогаем вовсе (см. ColdStart): адрес кладёт
 		// applyKernelAddresses.
 	}
 	if cfg.MTU > 0 {
-		if err := o.commands.Interfaces.SetMTU(ctx, names.NDMSName, cfg.MTU); err != nil {
+		if err := o.commands.Interfaces.SetMTU(ctx, iface, cfg.MTU); err != nil {
 			o.logWarn("reconcile", cfg.ID, "Failed to re-apply NDMS MTU: "+err.Error())
 		}
 	}
 
 	// Ensure ip global is set
-	if err := o.commands.Interfaces.SetIPGlobal(ctx, names.NDMSName); err != nil {
+	if err := o.commands.Interfaces.SetIPGlobal(ctx, iface); err != nil {
 		o.logWarn("reconcile", cfg.ID, "Failed to set ip global: "+err.Error())
 	}
 
 	// Re-apply DNS servers (may have been lost after reboot)
 	if len(cfg.DNS) > 0 {
-		if err := o.commands.Interfaces.SetDNS(ctx, names.NDMSName, cfg.DNS); err != nil {
+		if err := o.commands.Interfaces.SetDNS(ctx, iface, cfg.DNS); err != nil {
 			o.logWarn("reconcile", cfg.ID, "Failed to re-apply DNS: "+err.Error())
 		} else {
 			o.appliedDNSMu.Lock()
@@ -675,10 +812,13 @@ func (o *OperatorOS5Impl) Reconcile(ctx context.Context, cfg tunnel.Config) erro
 		return tunnel.NewOpError("reconcile", cfg.ID, "link", fmt.Errorf("ip link up: %w", exec.FormatError(result, err)))
 	}
 
-	// NDMS InterfaceUp: only when OpkgTun was just created. Commands
-	// register the expected "running" hook via HookNotifier.
-	if justCreated {
-		if err := o.commands.Interfaces.InterfaceUp(ctx, names.NDMSName); err != nil {
+	// NDMS InterfaceUp: запись создана сейчас либо не up — опустили мы перед
+	// подменой или её оставила опущенной наша же прежняя попытка, упавшая
+	// между down и up (R61-1): Reconcile идёт только у Running-туннеля, а
+	// Running под опущенной записью — рассогласование, внешний disabled уже
+	// остановил бы туннель. Кредит грани conf=running — в команде (ExpectConf).
+	if justCreated || !up {
+		if err := o.commands.Interfaces.InterfaceUp(ctx, iface); err != nil {
 			return tunnel.NewOpError("reconcile", cfg.ID, "ndms", fmt.Errorf("interface up: %w", err))
 		}
 	}
@@ -702,12 +842,12 @@ func (o *OperatorOS5Impl) Reconcile(ctx context.Context, cfg tunnel.Config) erro
 
 	// Default route: only when DefaultRoute is enabled.
 	if cfg.DefaultRoute {
-		if err := o.commands.Routes.SetDefaultRoute(ctx, names.NDMSName); err != nil {
+		if err := o.commands.Routes.SetDefaultRoute(ctx, iface); err != nil {
 			_ = o.CleanupEndpointRoute(ctx, cfg.ID)
 			return tunnel.NewOpError("reconcile", cfg.ID, "ndms", fmt.Errorf("set default route: %w", err))
 		}
 		if cfg.AddressIPv6 != "" {
-			if err := o.commands.Routes.SetIPv6DefaultRoute(ctx, names.NDMSName); err != nil {
+			if err := o.commands.Routes.SetIPv6DefaultRoute(ctx, iface); err != nil {
 				o.logWarn("reconcile", cfg.ID, "Failed to set IPv6 default route: "+err.Error())
 			}
 		}
@@ -733,18 +873,29 @@ func (o *OperatorOS5Impl) Reconcile(ctx context.Context, cfg tunnel.Config) erro
 
 // SetDefaultRoute adds a default route through the tunnel interface.
 func (o *OperatorOS5Impl) SetDefaultRoute(ctx context.Context, tunnelID string) error {
-	names := tunnel.NewNames(tunnelID)
-	if err := o.commands.Routes.SetDefaultRoute(ctx, names.NDMSName); err != nil {
+	iface, err := o.requireOpkgTun(ctx, "set_default_route", tunnelID)
+	if err != nil {
+		return err
+	}
+	if err := o.commands.Routes.SetDefaultRoute(ctx, iface); err != nil {
 		return err
 	}
 	return nil
 }
 
 // RemoveDefaultRoute removes the default route through the tunnel interface.
+// Записи нет в NDMS — маршрута через неё нет тоже: снимать нечего (F546).
 func (o *OperatorOS5Impl) RemoveDefaultRoute(ctx context.Context, tunnelID string) error {
 	names := tunnel.NewNames(tunnelID)
-	o.commands.Routes.RemoveIPv6DefaultRoute(ctx, names.NDMSName)
-	if err := o.commands.Routes.RemoveDefaultRoute(ctx, names.NDMSName); err != nil {
+	iface, _, ok, err := confirmOpkgTun(ctx, o.queries, names.NDMSName)
+	if err != nil {
+		return tunnel.NewOpError("remove_default_route", tunnelID, "ndms", fmt.Errorf("read OpkgTun record: %w", err))
+	}
+	if !ok {
+		return nil
+	}
+	o.commands.Routes.RemoveIPv6DefaultRoute(ctx, iface)
+	if err := o.commands.Routes.RemoveDefaultRoute(ctx, iface); err != nil {
 		return err
 	}
 	return nil
@@ -788,8 +939,11 @@ func (o *OperatorOS5Impl) ApplyConfig(ctx context.Context, tunnelID, configPath 
 
 // SetMTU sets MTU on a running tunnel interface via NDMS.
 func (o *OperatorOS5Impl) SetMTU(ctx context.Context, tunnelID string, mtu int) error {
-	names := tunnel.NewNames(tunnelID)
-	if err := o.commands.Interfaces.SetMTU(ctx, names.NDMSName, mtu); err != nil {
+	iface, err := o.requireOpkgTun(ctx, "set_mtu", tunnelID)
+	if err != nil {
+		return err
+	}
+	if err := o.commands.Interfaces.SetMTU(ctx, iface, mtu); err != nil {
 		return tunnel.NewOpError("set_mtu", tunnelID, "ndms", err)
 	}
 	o.logInfo("set_mtu", tunnelID, fmt.Sprintf("MTU set to %d", mtu))
@@ -798,25 +952,36 @@ func (o *OperatorOS5Impl) SetMTU(ctx context.Context, tunnelID string, mtu int) 
 
 // SyncDNS updates DNS servers on a running tunnel's NDMS interface.
 func (o *OperatorOS5Impl) SyncDNS(ctx context.Context, tunnelID string, dns []string) error {
-	names := tunnel.NewNames(tunnelID)
+	iface, err := o.requireOpkgTun(ctx, "sync_dns", tunnelID)
+	if err != nil {
+		return err
+	}
 	// Clear previously applied DNS first
 	o.appliedDNSMu.RLock()
 	oldDNS := o.appliedDNS[tunnelID]
 	o.appliedDNSMu.RUnlock()
 	if len(oldDNS) > 0 {
-		_ = o.commands.Interfaces.ClearDNS(ctx, names.NDMSName, oldDNS)
+		_ = o.commands.Interfaces.ClearDNS(ctx, iface, oldDNS)
 	}
-	if len(dns) == 0 {
-		o.appliedDNSMu.Lock()
-		delete(o.appliedDNS, tunnelID)
-		o.appliedDNSMu.Unlock()
-	} else {
-		if err := o.commands.Interfaces.SetDNS(ctx, names.NDMSName, dns); err != nil {
-			return tunnel.NewOpError("sync_dns", tunnelID, "ndms", err)
+	// Трекинг — ровно то, что стоит на роутере: прежние сняты, новые — по
+	// одному, до первого отказа. Иначе Stop снимал бы уже снятое (F561).
+	var set []string
+	var setErr error
+	for _, srv := range dns {
+		if setErr = o.commands.Interfaces.SetDNS(ctx, iface, []string{srv}); setErr != nil {
+			break
 		}
-		o.appliedDNSMu.Lock()
-		o.appliedDNS[tunnelID] = dns
-		o.appliedDNSMu.Unlock()
+		set = append(set, srv)
+	}
+	o.appliedDNSMu.Lock()
+	if len(set) > 0 {
+		o.appliedDNS[tunnelID] = set
+	} else {
+		delete(o.appliedDNS, tunnelID)
+	}
+	o.appliedDNSMu.Unlock()
+	if setErr != nil {
+		return tunnel.NewOpError("sync_dns", tunnelID, "ndms", setErr)
 	}
 	o.logInfo("sync_dns", tunnelID, fmt.Sprintf("DNS synced: %v", dns))
 	return nil
@@ -825,8 +990,12 @@ func (o *OperatorOS5Impl) SyncDNS(ctx context.Context, tunnelID string, dns []st
 // SyncAddress updates IPv4/IPv6 address on a running tunnel's NDMS interface.
 func (o *OperatorOS5Impl) SyncAddress(ctx context.Context, tunnelID string, address string, prefix int, ipv6 string) error {
 	names := tunnel.NewNames(tunnelID)
+	iface, err := o.requireOpkgTun(ctx, "sync_address", tunnelID)
+	if err != nil {
+		return err
+	}
 	__addr, __mask := address, maskFromPrefix(prefix)
-	if err := o.commands.Interfaces.SetAddress(ctx, names.NDMSName, __addr, __mask); err != nil {
+	if err := o.commands.Interfaces.SetAddress(ctx, iface, __addr, __mask); err != nil {
 		return tunnel.NewOpError("sync_address", tunnelID, "ndms", err)
 	}
 	// v6 правим прямо на устройстве, через ту же единственную точку записи:
@@ -861,14 +1030,14 @@ func (o *OperatorOS5Impl) CaptureDescription(ctx context.Context, tunnelID, desc
 // чужую запись как свою (F517).
 func (o *OperatorOS5Impl) setDescription(ctx context.Context, tunnelID, prevName, description string, capture bool) error {
 	names := tunnel.NewNames(tunnelID)
-	rec, err := opkgTunRecord(ctx, o.queries, names.NDMSName)
+	iface, rec, ok, err := confirmOpkgTun(ctx, o.queries, names.NDMSName)
 	if err != nil {
 		return tunnel.NewOpError("update_description", tunnelID, "ndms", fmt.Errorf("read OpkgTun record: %w", err))
 	}
-	if rec == nil && o.queries != nil {
+	if !ok {
 		return nil
 	}
-	if rec != nil && !capture {
+	if !capture {
 		// Пустое прежнее имя с описанием не сверяем: "" == "" признало бы
 		// нашей любую запись без описания. Остаётся живое amneziawg.
 		ours, _ := o.backend.IsRunning(ctx, names.IfaceName)
@@ -880,7 +1049,7 @@ func (o *OperatorOS5Impl) setDescription(ctx context.Context, tunnelID, prevName
 				&ForeignRecordError{NDMSName: names.NDMSName, Description: rec.Description, Want: prevName})
 		}
 	}
-	if err := o.commands.Interfaces.SetDescription(ctx, names.NDMSName, description); err != nil {
+	if err := o.commands.Interfaces.SetDescription(ctx, iface, description); err != nil {
 		return tunnel.NewOpError("update_description", tunnelID, "ndms", err)
 	}
 	o.logInfo("update_description", tunnelID, fmt.Sprintf("Description updated to %q", description))
@@ -893,21 +1062,207 @@ func (o *OperatorOS5Impl) GetDefaultGatewayInterface(ctx context.Context) (strin
 }
 
 // rollbackStart cleans up after a failed start operation.
-// justCreated indicates whether we created the OpkgTun in this Start attempt.
-// When false (OpkgTun already existed), we preserve NDMS conf state (conf: running)
-// so the tunnel stays in StateNeedsStart and can be retried.
-func (o *OperatorOS5Impl) rollbackStart(ctx context.Context, tunnelID string, names tunnel.Names, justCreated bool) {
-	o.logInfo("rollback", tunnelID, "Rolling back failed start")
+// justCreated — запись создана этой попыткой: сносится целиком, иначе
+// OpkgTunN остаётся на роутере после неудачного первого старта (F560).
+// Существующая запись остаётся с plain tun под ней — состояние как после
+// ребута, следующий старт подменит его на amneziawg (F1 ревью Task 62:
+// прежний Stop оставлял запись без устройства — 0ba1 под up и 0767 на
+// каждом нашем списке до следующего старта). Исключение — подмена сорвалась
+// после del (tun не встал): запись снимается, см. removeOpkgTun (L2). up —
+// запись могла быть up
+// (была до старта или старт дошёл до InterfaceUp). Порядок — removeOpkgTun.
+// applied — что из маршрутизации старт успел поставить: снимается перед
+// `no interface` только при сносе записи (stripRouting). Запись, созданная
+// этой попыткой, несёт ровно applied; существующая (снос по L2) — и то, что
+// ставили прежние старты: как у Delete, `ip global` всегда, default iff
+// DefaultRoute (L3 финального ревью F595).
+func (o *OperatorOS5Impl) rollbackStart(ctx context.Context, cfg tunnel.Config, names tunnel.Names, iface query.Confirmed, justCreated, up bool, applied stripRouting) {
+	o.logInfo("rollback", cfg.ID, "Rolling back failed start")
 
-	o.clearAppliedDNS(ctx, tunnelID, names)
-	_ = o.firewall.RemoveRules(ctx, names.IfaceName)
-	if justCreated {
-		// We created this OpkgTun — clean it up entirely. Commands register
-		// the expected "disabled" hook via HookNotifier.
-		_ = o.commands.Interfaces.InterfaceDown(ctx, names.NDMSName)
+	strip := applied
+	if !justCreated {
+		strip = stripRouting{defaultRoute: cfg.DefaultRoute, global: true}
 	}
-	// Don't call InterfaceDown for existing OpkgTun — preserve conf: running.
-	_ = o.backend.Stop(ctx, names.IfaceName)
+	o.clearAppliedDNS(ctx, cfg.ID, iface)
+	_ = o.firewall.RemoveRules(ctx, names.IfaceName)
+	_ = o.removeOpkgTun(ctx, "rollback", cfg.ID, names, iface, up, justCreated, strip)
+}
+
+// downBeforeSwap — C3a для подмены tun → amneziawg на старте (F61-1): под
+// up-записью живёт не-amneziawg устройство (tun NDMS после ребута), и
+// backend.Start снесёт его под барьером — DELLINK под running даёт 0ba1
+// (C3b, стенд Task 59: 3/10). Запись опускается до подмены (под down —
+// 0/20 для amneziawg → tun; направление tun → amneziawg — стенд Task 65).
+// true — запись опущена, вызывающий поднимает её InterfaceUp. Живое
+// amneziawg Start не трогает, устройства нет — сносить нечего: без down.
+// Down не прошёл ни с одной попытки — ошибка: подменять под running нельзя
+// (fail-closed, R61-2).
+func (o *OperatorOS5Impl) downBeforeSwap(ctx context.Context, tunnelID string, names tunnel.Names, iface query.Confirmed, up bool) (bool, error) {
+	if !up {
+		return false, nil
+	}
+	if _, err := netdev.Absent(names.IfaceName); !errors.Is(err, netdev.ErrPresent) {
+		return false, nil
+	}
+	if running, _ := o.backend.IsRunning(ctx, names.IfaceName); running {
+		return false, nil
+	}
+	if err := o.interfaceDownBestEffort(ctx, tunnelID, iface); err != nil {
+		return false, fmt.Errorf("interface down before swap: %w", err)
+	}
+	return true, nil
+}
+
+// removeOpkgTun — снятие kernel-устройства из-под записи OpkgTunN и, при
+// deleteRecord, самой записи, без строк C прошивки (C3a, стенд Task 59: 20/20
+// без C всех классов и без E; проигравшие: без down — 0ba1 3/10, снос
+// устройства до записи — 0767 6/10, запись при живом amneziawg — 003b 3/3):
+//
+//  1. Запись up — `interface down` (единственная точка кредита disabled:
+//     блок conf=disabled приходит только от up:false). Устройство,
+//     исчезнувшее под up-записью, — 0ba1; под down подмену NDMS не замечает.
+//  2. Подмена устройства на plain tun под барьером списков (D-N1): запись
+//     ни на миг не видна нашим читателям без устройства (0767).
+//  3. `no interface` — NDMS снимает свой tun сам (30/30, и созданный не им);
+//     при живом amneziawg было бы 003b. Свой ifdestroyed — по кредиту
+//     `ExpectRemoval`, вердикт в точке входа (api.HookSink.Handle, Event.Own).
+//  4. tun остался (NDMS не снял) — снимаем: записи уже нет, C невозможен.
+//
+// Устройства уже нет, а запись сносится (M1: внешний `ip link del`/rmmod —
+// запись `state: error` при `conf: running`) — ни down, ни подмены, сразу
+// `no interface`: подмена здесь — голый `tuntap add`, NEWLINK под running-
+// записью (не снято стендом). Снос записи без устройства — 0 C (стенд
+// Task 59: error/running ×3 — хвост K-0ba1 без down, без нагрузки;
+// never-up ×9 — уборка K-0767). Подзапись «ещё up» — стенд S4.
+// Down не шлётся: улик, что он нужен, нет, а по записи без устройства он
+// сам не снят стендом.
+//
+// Down не прошёл — ничего не меняется, ошибка наружу (fail-closed).
+// Подмена не удалась, а устройство живо (чужой держатель — HeldError, отказ
+// ip) — запись не трогаем, ошибка наружу (fail-closed): `no interface` при
+// живом устройстве — C. Устройства нет (del прошёл, tun не встал) — запись
+// снимается и при !deleteRecord (L2: откат по существующей записи):
+// оставленная, она без устройства до следующего Start, и каждый наш список
+// в этом окне — 0767; снос записи без устройства — 0 C (стенд Task 59),
+// следующий Start создаст её заново (justCreated). `tuntap add` повторяется
+// один раз в том же Hold (ReplaceWithTun). Принятый остаток (решение
+// владельца 06.10): отказали обе попытки — окно между отпусканием барьера и
+// ответом `no interface` (один POST), класс аварийного остатка N4.
+//
+// D-N3 (П25, вариант А владельца): при сносе записи первым действием —
+// удержание сохранения (ждёт конца нашего сохранения в полёте; отказ — ни
+// одного POST, fail-closed), оно держится на down/подмену/`no`, чтобы наше
+// сохранение не открылось между ними; перед самим `no interface` — после
+// down и подмены — снимаются `ip route default` и `ip global` (strip). Не до
+// down (M1 финального ревью F595): отказ down отказывает и сносу, а туннель
+// остаётся работать — без default и global его трафик шёл бы мимо VPN.
+// Снятие по опущенной записи стендом не проверено (STRIP снимал до down) —
+// пункт приёмки. Улика dn3-round2-evidence.md: при
+// сохранении в окне сноса `ip route default` даёт `C RoutingTable: unable to
+// resolve interface names` (NOGA: есть, NORD/NEITHER/STRIP: нет), `ip global
+// auto` — `E L3Base: unable to find` (NORD: есть, NOGA/NEITHER/STRIP: нет);
+// снятие обоих перед сносом — STRIP: 0/7 против 3/7. Снимаем по своему
+// состоянию, без чтений running-config. Знание устаревает, когда запись не
+// поднималась нашим Start (восстановление старого бэкапа, запись не наша),
+// когда default снят в веб-морде роутера или Start отказал между `ip global`
+// и default, — тогда снимается отсутствующее: маршрут — терпимый `0xcffd0198`,
+// не E (S6 06.10); `no ip global` без global — проба CS3-P0. Отказ снятия не
+// мешает сносу (Warn): это строки журнала, не состояние.
+// `ipv6 route default` не снимается — улики нет (Н12).
+func (o *OperatorOS5Impl) removeOpkgTun(ctx context.Context, op, tunnelID string, names tunnel.Names, iface query.Confirmed, up, deleteRecord bool, strip stripRouting) error {
+	if deleteRecord {
+		release, err := o.holdForRemoval(ctx, op, tunnelID)
+		if err != nil {
+			return err
+		}
+		defer release()
+	}
+	if _, err := netdev.Absent(names.IfaceName); err == nil && deleteRecord {
+		return o.stripAndDeleteRecord(ctx, op, tunnelID, names, iface, strip)
+	}
+	if up {
+		// Down не прошёл ни с одной попытки — ни подмены (под running это
+		// C3b, 0ba1), ни `no interface`: запись и устройство как были,
+		// повтор действия пройдёт чисто.
+		if err := o.interfaceDownBestEffort(ctx, tunnelID, iface); err != nil {
+			o.logWarn(op, tunnelID, "interface down failed, kernel interface and NDMS record kept: "+err.Error())
+			o.appLog.Warn(op, tunnelID, "Запись "+names.NDMSName+" не опущена — интерфейс и запись оставлены: "+err.Error())
+			return fmt.Errorf("interface down %s: %w", names.NDMSName, err)
+		}
+	}
+	if err := o.backend.ReplaceWithTun(ctx, names.IfaceName); err != nil {
+		if _, absent := netdev.Absent(names.IfaceName); absent != nil {
+			o.logWarn(op, tunnelID, "kernel interface not replaced, NDMS record kept: "+err.Error())
+			o.appLog.Warn(op, tunnelID, "Интерфейс "+names.IfaceName+" не заменён, запись "+names.NDMSName+" оставлена: "+err.Error())
+			return fmt.Errorf("replace %s with tun: %w", names.IfaceName, err)
+		}
+		if !deleteRecord {
+			// L2: запись всё-таки сносится — удержание и снятие, как у
+			// Delete (без удержания `no` ждал бы полёт во вложенном
+			// удержании deleteInterface, а снятие не шло бы вовсе).
+			release, herr := o.holdForRemoval(ctx, op, tunnelID)
+			if herr != nil {
+				return herr
+			}
+			defer release()
+			o.logWarn(op, tunnelID, "kernel interface gone and tun not created, NDMS record removed: "+err.Error())
+		}
+		return o.stripAndDeleteRecord(ctx, op, tunnelID, names, iface, strip)
+	}
+	if !deleteRecord {
+		return nil
+	}
+	return o.stripAndDeleteRecord(ctx, op, tunnelID, names, iface, strip)
+}
+
+// holdForRemoval — удержание сохранения на снос записи (D-N3); отказ (ctx) —
+// запись остаётся, ни одного POST.
+func (o *OperatorOS5Impl) holdForRemoval(ctx context.Context, op, tunnelID string) (func(), error) {
+	release, err := o.commands.Save.HoldForRemoval(ctx)
+	if err != nil {
+		o.logWarn(op, tunnelID, "NDMS record kept: "+err.Error())
+		return nil, err
+	}
+	return release, nil
+}
+
+// stripAndDeleteRecord — снятие маршрутизации записи и сама запись. Снятие —
+// после down (M1: отказ down оставляет работающий туннель с его default и
+// global), под удержанием, перед `no interface`.
+func (o *OperatorOS5Impl) stripAndDeleteRecord(ctx context.Context, op, tunnelID string, names tunnel.Names, iface query.Confirmed, strip stripRouting) error {
+	o.stripRouting(ctx, op, tunnelID, iface, strip)
+	return o.deleteOpkgTunRecord(ctx, op, tunnelID, names, iface)
+}
+
+// stripRouting — что снять с записи перед `no interface` (removeOpkgTun).
+type stripRouting struct {
+	defaultRoute, global bool
+}
+
+func (o *OperatorOS5Impl) stripRouting(ctx context.Context, op, tunnelID string, iface query.Confirmed, strip stripRouting) {
+	if strip.defaultRoute {
+		if err := o.commands.Routes.RemoveDefaultRoute(ctx, iface); err != nil {
+			o.logWarn(op, tunnelID, "remove default route before delete: "+err.Error())
+		}
+	}
+	if strip.global {
+		if err := o.commands.Interfaces.ClearIPGlobal(ctx, iface); err != nil {
+			o.logWarn(op, tunnelID, "clear ip global before delete: "+err.Error())
+		}
+	}
+}
+
+// deleteOpkgTunRecord — `no interface` (NDMS снимает свой tun сам), затем
+// остаток устройства, если NDMS его не снял: записи уже нет, C невозможен.
+func (o *OperatorOS5Impl) deleteOpkgTunRecord(ctx context.Context, op, tunnelID string, names tunnel.Names, iface query.Confirmed) error {
+	if err := o.commands.Interfaces.DeleteOpkgTun(ctx, iface); err != nil {
+		o.logWarn(op, tunnelID, "DeleteOpkgTun: "+err.Error())
+		return fmt.Errorf("delete OpkgTun record: %w", err)
+	}
+	if err := o.backend.StopIfPresent(ctx, names.IfaceName); err != nil {
+		o.logWarn(op, tunnelID, "kernel interface left after record removal: "+err.Error())
+	}
+	return nil
 }
 
 // logInfo logs an info message via the UI-visible scoped logger.
@@ -920,7 +1275,8 @@ func (o *OperatorOS5Impl) logWarn(action, target, message string) {
 	o.appLog.Warn(action, target, message)
 }
 
-// GetSystemName resolves an NDMS ID to its kernel interface name via NDMS RCI.
+// GetSystemName resolves an NDMS ID to its kernel interface name from
+// InterfaceStore memory — без RCI (F570).
 func (o *OperatorOS5Impl) GetSystemName(ctx context.Context, ndmsID string) string {
 	return o.queries.Interfaces.ResolveSystemName(ctx, ndmsID)
 }

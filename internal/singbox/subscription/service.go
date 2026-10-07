@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/hoaxisr/awg-manager/internal/logging"
+	"github.com/hoaxisr/awg-manager/internal/ndms/command"
+	"github.com/hoaxisr/awg-manager/internal/singbox"
 	"github.com/hoaxisr/awg-manager/internal/singbox/vlink"
 	sysfiles "github.com/hoaxisr/awg-manager/internal/sys/files"
 )
@@ -29,8 +31,17 @@ type ConfigMutator interface {
 	RemoveInbound(tag string) error
 	AddRouteRule(jsonBody []byte) error
 	RemoveRouteRule(inboundTag, outboundTag string) error
-	EnsureProxy(ctx context.Context, idx, port int, description string) error
-	RemoveProxy(ctx context.Context, idx int) error
+	// EnsureProxy — ProxyN индекса из store: создать, если записи нет, или
+	// перенастроить, если запись наша (description == ownedDesc — прежний
+	// Label при переименовании); иначе singbox.ErrProxyForeign (F577).
+	EnsureProxy(ctx context.Context, idx, port int, description, ownedDesc string) error
+	// CreateProxy — создание ProxyN на только что выделенном индексе; индекс
+	// занят чужим — ошибка (на ≥5.01, F577); ours — откат вправе снести
+	// ProxyN (создан этой командой, F574).
+	CreateProxy(ctx context.Context, idx, port int, description string) (ours bool, err error)
+	// RemoveProxy снимает ProxyN, только если его description равен desc
+	// (Label); иначе singbox.ErrProxyForeign без команд (F577).
+	RemoveProxy(ctx context.Context, idx int, desc string) error
 	// Reload commits the batch of mutations since the last commit with a
 	// single validate+save+reload (#331). Mutations (Add*/Remove*/Update*)
 	// only accumulate in memory; nothing reaches sing-box until Reload.
@@ -151,6 +162,15 @@ func (s *Service) proxyEnabled() bool {
 	return s.ndmsProxyEnabled()
 }
 
+// proxySkippable — в проходе SyncProxies запись на индексе чужая или
+// созданное осталось на роутере (метку отложенного сноса уже поставил
+// ProxyManager): Warn и следующий элемент — обрыв лишил бы обслуживания все
+// следующие подписки и группы (F577).
+func proxySkippable(err error) bool {
+	var left *command.LeftCreatedError
+	return errors.Is(err, singbox.ErrProxyForeign) || errors.As(err, &left)
+}
+
 // SyncProxies ensures every subscription has its NDMS ProxyN interface when
 // the global toggle is on. It is the toggle-ON counterpart to the gated
 // Create: subscriptions created while the toggle was off carry ProxyIndex=-1
@@ -184,8 +204,14 @@ func (s *Service) SyncProxies(ctx context.Context) error {
 		err := func() error {
 			mu.Lock()
 			defer mu.Unlock()
-			return s.mutator.EnsureProxy(ctx, sub.ProxyIndex, int(sub.ListenPort), sub.Label)
+			return s.mutator.EnsureProxy(ctx, sub.ProxyIndex, int(sub.ListenPort), sub.Label, sub.Label)
 		}()
+		if proxySkippable(err) {
+			// Чужая запись на индексе — постоянное состояние: обрыв прохода
+			// лишил бы обслуживания все следующие подписки (F577).
+			s.logWarn("subscription-sync-proxies", sub.ID, "skipped: "+err.Error())
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("subscription %s: ensure proxy: %w", sub.ID, err)
 		}
@@ -199,7 +225,12 @@ func (s *Service) SyncProxies(ctx context.Context) error {
 		if g.ListenPort == 0 || g.ProxyIndex < 0 {
 			continue
 		}
-		if err := s.mutator.EnsureProxy(ctx, g.ProxyIndex, int(g.ListenPort), g.Label); err != nil {
+		err := s.mutator.EnsureProxy(ctx, g.ProxyIndex, int(g.ListenPort), g.Label, g.Label)
+		if proxySkippable(err) {
+			s.logWarn("subscription-sync-proxies", g.ID, "skipped: "+err.Error())
+			continue
+		}
+		if err != nil {
 			return fmt.Errorf("subscription group %s: ensure proxy: %w", g.ID, err)
 		}
 	}
@@ -218,7 +249,7 @@ func (s *Service) SyncProxies(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("alloc proxy index: %w", err)
 			}
-			if err := s.mutator.EnsureProxy(ctx, idx, int(sub.ListenPort), sub.Label); err != nil {
+			if err := s.mutator.EnsureProxy(ctx, idx, int(sub.ListenPort), sub.Label, sub.Label); err != nil {
 				return fmt.Errorf("ensure proxy: %w", err)
 			}
 			if err := s.store.SetProxyIndex(sub.ID, idx); err != nil {
@@ -226,6 +257,10 @@ func (s *Service) SyncProxies(ctx context.Context) error {
 			}
 			return nil
 		}()
+		if proxySkippable(err) {
+			s.logWarn("subscription-sync-proxies", sub.ID, "skipped: "+err.Error())
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("subscription %s: %w", sub.ID, err)
 		}
@@ -239,7 +274,12 @@ func (s *Service) SyncProxies(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("subscription group %s: alloc proxy index: %w", g.ID, err)
 		}
-		if err := s.mutator.EnsureProxy(ctx, idx, int(g.ListenPort), g.Label); err != nil {
+		err = s.mutator.EnsureProxy(ctx, idx, int(g.ListenPort), g.Label, g.Label)
+		if proxySkippable(err) {
+			s.logWarn("subscription-sync-proxies", g.ID, "skipped: "+err.Error())
+			continue
+		}
+		if err != nil {
 			return fmt.Errorf("subscription group %s: ensure proxy: %w", g.ID, err)
 		}
 		if err := s.groups.SetProxyIndex(g.ID, idx); err != nil {
@@ -418,11 +458,18 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Subscription, er
 			s.store.Delete(sub.ID)
 			return nil, err
 		}
-		proxyIdx = idx
-		if err := s.mutator.EnsureProxy(ctx, idx, int(port), sub.Label); err != nil {
-			// Best-effort cleanup: EnsureProxy may have partially registered
-			// the interface before failing. RemoveProxy is idempotent.
-			_ = s.mutator.RemoveProxy(ctx, idx)
+		ours, err := s.mutator.CreateProxy(ctx, idx, int(port), sub.Label)
+		if ours {
+			proxyIdx = idx
+		}
+		if err != nil {
+			// Best-effort cleanup: CreateProxy may have partially registered
+			// the interface before failing. RemoveProxy is idempotent. Снос —
+			// только своего: индекс мог занять чужой, ещё не видимый ProxyN
+			// (F574).
+			if ours {
+				_ = s.mutator.RemoveProxy(ctx, idx, sub.Label)
+			}
 			s.store.Delete(sub.ID)
 			s.logWarn("subscription-create", sub.ID, "failed to ensure NDMS proxy: "+err.Error())
 			return nil, fmt.Errorf("subscription: register NDMS proxy: %w", err)
@@ -439,14 +486,15 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Subscription, er
 		// страхует ранние ошибки (fetch/parse) и потому берёт txMu сам —
 		// иначе он мог бы сбросить открытый батч параллельной операции.
 		_ = s.withTx(func() error { s.mutator.Rollback(); return nil })
-		// EnsureProxy succeeded above — the NDMS Proxy interface is now
-		// live in the router. We must roll it back before dropping the
+		// CreateProxy succeeded above — the NDMS Proxy interface is now
+		// live in the router (proxyIdx >= 0 — только если создан нами).
+		// We must roll it back before dropping the
 		// storage row; otherwise every failed Create leaks a ProxyN that
 		// only the startup cleanup sweep would eventually reap. Swallow
 		// the RemoveProxy error: the storage row is going away regardless,
 		// and a stranded ProxyN is recoverable via Settings → cleanup.
 		if proxyIdx >= 0 {
-			_ = s.mutator.RemoveProxy(ctx, proxyIdx)
+			_ = s.mutator.RemoveProxy(ctx, proxyIdx, sub.Label)
 		}
 		s.store.Delete(sub.ID)
 		s.logWarn("subscription-create", sub.ID, "initial refresh failed: "+err.Error())
@@ -930,7 +978,7 @@ func (s *Service) deleteLocked(ctx context.Context, id string) error {
 	// держать общий транзакционный мьютекс во время I/O. Ошибка не блокирует
 	// удаление (как и раньше) — осиротевший ProxyN подберёт cleanup-свип.
 	if sub.ProxyIndex >= 0 {
-		if err := s.mutator.RemoveProxy(ctx, sub.ProxyIndex); err != nil {
+		if err := s.mutator.RemoveProxy(ctx, sub.ProxyIndex, sub.Label); err != nil {
 			s.store.UpdateState(id, RefreshResult{When: time.Now(), Err: err})
 		}
 	}
@@ -1095,6 +1143,13 @@ func (s *Service) Update(id string, patch UpdatePatch) (*Subscription, error) {
 		Enabled:       &current.Enabled,
 		Label:         &current.Label,
 	}
+	// Label ProxyN-подписки — его description на роутере: в store он пишется
+	// только после того, как роутер его принял, иначе store и роутер
+	// разошлись бы, и владение по description сочло бы ProxyN чужим (F577).
+	var proxyLabel *string
+	if patch.Label != nil && s.proxyEnabled() && current.ProxyIndex >= 0 {
+		proxyLabel, patch.Label = patch.Label, nil
+	}
 	sub, err := s.store.Update(id, patch)
 	if err != nil {
 		return nil, err
@@ -1172,15 +1227,21 @@ func (s *Service) Update(id string, patch UpdatePatch) (*Subscription, error) {
 			return rollback(err, "enabled change")
 		}
 	}
-	if patch.Label != nil && s.proxyEnabled() && sub.ProxyIndex >= 0 {
-		// EnsureProxy is idempotent — re-running with new description updates
-		// NDMS Proxy.description in place. Best-effort: on failure the store
-		// already has the new label, the proxy description stays stale until
-		// next refresh; we surface the error so the UI can show a warning.
+	if proxyLabel != nil {
+		// EnsureProxy обновляет description ProxyN на месте. Отказ — Label в
+		// store остаётся прежним (ошибка наверх, UI покажет); частично
+		// применённое повтор примет: EnsureProxy признаёт и прежний, и новый.
+		// Слот занят чужим — на роутере переименовывать нечего, Label пишется.
 		// Skipped when the toggle is off or the subscription has no ProxyN
-		// (created while off): there is no interface to relabel.
-		if err := s.mutator.EnsureProxy(context.Background(), sub.ProxyIndex, int(sub.ListenPort), sub.Label); err != nil {
+		// (created while off): the label goes in with the patch.
+		err := s.mutator.EnsureProxy(context.Background(), sub.ProxyIndex, int(sub.ListenPort), *proxyLabel, current.Label)
+		if errors.Is(err, singbox.ErrProxyForeign) {
+			s.logWarn("subscription-update", id, "proxy description not synced: "+err.Error())
+		} else if err != nil {
 			return sub, fmt.Errorf("sync proxy description: %w", err)
+		}
+		if sub, err = s.store.Update(id, UpdatePatch{Label: proxyLabel}); err != nil {
+			return nil, err
 		}
 	}
 	return sub, nil

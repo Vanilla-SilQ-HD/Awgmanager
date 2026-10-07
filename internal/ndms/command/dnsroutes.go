@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/hoaxisr/awg-manager/internal/ndms/query"
 )
@@ -12,6 +13,10 @@ type DNSRouteCommands struct {
 	save    *SaveCoordinator
 	queries *query.Queries
 	isOS5   func() bool
+	// dirtyAt — эпоха Requested координатора после последней нашей правки
+	// dns-proxy route: sc-вид покажет её только после сохранения, начатого
+	// позже (F568, FlushPendingSave).
+	dirtyAt atomic.Uint64
 }
 
 func NewDNSRouteCommands(p Poster, s *SaveCoordinator, q *query.Queries, isOS5 func() bool) *DNSRouteCommands {
@@ -21,23 +26,62 @@ func NewDNSRouteCommands(p Poster, s *SaveCoordinator, q *query.Queries, isOS5 f
 	return &DNSRouteCommands{poster: p, save: s, queries: q, isOS5: isOS5}
 }
 
-// DNSRouteSpec describes a dns-proxy route entry.
+// DNSRouteSpec — постановка строки dns-proxy route: интерфейс подтверждён
+// свежим списком (F546).
 type DNSRouteSpec struct {
 	Group     string
-	Interface string
+	Interface query.Confirmed
 	Reject    bool
 }
 
+// DNSRouteRef — снос строки, взятой из выдачи роутера: интерфейс в ней —
+// строка как есть (строка существует, пока её не снесли).
+type DNSRouteRef struct {
+	Group, Interface string
+}
+
+// FlushPendingSave синхронно сохраняет конфигурацию, если sc-вид dns-proxy
+// route грязен с последнего завершённого сохранения (F568).
+// `/show/sc/dns-proxy/route` показывает снесённую через RCI строку до
+// `system configuration save` (добавленную — сразу; стенд): без сохранения
+// сверка видит уже снесённый маршрут и сносит его повторно — E «unable to
+// find the DNS route» в журнале ndm. Гейт — эпохи координатора, а не
+// PendingCount: ожидающее сохранение после чужих правок (снос туннелей
+// пачкой) sc-вид не портит, и Flush на нём сериализовал бы пачку на событиях
+// сохранения (Н10b). Ошибка сохранения — ошибка вызывающему: по устаревшему
+// виду сверка посчитала бы неверные сносы.
+func (c *DNSRouteCommands) FlushPendingSave(ctx context.Context) error {
+	if !c.isOS5() {
+		return nil
+	}
+	if _, saved := c.save.Epoch(); saved >= c.dirtyAt.Load() {
+		return nil
+	}
+	return c.save.Flush(ctx)
+}
+
+// markDirty — после правки dns-proxy route: sc-вид устарел до сохранения,
+// заказанного этой правкой.
+func (c *DNSRouteCommands) markDirty() {
+	req, _ := c.save.Epoch()
+	for {
+		cur := c.dirtyAt.Load()
+		if req <= cur || c.dirtyAt.CompareAndSwap(cur, req) {
+			return
+		}
+	}
+}
+
 // DeleteRoutes removes dns-proxy route entries in a single batch.
-func (c *DNSRouteCommands) DeleteRoutes(ctx context.Context, specs []DNSRouteSpec) error {
+func (c *DNSRouteCommands) DeleteRoutes(ctx context.Context, refs []DNSRouteRef) error {
 	if !c.isOS5() {
 		return query.ErrNotSupportedOnOS4
 	}
-	if len(specs) == 0 {
+	if len(refs) == 0 {
 		return nil
 	}
-	routes := make([]any, 0, len(specs))
-	for _, s := range specs {
+	routes := make([]any, 0, len(refs))
+	for _, s := range refs {
 		routes = append(routes, map[string]any{
 			"group":     s.Group,
 			"interface": s.Interface,
@@ -50,7 +94,8 @@ func (c *DNSRouteCommands) DeleteRoutes(ctx context.Context, specs []DNSRouteSpe
 	return postMutationCheckedTolerant(ctx, c.poster, c.save, payload, "delete dns-proxy routes",
 		toleratesMissingDNSRoute,
 		c.queries.DNSProxy.InvalidateAll,
-		c.queries.RunningConfig.InvalidateAll)
+		c.queries.RunningConfig.InvalidateAll,
+		c.markDirty)
 }
 
 // SetDisabled toggles a dns-proxy route's disable flag without deleting
@@ -84,6 +129,7 @@ func (c *DNSRouteCommands) SetDisabled(ctx context.Context, index string, disabl
 	}
 	c.queries.DNSProxy.InvalidateAll()
 	c.queries.RunningConfig.InvalidateAll()
+	c.markDirty()
 	// Flush save synchronously, not via the debounced coordinator. NDMS
 	// applies dns-proxy.route.disable to running state on POST, but the
 	// flag only surfaces in /show/sc/… (which Keenetic's web UI reads)
@@ -107,12 +153,19 @@ func (c *DNSRouteCommands) SetDisabled(ctx context.Context, index string, disabl
 // а на больших списках между сносом и записью успевает пройти обновление
 // object-group — сотни миллисекунд без DNS-маршрутизации. NDMS применяет
 // элементы payload по порядку, поэтому один POST закрывает окно.
-func (c *DNSRouteCommands) ReplaceRoutes(ctx context.Context, deletes, upserts []DNSRouteSpec) error {
+func (c *DNSRouteCommands) ReplaceRoutes(ctx context.Context, deletes []DNSRouteRef, upserts []DNSRouteSpec) error {
 	if !c.isOS5() {
 		return query.ErrNotSupportedOnOS4
 	}
 	if len(deletes)+len(upserts) == 0 {
 		return nil
+	}
+	// Нулевой Confirmed (поле пропущено в литерале) — отказ всего батча без
+	// POST: постановка по имени "" мимо подтверждения (F546).
+	for _, s := range upserts {
+		if s.Interface.Name() == "" {
+			return fmt.Errorf("replace dns-proxy routes: группа %s без интерфейса", s.Group)
+		}
 	}
 	routes := make([]any, 0, len(deletes)+len(upserts))
 	for _, s := range deletes {
@@ -126,14 +179,14 @@ func (c *DNSRouteCommands) ReplaceRoutes(ctx context.Context, deletes, upserts [
 	for _, s := range upserts {
 		route := map[string]any{
 			"group":     s.Group,
-			"interface": s.Interface,
+			"interface": s.Interface.Name(),
 			"auto":      true,
 		}
 		if s.Reject {
 			route["reject"] = true
 		}
 		routes = append(routes, route)
-		upsertIfaces[s.Interface] = true
+		upsertIfaces[s.Interface.Name()] = true
 	}
 	payload := map[string]any{
 		"dns-proxy": map[string]any{"route": routes},
@@ -141,7 +194,8 @@ func (c *DNSRouteCommands) ReplaceRoutes(ctx context.Context, deletes, upserts [
 	return postMutationCheckedTolerant(ctx, c.poster, c.save, payload, "replace dns-proxy routes",
 		func(msg string) bool { return toleratesReplaceRoutes(msg, upsertIfaces) },
 		c.queries.DNSProxy.InvalidateAll,
-		c.queries.RunningConfig.InvalidateAll)
+		c.queries.RunningConfig.InvalidateAll,
+		c.markDirty)
 }
 
 // toleratesReplaceRoutes — поблажки смешанного батча. Ответ NDMS плоский:

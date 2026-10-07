@@ -14,20 +14,20 @@ import (
 )
 
 type WireguardCommands struct {
-	poster  Poster
-	save    *SaveCoordinator
-	queries *query.Queries
+	ndmsMutator
 }
 
+// NewWireguardCommands паникует на nil s (newMutator).
 func NewWireguardCommands(p Poster, s *SaveCoordinator, q *query.Queries) *WireguardCommands {
-	return &WireguardCommands{poster: p, save: s, queries: q}
+	return &WireguardCommands{ndmsMutator: newMutator(p, s, q)}
 }
 
 // SetASCParams sets the AmneziaWG ASC obfuscation parameters. The params
 // json.RawMessage must be a JSON object with string values for
 // jc/jmin/jmax/s1/s2 and hex strings for h1/h2/h3/h4 (OS ≥ 5.1 adds
 // s3/s4/i1-i5). Caller is responsible for firmware-appropriate field set.
-func (c *WireguardCommands) SetASCParams(ctx context.Context, name string, params json.RawMessage) error {
+func (c *WireguardCommands) SetASCParams(ctx context.Context, iface query.Confirmed, params json.RawMessage) error {
+	name := iface.Name()
 	var asc map[string]any
 	if err := json.Unmarshal(params, &asc); err != nil {
 		return fmt.Errorf("set asc params %s: parse: %w", name, err)
@@ -57,7 +57,8 @@ func (c *WireguardCommands) SetASCParams(ctx context.Context, name string, param
 // Форма ровно такая: структурный вид ({"asc":{"no":true}}) прошивка не
 // принимает, а эта строка отвечает «reset ASC parameters» (проверено на
 // 5.01.C.3.0-1).
-func (c *WireguardCommands) ResetASCParams(ctx context.Context, name string) error {
+func (c *WireguardCommands) ResetASCParams(ctx context.Context, iface query.Confirmed) error {
+	name := iface.Name()
 	payload := map[string]any{"parse": "interface " + name + " no wireguard asc"}
 	return postMutationChecked(ctx, c.poster, c.save, payload, "reset asc params "+name,
 		func() {
@@ -70,19 +71,21 @@ func (c *WireguardCommands) ResetASCParams(ctx context.Context, name string) err
 }
 
 // ImportResult holds the parsed outcome of a wireguard config import.
+// Created — созданный интерфейс, подтверждённый свежим списком (F546).
 // Intersects names a pre-existing interface the imported config collides
 // with (empty if none); Messages are the human-readable status[] lines the
 // router returned. Both are kept so the caller does not lose context even
 // on a successful import.
 type ImportResult struct {
-	Created    string
+	Created    query.Confirmed
 	Intersects string
 	Messages   []string
 }
 
 // ImportWireguardConfig uploads a .conf file to NDMS and returns the import
-// result, including the created NDMS interface name (e.g. "Wireguard1").
+// result, including the created NDMS interface (e.g. "Wireguard1").
 // confData is the raw .conf body (NOT base64 — encoded internally).
+// Созданное подтверждается свежим списком: он же кладёт запись в кэш (F546).
 func (c *WireguardCommands) ImportWireguardConfig(ctx context.Context, confData []byte, filename string) (ImportResult, error) {
 	encoded := base64.StdEncoding.EncodeToString(confData)
 	payload := map[string]any{
@@ -140,7 +143,11 @@ func (c *WireguardCommands) ImportWireguardConfig(ctx context.Context, confData 
 		}
 		return ImportResult{}, fmt.Errorf("import wireguard: router returned no created interface (intersects=%q; status: %s)", imp.Intersects, detail)
 	}
-	return ImportResult{Created: imp.Created, Intersects: imp.Intersects, Messages: msgs}, nil
+	conf, err := c.confirmCreated(ctx, imp.Created, true)
+	if err != nil {
+		return ImportResult{}, fmt.Errorf("import wireguard: %w", err) // имя уже в ошибке подтверждения
+	}
+	return ImportResult{Created: conf, Intersects: imp.Intersects, Messages: msgs}, nil
 }
 
 func (c *WireguardCommands) invalidateServer(name string) {
@@ -159,7 +166,8 @@ func (c *WireguardCommands) invalidateServer(name string) {
 }
 
 // AddPeer adds a peer to a WireGuard server interface.
-func (c *WireguardCommands) AddPeer(ctx context.Context, ifaceName, pubKey, psk, comment, peerIP string, enabled bool) error {
+func (c *WireguardCommands) AddPeer(ctx context.Context, iface query.Confirmed, pubKey, psk, comment, peerIP string, enabled bool) error {
+	ifaceName := iface.Name()
 	peer := map[string]any{
 		"key":           pubKey,
 		"preshared-key": psk,
@@ -189,7 +197,8 @@ func (c *WireguardCommands) AddPeer(ctx context.Context, ifaceName, pubKey, psk,
 // не терпим. Решает свежее чтение rc мимо кэша: пира с этим ключом нет —
 // цель достигнута (пир удалён в веб-морде); есть — исходный отказ; чтение
 // упало — отказ с ErrPeerPresenceUnknown. Один на оба пути (системный и managed).
-func (c *WireguardCommands) RemovePeer(ctx context.Context, ifaceName, pubKey string) error {
+func (c *WireguardCommands) RemovePeer(ctx context.Context, iface query.Confirmed, pubKey string) error {
+	ifaceName := iface.Name()
 	payload := map[string]any{
 		"interface": map[string]any{
 			ifaceName: map[string]any{
@@ -206,7 +215,7 @@ func (c *WireguardCommands) RemovePeer(ctx context.Context, ifaceName, pubKey st
 	if err == nil {
 		return nil
 	}
-	present, rerr := c.PeerPresent(ctx, ifaceName, pubKey)
+	present, rerr := c.PeerPresent(ctx, iface, pubKey)
 	if rerr != nil {
 		return fmt.Errorf("%w; %w: %v", err, ErrPeerPresenceUnknown, rerr)
 	}
@@ -220,16 +229,21 @@ func (c *WireguardCommands) RemovePeer(ctx context.Context, ifaceName, pubKey st
 // удалось: остался ли пир, неизвестно.
 var ErrPeerPresenceUnknown = errors.New("peer presence unknown")
 
-// freshPeer — пир с ключом на интерфейсе по свежему rc, мимо кэша; нет —
-// peersubnet.ErrPeerNotFound.
-func (c *WireguardCommands) freshPeer(ctx context.Context, ifaceName, pubKey string) (*ndms.WireguardServerPeerConfig, error) {
+// freshPeerIn — пир с ключом на подтверждённом интерфейсе по свежему rc, мимо
+// кэша; нет — peersubnet.ErrPeerNotFound. Список интерфейсов не перечитывается:
+// подтверждение у вызывающего одно на весь поток (F546).
+func (c *WireguardCommands) freshPeerIn(ctx context.Context, iface query.Confirmed, pubKey string) (*ndms.WireguardServerPeerConfig, error) {
 	if c.queries == nil || c.queries.WGServers == nil {
 		return nil, fmt.Errorf("wireguard server store not wired")
 	}
-	peers, err := c.queries.WGServers.PeersRCFresh(ctx, ifaceName)
+	peers, err := c.queries.WGServers.PeersRC(ctx, iface)
 	if err != nil {
 		return nil, err
 	}
+	return findPeer(peers, iface.Name(), pubKey)
+}
+
+func findPeer(peers []ndms.WireguardServerPeerConfig, ifaceName, pubKey string) (*ndms.WireguardServerPeerConfig, error) {
 	for i := range peers {
 		if peers[i].PublicKey == pubKey {
 			return &peers[i], nil
@@ -239,8 +253,8 @@ func (c *WireguardCommands) freshPeer(ctx context.Context, ifaceName, pubKey str
 }
 
 // PeerPresent — есть ли пир с ключом на интерфейсе по свежему rc.
-func (c *WireguardCommands) PeerPresent(ctx context.Context, ifaceName, pubKey string) (bool, error) {
-	if _, err := c.freshPeer(ctx, ifaceName, pubKey); err != nil {
+func (c *WireguardCommands) PeerPresent(ctx context.Context, iface query.Confirmed, pubKey string) (bool, error) {
+	if _, err := c.freshPeerIn(ctx, iface, pubKey); err != nil {
 		if errors.Is(err, peersubnet.ErrPeerNotFound) {
 			return false, nil
 		}
@@ -253,8 +267,8 @@ func (c *WireguardCommands) PeerPresent(ctx context.Context, ifaceName, pubKey s
 // такую операцию (allow-ips, comment, connect, preshared-key) на ключе,
 // которого на интерфейсе нет, NDMS принимает, СОЗДАВАЯ пира (стенд 5.02.A.11,
 // 28.09). Пира нет — peersubnet.ErrPeerNotFound, ни одного поста.
-func (c *WireguardCommands) requirePeer(ctx context.Context, ifaceName, pubKey string) error {
-	_, err := c.freshPeer(ctx, ifaceName, pubKey)
+func (c *WireguardCommands) requirePeer(ctx context.Context, iface query.Confirmed, pubKey string) error {
+	_, err := c.freshPeerIn(ctx, iface, pubKey)
 	if err != nil && !errors.Is(err, peersubnet.ErrPeerNotFound) {
 		return fmt.Errorf("check peer on router: %w", err)
 	}
@@ -264,8 +278,9 @@ func (c *WireguardCommands) requirePeer(ctx context.Context, ifaceName, pubKey s
 // SetPeerConnect enables or disables a peer. comment must carry the peer's
 // current name: a partial peer update without it makes NDMS wipe the stored
 // comment (psk/allow-ips survive, comment does not).
-func (c *WireguardCommands) SetPeerConnect(ctx context.Context, ifaceName, pubKey string, connect bool, comment string) error {
-	if err := c.requirePeer(ctx, ifaceName, pubKey); err != nil {
+func (c *WireguardCommands) SetPeerConnect(ctx context.Context, iface query.Confirmed, pubKey string, connect bool, comment string) error {
+	ifaceName := iface.Name()
+	if err := c.requirePeer(ctx, iface, pubKey); err != nil {
 		return err
 	}
 	peer := map[string]any{"key": pubKey, "connect": connect}
@@ -286,8 +301,9 @@ func (c *WireguardCommands) SetPeerConnect(ctx context.Context, ifaceName, pubKe
 }
 
 // SetPeerComment sets the description/comment for a peer.
-func (c *WireguardCommands) SetPeerComment(ctx context.Context, ifaceName, pubKey, comment string) error {
-	if err := c.requirePeer(ctx, ifaceName, pubKey); err != nil {
+func (c *WireguardCommands) SetPeerComment(ctx context.Context, iface query.Confirmed, pubKey, comment string) error {
+	ifaceName := iface.Name()
+	if err := c.requirePeer(ctx, iface, pubKey); err != nil {
 		return err
 	}
 	payload := map[string]any{
@@ -308,25 +324,27 @@ func (c *WireguardCommands) SetPeerComment(ctx context.Context, ifaceName, pubKe
 // UpdatePeerAllowIPs removes old /32 and sets a new one. Снятие старого
 // терпит `no such net in peer` (11.A/11.8): /32 уже может не стоять — после
 // отказа отката или правки мимо панели, и смена адреса иначе застревала бы.
-func (c *WireguardCommands) UpdatePeerAllowIPs(ctx context.Context, ifaceName, pubKey, oldIP, newIP string) error {
+func (c *WireguardCommands) UpdatePeerAllowIPs(ctx context.Context, iface query.Confirmed, pubKey, oldIP, newIP string) error {
 	if oldIP != "" {
-		if err := c.RemovePeerAllowIP(ctx, ifaceName, pubKey, oldIP, "255.255.255.255"); err != nil {
+		if err := c.RemovePeerAllowIP(ctx, iface, pubKey, oldIP, "255.255.255.255"); err != nil {
 			return fmt.Errorf("remove old allow-ips: %w", err)
 		}
 	}
-	return c.AddPeerAllowIP(ctx, ifaceName, pubKey, newIP, "255.255.255.255")
+	return c.AddPeerAllowIP(ctx, iface, pubKey, newIP, "255.255.255.255")
 }
 
 // AddPeerAllowIP добавляет одну сеть в allow-ips пира. Повтор на уже стоящей
 // сети NDMS принимает как успех — вызов идемпотентен (стенд 5.02.A.11, 27.09.2026).
-func (c *WireguardCommands) AddPeerAllowIP(ctx context.Context, ifaceName, pubKey, address, mask string) error {
+func (c *WireguardCommands) AddPeerAllowIP(ctx context.Context, iface query.Confirmed, pubKey, address, mask string) error {
+	ifaceName := iface.Name()
 	return postMutationChecked(ctx, c.poster, c.save, peerAllowIPPayload(ifaceName, pubKey, address, mask, false),
 		"add peer allow-ips "+ifaceName, func() { c.invalidateServer(ifaceName) })
 }
 
 // RemovePeerAllowIP снимает одну сеть. Отсутствующую NDMS отвергает фразой
 // `no such net in peer` — для снятия и отката это цель, а не отказ.
-func (c *WireguardCommands) RemovePeerAllowIP(ctx context.Context, ifaceName, pubKey, address, mask string) error {
+func (c *WireguardCommands) RemovePeerAllowIP(ctx context.Context, iface query.Confirmed, pubKey, address, mask string) error {
+	ifaceName := iface.Name()
 	return postMutationCheckedTolerant(ctx, c.poster, c.save, peerAllowIPPayload(ifaceName, pubKey, address, mask, true),
 		"remove peer allow-ips "+ifaceName, isNoSuchNetInPeer, func() { c.invalidateServer(ifaceName) })
 }

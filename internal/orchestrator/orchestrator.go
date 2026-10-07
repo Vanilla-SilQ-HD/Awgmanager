@@ -10,6 +10,7 @@ import (
 	"github.com/hoaxisr/awg-manager/internal/events"
 	"github.com/hoaxisr/awg-manager/internal/logging"
 	"github.com/hoaxisr/awg-manager/internal/ndms"
+	"github.com/hoaxisr/awg-manager/internal/ndms/query"
 	"github.com/hoaxisr/awg-manager/internal/storage"
 	"github.com/hoaxisr/awg-manager/internal/tunnel"
 	"github.com/hoaxisr/awg-manager/internal/tunnel/nwg"
@@ -18,15 +19,21 @@ import (
 	"github.com/hoaxisr/awg-manager/internal/tunnel/wan"
 )
 
-// expectedHookTTL bounds how long a self-induced NDMS hook expectation
-// stays valid. Past it, the token is pruned so a stale expectation can't
-// absorb a later, legitimate external edge.
-const expectedHookTTL = 15 * time.Second
+// Окно quiescence (В6): стенд 01.10, KN-1810 5.01.C.6, 16 замеров опоздания
+// хуков под churn 14–30 с, max ≈30 с; окно = max × 1,5. Внешняя грань
+// conf=disabled внутри окна не теряется: поглощённая грань перепроверяется
+// при истечении окна (recheckAbsorbedDisabled), остаток — задержка до 45 с.
+// Свои грани conf окно не ловит — их отсеивает кредит (Event.Own, П21/П22);
+// окно — для грани, которую NDMS даёт сам, пока поднимает интерфейс.
 
-// bootQuiescenceWindow is how long after we (re)start a NativeWG tunnel we
+// bootQuiescenceWindow is how long after we (re)start a tunnel we
 // treat an incoming conf=disabled as transient NDMS settling rather than a
-// stop command. See decideNDMSHook + updateState.
-const bootQuiescenceWindow = 20 * time.Second
+// stop command. See decideNDMSHook + updateState + recheckAbsorbedDisabled.
+const bootQuiescenceWindow = 45 * time.Second
+
+// absorbedRecheckTimeout — потолок фоновой перепроверки поглощённой грани:
+// ожидание замка туннеля, проба NDMS и остановка.
+const absorbedRecheckTimeout = 30 * time.Second
 
 // confSettleDelay is how long an external conf=disabled edge is held before it
 // is acted on, waiting to see whether NDMS bounces the interface back to
@@ -89,10 +96,6 @@ type Orchestrator struct {
 	// tunnelLockOwner: tunnelID -> lockHolder, кто держит tunnelMu.
 	tunnelLockOwner sync.Map
 
-	// Expected NDMS hooks — queue of hooks our own actions will trigger.
-	// Consumed in HandleEvent to filter self-triggered iflayerchanged events.
-	expectedHooks []expectedHook
-
 	// Executors (no decision logic, only execution)
 	store    *storage.AWGTunnelStore
 	kernelOp ops.Operator
@@ -126,6 +129,10 @@ type Orchestrator struct {
 	// confSettleDelay overrides the package const; injectable for tests.
 	confSettleDelay time.Duration
 
+	// schedule откладывает вызов fn на d; nil → time.AfterFunc. Как clock —
+	// ставится тестом до первого события и дальше не меняется.
+	schedule func(d time.Duration, fn func())
+
 	// confLayerRunning (пишется и читается под o.mu — у остальных Set*-полей
 	// контракт слабее: они ставятся однократно в setupOrchestrator до приёма
 	// событий и дальше не меняются) reads the
@@ -134,6 +141,11 @@ type Orchestrator struct {
 	// conf=disabled перед остановкой и conf=running перед подъёмом.
 	// Ошибка значит «не знаем» — грань остаётся в силе. nil → check skipped.
 	confLayerRunning func(ctx context.Context, ndmsName string) (bool, error)
+
+	// recordPresent (под o.mu, как confLayerRunning) — есть ли запись
+	// ndmsName в СВЕЖЕМ полном списке NDMS. Им перепроверяется ifdestroyed
+	// перед остановкой (F569, R31). nil → проверка пропущена.
+	recordPresent func(ctx context.Context, ndmsName string) (bool, error)
 
 	// ifaceInvalidator, when set, refreshes the NDMS interface cache for a
 	// kernel tunnel's NDMS name on its confirmed "running" transition (#328).
@@ -223,6 +235,14 @@ func (o *Orchestrator) SetConfLayerProbe(fn func(ctx context.Context, ndmsName s
 	o.confLayerRunning = fn
 }
 
+// SetRecordPresenceProbe wires the fresh full-list check of an NDMS record
+// (Interfaces.Confirm). nil-safe: без пробы ifdestroyed принимается как есть.
+func (o *Orchestrator) SetRecordPresenceProbe(fn func(ctx context.Context, ndmsName string) (bool, error)) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.recordPresent = fn
+}
+
 // SetSupportsASC sets the ASC support flag.
 func (o *Orchestrator) SetSupportsASC(fn func() bool) {
 	o.mu.Lock()
@@ -241,8 +261,8 @@ func (o *Orchestrator) SetSupportsASC(fn func() bool) {
 // the next lifecycle event and triggers NDMS "interface has no
 // assigned profile" warnings.
 //
-// Runtime-only fields (Running, Monitoring, quiescentUntil)
-// live only in the orchestrator's cache, so they are preserved across
+// Runtime-only fields (Running, Monitoring, quiescentUntil,
+// lastConfRunningAt, absorbedDisabledAt, recheckScheduled) live only in the orchestrator's cache, so they are preserved across
 // the refresh — reloading them from storage would clobber the action
 // layer's view of the world.
 func (o *Orchestrator) RefreshTunnelState(tunnelID string) {
@@ -259,6 +279,8 @@ func (o *Orchestrator) RefreshTunnelState(tunnelID string) {
 		fresh.Monitoring = cur.Monitoring
 		fresh.quiescentUntil = cur.quiescentUntil
 		fresh.lastConfRunningAt = cur.lastConfRunningAt
+		fresh.absorbedDisabledAt = cur.absorbedDisabledAt
+		fresh.recheckScheduled = cur.recheckScheduled
 	}
 	o.state.tunnels[tunnelID] = fresh
 }
@@ -300,13 +322,6 @@ func (o *Orchestrator) LoadState(ctx context.Context) {
 	}
 }
 
-// expectedHook represents an NDMS hook we expect from our own actions.
-type expectedHook struct {
-	ndmsName  string
-	level     string
-	expiresAt time.Time
-}
-
 // nowFn returns the current time, honouring an injected clock in tests.
 func (o *Orchestrator) nowFn() time.Time {
 	if o.clock != nil {
@@ -315,50 +330,24 @@ func (o *Orchestrator) nowFn() time.Time {
 	return time.Now()
 }
 
-// ExpectHook registers an expected NDMS hook (implements tunnel.HookNotifier).
-// Called by operators before InterfaceUp/Down. The expectation expires after
-// expectedHookTTL so a stale token cannot absorb an unrelated later edge.
-func (o *Orchestrator) ExpectHook(ndmsName, level string) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.expectedHooks = append(o.expectedHooks, expectedHook{
-		ndmsName:  ndmsName,
-		level:     level,
-		expiresAt: o.nowFn().Add(expectedHookTTL),
-	})
-}
-
-// consumeExpectedHook checks if an NDMS hook matches a non-expired expected
-// one. It first prunes expired expectations, then removes and returns true on
-// the first matching live entry.
-func (o *Orchestrator) consumeExpectedHook(ndmsName, level string) bool {
-	now := o.nowFn()
-	kept := o.expectedHooks[:0]
-	for _, h := range o.expectedHooks {
-		if !now.Before(h.expiresAt) {
-			continue
-		}
-		kept = append(kept, h)
-	}
-	o.expectedHooks = kept
-
-	for i, h := range o.expectedHooks {
-		if h.ndmsName == ndmsName && h.level == level {
-			o.expectedHooks = append(o.expectedHooks[:i], o.expectedHooks[i+1:]...)
-			return true
-		}
-	}
-	return false
-}
-
 // noteConfRunning records an external conf=running edge so a conf=disabled
 // still settling can recognise it as an NDMS interface restart.
-func (o *Orchestrator) noteConfRunning(ndmsName string) {
+func (o *Orchestrator) noteConfRunning(ndmsName string, at time.Time) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if t := o.state.findByNDMSName(ndmsName); t != nil {
-		t.lastConfRunningAt = o.nowFn()
+	// Только вперёд: штамп — момент прихода, а записи идут в порядке выхода
+	// из ожиданий; старый running, отпущенный позже, не откатывает новый.
+	if t := o.state.findByNDMSName(ndmsName); t != nil && at.After(t.lastConfRunningAt) {
+		t.lastConfRunningAt = at
 	}
+}
+
+// settleDelay — confSettleDelay с подменой из теста.
+func (o *Orchestrator) settleDelay() time.Duration {
+	if o.confSettleDelay > 0 {
+		return o.confSettleDelay
+	}
+	return confSettleDelay
 }
 
 // settleConfDisabled reports whether an external conf=disabled edge should be
@@ -395,11 +384,7 @@ func (o *Orchestrator) settleConfDisabled(ctx context.Context, event Event) bool
 	tunnelID := t.ID
 	o.mu.Unlock()
 
-	delay := o.confSettleDelay
-	if delay <= 0 {
-		delay = confSettleDelay
-	}
-	timer := time.NewTimer(delay)
+	timer := time.NewTimer(o.settleDelay())
 	defer timer.Stop()
 	select {
 	case <-timer.C:
@@ -436,6 +421,54 @@ func (o *Orchestrator) settleConfDisabled(ctx context.Context, event Event) bool
 	o.appLog.Info("conf-settle", tunnelID,
 		"NDMS держит интерфейс включённым — перезапуск в NDMS, туннель не останавливаем")
 	return false
+}
+
+// handleIfDestroyed — ifdestroyed записи нашего работающего kernel-туннеля.
+// Хук опаздывает (стенд — до ~7 с), и за это окно Restart/ColdStart мог уже
+// пересоздать запись — остановка по устаревшему хуку молча сняла бы Enabled.
+// Поэтому проверка свежим списком, решение и остановка идут ПОД per-tunnel
+// замком — тем же, которым сериализованы Start/Restart/ColdStart: запись не
+// может появиться между проверкой и Stop. Запись есть — хук устарел,
+// игнорируем. Список не прочитан — тоже НЕ останавливаем (R31): остановка на
+// неопределённости выключила бы туннель пользователя без его ведома; хуже,
+// чем пропустить снятие, которое вскроет следующий Stop/Start (Stop снесёт
+// устройство, старт пересоздаст запись). Чужие и остановленные туннели — без
+// замка и без чтения списка: decide для них ничего не делает.
+func (o *Orchestrator) handleIfDestroyed(ctx context.Context, event Event) error {
+	o.mu.Lock()
+	t := o.state.findByNDMSName(event.NDMSName)
+	o.mu.Unlock()
+	if t == nil || t.Backend != "kernel" || !t.Running {
+		return nil
+	}
+	tunnelID := t.ID
+	if err := o.lockTunnel(ctx, tunnelID, event.Type.String()); err != nil {
+		return err
+	}
+	defer o.unlockTunnel(tunnelID)
+
+	o.mu.Lock()
+	probe := o.recordPresent
+	o.mu.Unlock()
+	if probe != nil {
+		present, err := probe(ctx, event.NDMSName)
+		if err != nil {
+			o.appLog.Warn("ifdestroyed", tunnelID,
+				fmt.Sprintf("запись %s: список NDMS не прочитан (%v) — туннель не останавливаем", event.NDMSName, err))
+			return nil
+		}
+		if present {
+			o.appLog.Info("ifdestroyed", tunnelID,
+				fmt.Sprintf("запись %s уже есть в NDMS — хук ifdestroyed устарел, игнорируем", event.NDMSName))
+			return nil
+		}
+	}
+	if event.Now.IsZero() {
+		event.Now = o.nowFn()
+	}
+	// decide — под тем же замком: Running мог смениться, пока ждали замок.
+	actions, _, _ := o.decideLocked(event)
+	return o.executeActions(ctx, actions)
 }
 
 // settleConfRunning — зеркало settleConfDisabled для грани conf=running.
@@ -556,20 +589,31 @@ func (o *Orchestrator) decideLocked(event Event) (actions []Action, deferredBoot
 }
 
 func (o *Orchestrator) HandleEvent(ctx context.Context, event Event) error {
-	// Filter self-triggered NDMS hooks before decide.
-	// Our operators register expected hooks before InterfaceUp/Down.
-	if event.Type == EventNDMSHook {
-		o.mu.Lock()
-		consumed := o.consumeExpectedHook(event.NDMSName, event.Level)
-		o.mu.Unlock()
-		if consumed {
-			o.appLog.Debug("boot-trace", event.NDMSName,
-				fmt.Sprintf("expected-hook consumed level=%s", event.Level))
+	// Свой хук — вердикт точки входа spool по кредиту (Event.Own, П22): грань
+	// conf нашей команды up:true/false и ifdestroyed нашего `no interface`.
+	// Кредит выдан до POST, хук приходит после — проверка окончательна,
+	// повторной после замка нет.
+	if event.Own && event.Type == EventNDMSHook && event.Layer == "conf" {
+		o.appLog.Debug("boot-trace", event.NDMSName,
+			fmt.Sprintf("conf=%s: свой (кредит)", event.Level))
+		return nil
+	}
+	if event.Type == EventNDMSIfDestroyed {
+		if event.Own {
+			o.appLog.Debug("ifdestroyed", event.NDMSName, "ifdestroyed: свой (кредит)")
 			return nil
 		}
+		return o.handleIfDestroyed(ctx, event)
 	}
 
 	if event.Type == EventNDMSHook && event.Layer == "conf" {
+		// Момент прихода грани — до ожиданий awaitTunnelIdle/settle: штамп
+		// conf=running, поставленный после них, обгонял бы грань disabled,
+		// пришедшую ПОЗЖЕ running, и та сходила бы за «bounce».
+		arrived := event.Now
+		if arrived.IsZero() {
+			arrived = o.nowFn()
+		}
 		switch event.Level {
 		case "running":
 			// Ждали своей же операции — спрашивать NDMS бесполезно: он
@@ -583,7 +627,7 @@ func (o *Orchestrator) HandleEvent(ctx context.Context, event Event) error {
 			// устояла: по нему settleConfDisabled отличает перезапуск
 			// интерфейса в NDMS от настоящего выключения, и опровергнутая
 			// грань подавляла бы там законную остановку.
-			o.noteConfRunning(event.NDMSName)
+			o.noteConfRunning(event.NDMSName, arrived)
 		case "disabled":
 			if !o.settleConfDisabled(ctx, event) {
 				return nil
@@ -601,6 +645,9 @@ func (o *Orchestrator) HandleEvent(ctx context.Context, event Event) error {
 	if deferredBoot && baseCtx != nil {
 		execCtx = baseCtx
 	}
+	// Один список интерфейсов на все подтверждения события, включая бут по
+	// всем туннелям (F557): между действиями событий — заново.
+	execCtx = query.WithActionList(execCtx)
 
 	o.mu.Lock()
 	// conf=disabled detail: тот же резолвер, что decideNDMSHook —
@@ -621,6 +668,13 @@ func (o *Orchestrator) HandleEvent(ctx context.Context, event Event) error {
 			} else {
 				o.appLog.Debug("boot-trace", t.ID,
 					fmt.Sprintf("conf=disabled suppressed sinceStart=%s windowLeft=%s", sinceStart.Round(time.Second), windowLeft.Round(time.Second)))
+				// П13: грань могла быть внешней — окно её только откладывает.
+				t.absorbedDisabledAt = event.Now
+				if !t.recheckScheduled {
+					t.recheckScheduled = true
+					tunnelID, ndmsName := t.ID, event.NDMSName
+					o.scheduleFn(o.recheckDue(t).Sub(event.Now), func() { o.recheckAbsorbedDisabled(tunnelID, ndmsName) })
+				}
 			}
 		}
 	}
@@ -657,6 +711,129 @@ func (o *Orchestrator) HandleEvent(ctx context.Context, event Event) error {
 	}
 	defer o.unlockTunnel(tunnelID)
 	return o.executeActions(execCtx, actions)
+}
+
+// scheduleFn — o.schedule или time.AfterFunc.
+func (o *Orchestrator) scheduleFn(d time.Duration, fn func()) {
+	if o.schedule != nil {
+		o.schedule(d, fn)
+		return
+	}
+	time.AfterFunc(d, fn)
+}
+
+// recheckDue — срок перепроверки поглощённой грани: конец окна, но не
+// раньше выдержки settle от самой грани (M2 финального ревью F595). Грань в
+// последние секунды окна без выдержки пробовалась бы посреди рестарта
+// интерфейса (#667: disabled→running за ~2 с) — ложная остановка, которой
+// у внешней грани вне окна нет (settleConfDisabled). Вызывать под o.mu.
+func (o *Orchestrator) recheckDue(t *tunnelState) time.Time {
+	due := t.quiescentUntil
+	if settled := t.absorbedDisabledAt.Add(o.settleDelay()); settled.After(due) {
+		due = settled
+	}
+	return due
+}
+
+// recheckAbsorbedDisabled — единственная перепроверка грани conf=disabled,
+// поглощённой окном quiescence (П13, В6). Окно гасит дрожание NDMS после
+// нашего же подъёма, но ровно так же глотало бы и настоящее внешнее
+// выключение в первые 45 с — туннель остался бы Running при выключенном
+// интерфейсе. Поэтому при истечении окна: conf=running после грани — NDMS
+// вернул интерфейс сам, 0 RCI; иначе одна проба. down — остановка как от
+// внешней грани (Q1: Enabled=false); ошибка пробы — не останавливаем (R31).
+//
+// Всё под замком туннеля, действия — executeActions: замок уже взят,
+// executeActionsGrouped взял бы тот же семафор второй раз и через
+// tunnelLockTimeout упал бы ErrOperationInProgress (L1′(b)).
+func (o *Orchestrator) recheckAbsorbedDisabled(tunnelID, ndmsName string) {
+	// Контекст жизни демона, как у отложенного бута: на выходе демона
+	// перепроверка не начнёт остановку. Без него (тесты, демон до
+	// SetBaseContext) — context.Background().
+	o.mu.Lock()
+	base := o.baseCtx
+	o.mu.Unlock()
+	if base == nil {
+		base = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(base, absorbedRecheckTimeout)
+	defer cancel()
+	if err := o.lockTunnel(ctx, tunnelID, "recheck-absorbed-disabled"); err != nil {
+		// Метка остаётся, переноса нет (L1′(c)). Подъём/остановка под этим
+		// замком метку сбросят или сделают ненужной, но замок держат и
+		// владельцы, которые её не трогают (service.Update, endpoint-страж
+		// nwg): держат дольше tunnelLockTimeout — поглощённая грань потеряна
+		// до следующей (остаток В6 в трекере). Таймера больше нет — флаг
+		// снимаем, чтобы он не врал.
+		o.mu.Lock()
+		if t := o.state.tunnels[tunnelID]; t != nil {
+			t.recheckScheduled = false
+		}
+		o.mu.Unlock()
+		o.appLog.Warn("conf-recheck", tunnelID, fmt.Sprintf("перепроверка грани: туннель занят (%v)", err))
+		return
+	}
+	defer o.unlockTunnel(tunnelID)
+
+	now := o.nowFn()
+	o.mu.Lock()
+	t := o.state.tunnels[tunnelID]
+	if t == nil {
+		o.mu.Unlock()
+		return
+	}
+	t.recheckScheduled = false
+	if !t.Running || t.absorbedDisabledAt.IsZero() {
+		o.mu.Unlock()
+		return
+	}
+	if due := o.recheckDue(t); now.Before(due) {
+		// Окно продлено (повторный подъём/reconcile) или грань моложе
+		// выдержки settle — решать на сроке.
+		t.recheckScheduled = true
+		o.scheduleFn(due.Sub(now), func() { o.recheckAbsorbedDisabled(tunnelID, ndmsName) })
+		o.mu.Unlock()
+		return
+	}
+	if t.lastConfRunningAt.After(t.absorbedDisabledAt) {
+		t.absorbedDisabledAt = time.Time{}
+		o.mu.Unlock()
+		o.appLog.Info("conf-recheck", tunnelID,
+			"поглощённая грань conf=disabled сменилась на conf=running — туннель не останавливаем")
+		return
+	}
+	probe := o.confLayerRunning
+	o.mu.Unlock()
+	if probe == nil {
+		return
+	}
+
+	up, err := probe(ctx, ndmsName)
+	if err != nil {
+		o.appLog.Warn("conf-recheck", tunnelID,
+			fmt.Sprintf("поглощённая грань conf=disabled: NDMS не прочитан (%v) — туннель не останавливаем", err))
+		return
+	}
+	if !up {
+		actions, _, _ := o.decideLocked(Event{Type: EventNDMSHook, NDMSName: ndmsName, Layer: "conf", Level: "disabled", Now: now})
+		if err := o.executeActions(query.WithActionList(ctx), actions); err != nil {
+			// Как ошибка пробы: повтора нет, метка снимается. Остаток В6 —
+			// туннель мог остаться Running при выключенном в NDMS интерфейсе
+			// до следующей грани или действия пользователя.
+			o.appLog.Warn("conf-recheck", tunnelID,
+				fmt.Sprintf("поглощённая грань conf=disabled подтверждена NDMS, остановка не удалась: %v", err))
+		} else {
+			o.appLog.Info("conf-recheck", tunnelID, "поглощённая грань conf=disabled подтверждена NDMS — остановка")
+		}
+	} else {
+		o.appLog.Info("conf-recheck", tunnelID,
+			"поглощённая грань conf=disabled: NDMS держит интерфейс включённым — туннель не останавливаем")
+	}
+	o.mu.Lock()
+	if t := o.state.tunnels[tunnelID]; t != nil {
+		t.absorbedDisabledAt = time.Time{}
+	}
+	o.mu.Unlock()
 }
 
 // tunnelLockTimeout bounds how long a caller waits for a busy tunnel's
@@ -777,7 +954,15 @@ func (o *Orchestrator) unlockTunnel(tunnelID string) {
 // Updates state cache after each successful action.
 func (o *Orchestrator) executeActions(ctx context.Context, actions []Action) error {
 	var firstErr error
+	// Туннели, чей Start в этом прогоне отказал: их хвост (маршруты на
+	// WireguardN/OpkgTunN, ping-check, PersistRunning) не исполняется — он
+	// адресовал бы команды интерфейсу, которого нет (E в журнале ndm), и
+	// записал бы Enabled/StartedAt не поднятому туннелю (F546, решение 3).
+	failedStart := map[string]bool{}
 	for _, action := range actions {
+		if failedStart[action.Tunnel] {
+			continue
+		}
 		// Abandoned caller (client disconnected / request deadline) — stop
 		// BETWEEN actions, never mid-action, so each executed step is whole.
 		// Any partially-applied sequence is healed by the reconcile loop;
@@ -793,6 +978,9 @@ func (o *Orchestrator) executeActions(ctx context.Context, actions []Action) err
 			o.appLog.Warn("execute-action", action.Tunnel, fmt.Sprintf("action type %d failed: %s", action.Type, err.Error()))
 			if firstErr == nil {
 				firstErr = err
+			}
+			if action.Type == ActionStartNativeWG || action.Type == ActionColdStartKernel {
+				failedStart[action.Tunnel] = true
 			}
 			// Continue for boot/reconnect (best-effort), stop for user actions
 			// TODO: refine error strategy in Phase 2 execute implementation
@@ -877,6 +1065,9 @@ func (o *Orchestrator) updateState(action Action) {
 	case ActionColdStartKernel, ActionStartNativeWG, ActionReconcileNativeWG, ActionReconcileKernel, ActionResumeKernel:
 		t.Running = true
 		t.quiescentUntil = o.nowFn().Add(bootQuiescenceWindow)
+		// Новое окно — грань прошлого подъёма к нему не относится (L1′(d)).
+		t.absorbedDisabledAt = time.Time{}
+		t.recheckScheduled = false
 		o.appLog.Debug("boot-trace", t.ID, fmt.Sprintf("tunnel-start action=%d", action.Type))
 		// Refresh ActiveWAN from store. Execute layer persists the resolved
 		// WAN; we mirror it into the in-memory cache so decideWANDown can
@@ -917,9 +1108,10 @@ func (o *Orchestrator) updateState(action Action) {
 			// OpkgTun, so the cache invalidate done at InterfaceUp can snapshot
 			// a pre-"running" layer and then never get corrected — leaving
 			// List* readers (policies/WAN/all) with a frozen "down" (#328).
-			// Re-refresh now that the start sequence is fully complete and the
-			// layer has had time to settle. nwg self-invalidates on its own
-			// path (and uses a different NDMS name), so skip it.
+			// Mark the cache dirty now that the start sequence is complete and
+			// the layer has had time to settle: the next List*/Get/snapshot
+			// reader takes one fresh list (F546). nwg marks it itself after its
+			// batches (postIfaceBatch), so skip it.
 			if o.ifaceInvalidator != nil && t.Backend == "kernel" {
 				if ndmsName := tunnel.NewNames(t.ID).NDMSName; ndmsName != "" {
 					o.ifaceInvalidator(ndmsName)
