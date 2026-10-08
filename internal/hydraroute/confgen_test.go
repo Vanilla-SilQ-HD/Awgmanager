@@ -1,6 +1,7 @@
 package hydraroute
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -55,7 +56,7 @@ func TestGenerateIPList_Basic(t *testing.T) {
 			Iface:    "Wireguard0",
 		},
 	}
-	got := GenerateIPList(lists)
+	got := GenerateIPList(lists, nil)
 
 	mustContain(t, got, "## Telegram")
 	mustContain(t, got, "/Wireguard0")
@@ -71,7 +72,7 @@ func TestGenerateIPList_GeoIPTag(t *testing.T) {
 			Iface:    "Wireguard2",
 		},
 	}
-	got := GenerateIPList(lists)
+	got := GenerateIPList(lists, nil)
 
 	mustContain(t, got, "## Russia")
 	mustContain(t, got, "/Wireguard2")
@@ -86,11 +87,39 @@ func TestGenerateIPList_DisabledUsesHRNeoFormat(t *testing.T) {
 	got := GenerateIPList([]ManagedEntry{
 		{ListName: "Off", Subnets: []string{"10.0.0.0/8", "geoip:RU"}, Iface: "nwg0", Disabled: true},
 		{ListName: "On", Subnets: []string{"91.108.4.0/22"}, Iface: "nwg1"},
-	})
+	}, nil)
 	want := "## Off\n#/nwg0\n10.0.0.0/8\ngeoip:RU\n\n" +
 		"## On\n/nwg1\n91.108.4.0/22\n\n"
 	if got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// TestGenerateIPList_OversizedSection — #1025: служебный раздел HR Neo
+// пишется в его формате: после пустой строки, теги строчными, без повторов.
+func TestGenerateIPList_OversizedSection(t *testing.T) {
+	got := GenerateIPList([]ManagedEntry{
+		{ListName: "On", Subnets: []string{"91.108.4.0/22"}, Iface: "nwg1"},
+	}, []string{"geoip:RU-blocked", "geoip:ru-blocked", "geoip:cn"})
+	want := "## On\n/nwg1\n91.108.4.0/22\n\n" +
+		"##impossible to use\n#/Too-big-geoip-tag\ngeoip:ru-blocked\ngeoip:cn\n"
+	if got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+
+	if got := GenerateIPList(nil, []string{"geoip:cn"}); got != "##impossible to use\n#/Too-big-geoip-tag\ngeoip:cn\n" {
+		t.Errorf("only oversized: %q", got)
+	}
+	if got := GenerateIPList(nil, nil); got != "" {
+		t.Errorf("nothing to write: %q", got)
+	}
+
+	// Чтение возвращает те же правила и теги.
+	entries, oversized := parseIPList(GenerateIPList([]ManagedEntry{
+		{ListName: "Off", Subnets: []string{"10.0.0.0/8"}, Iface: "nwg0", Disabled: true},
+	}, []string{"geoip:cn"}))
+	if len(entries) != 1 || !entries[0].Disabled || !reflect.DeepEqual(oversized, []string{"geoip:cn"}) {
+		t.Errorf("roundtrip: entries=%+v oversized=%v", entries, oversized)
 	}
 }
 

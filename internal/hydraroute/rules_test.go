@@ -238,6 +238,48 @@ func TestListRules_SplitsRulesFromOversizedServiceBlock(t *testing.T) {
 	}
 }
 
+// #1025: HR Neo убирает слишком большой geoip-тег из правила и хранит его
+// только в служебном разделе. Любая запись ip.list из AWG Manager обязана
+// этот раздел сохранить — иначе тег теряется насовсем.
+func TestRuleWrites_KeepOversizedServiceSection(t *testing.T) {
+	const seed = "## 2ip\n" +
+		"/HydraRoute\n" +
+		"geoip:RU\n" +
+		"\n" +
+		"##impossible to use\n" +
+		"#/Too-big-geoip-tag\n" +
+		"geoip:ru-blocked\n"
+	for name, write := range map[string]func(*Service) error{
+		"create": func(s *Service) error {
+			_, err := s.CreateRule(HRRule{Name: "New", Subnets: []string{"10.0.0.0/8"}, Target: "nwg0"})
+			return err
+		},
+		"update": func(s *Service) error {
+			_, err := s.UpdateRule("2ip", HRRule{Name: "2ip", Subnets: []string{"geoip:RU", "1.1.1.0/24"}, Target: "HydraRoute"})
+			return err
+		},
+		"disable": func(s *Service) error { return s.SetRuleEnabled("2ip", false) },
+		"delete":  func(s *Service) error { return s.DeleteRule("2ip") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			svc, _, ipPath := setupRuleFiles(t)
+			if err := os.WriteFile(ipPath, []byte(seed), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := write(svc); err != nil {
+				t.Fatal(err)
+			}
+			_, oversized, err := svc.ListRules()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want := []string{"geoip:ru-blocked"}; !reflect.DeepEqual(oversized, want) {
+				t.Errorf("oversized after %s = %v, want %v\nip.list:\n%s", name, oversized, want, readFileOrEmpty(t, ipPath))
+			}
+		})
+	}
+}
+
 func TestSetRuleEnabled_WritesCommentAndRoundtrip(t *testing.T) {
 	svc, domainPath, _ := setupRuleFiles(t)
 
