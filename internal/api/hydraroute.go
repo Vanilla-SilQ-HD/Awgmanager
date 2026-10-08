@@ -736,6 +736,7 @@ func (h *HydraRouteHandler) GetOversizedTags(w http.ResponseWriter, r *http.Requ
 //	@Success		200		{object}	OkResponse
 //	@Failure		400		{object}	APIErrorEnvelope
 //	@Failure		404		{object}	APIErrorEnvelope
+//	@Failure		500		{object}	APIErrorEnvelope
 //	@Router			/hydraroute/oversized-tags/delete [delete]
 func (h *HydraRouteHandler) DeleteOversizedTag(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
@@ -754,7 +755,7 @@ func (h *HydraRouteHandler) DeleteOversizedTag(w http.ResponseWriter, r *http.Re
 			response.ErrorWithStatus(w, http.StatusNotFound, err.Error(), "TAG_NOT_FOUND")
 			return
 		}
-		response.Error(w, err.Error(), "OVERSIZED_ERROR")
+		response.InternalError(w, err.Error())
 		return
 	}
 

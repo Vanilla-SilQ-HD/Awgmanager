@@ -25,6 +25,13 @@
 			pendingRemove = null;
 			onremoved?.();
 		} catch (e: unknown) {
+			// 404 — тега в разделе уже нет (убран в другой вкладке): цель
+			// достигнута, просто перечитываем список.
+			if ((e as { status?: number }).status === 404) {
+				pendingRemove = null;
+				onremoved?.();
+				return;
+			}
 			notifications.error(e instanceof Error ? e.message : String(e));
 		} finally {
 			removing = false;

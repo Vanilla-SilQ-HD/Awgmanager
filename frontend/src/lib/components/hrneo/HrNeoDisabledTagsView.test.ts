@@ -51,4 +51,21 @@ describe('HrNeoDisabledTagsView', () => {
 		expect(onremoved).not.toHaveBeenCalled();
 		expect(screen.getByRole('dialog')).toBeTruthy();
 	});
+
+	it('404 — тег уже убран: окно закрывается, список перечитывается без ошибки', async () => {
+		vi.mocked(api.deleteHydraRouteOversizedTag).mockRejectedValue(
+			Object.assign(new Error('tag is not in the disabled tags list'), { status: 404 }),
+		);
+		const onremoved = vi.fn();
+		render(HrNeoDisabledTagsView, { props: { tags, maxelem: 65536, onremoved } });
+
+		await fireEvent.click(screen.getAllByRole('button', { name: 'Убрать' })[0]);
+		const dialog = screen.getByRole('dialog');
+		const confirm = Array.from(dialog.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Убрать');
+		await fireEvent.click(confirm!);
+
+		await waitFor(() => expect(onremoved).toHaveBeenCalledOnce());
+		expect(notifications.error).not.toHaveBeenCalled();
+		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+	});
 });
