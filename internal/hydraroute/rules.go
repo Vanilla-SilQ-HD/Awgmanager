@@ -224,6 +224,9 @@ func validateRule(r HRRule) error {
 	if strings.TrimSpace(r.Name) == "" {
 		return fmt.Errorf("rule name must not be empty")
 	}
+	if strings.EqualFold(strings.TrimSpace(r.Name), oversizedSectionName) {
+		return fmt.Errorf("rule name %q is reserved by HydraRoute Neo", oversizedSectionName)
+	}
 	if r.Target == "" {
 		return fmt.Errorf("rule target (interface or policy) must not be empty")
 	}

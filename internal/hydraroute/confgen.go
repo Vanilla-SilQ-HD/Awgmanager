@@ -103,8 +103,9 @@ func atomicWrite(filePath, content string) error {
 }
 
 // writeOversizedSection appends HR Neo's service section in its own format
-// (cidrfile_migrate_oversized in HR Neo's geodat.c): a blank line before it,
-// tags lower-cased and without duplicates. Nothing is written without tags.
+// (cidrfile_migrate_oversized in HR Neo's geodat.c): tags lower-cased and
+// without duplicates. Every rule block already ends with a blank line, so the
+// section needs no separator of its own. Nothing is written without tags.
 func writeOversizedSection(sb *strings.Builder, tags []string) {
 	seen := make(map[string]bool, len(tags))
 	first := true
@@ -115,10 +116,7 @@ func writeOversizedSection(sb *strings.Builder, tags []string) {
 		}
 		seen[t] = true
 		if first {
-			if sb.Len() > 0 && !strings.HasSuffix(sb.String(), "\n\n") {
-				sb.WriteByte('\n')
-			}
-			sb.WriteString("##impossible to use\n#/Too-big-geoip-tag\n")
+			fmt.Fprintf(sb, "##%s\n#/%s\n", oversizedSectionName, oversizedSectionTarget)
 			first = false
 		}
 		sb.WriteString(t)

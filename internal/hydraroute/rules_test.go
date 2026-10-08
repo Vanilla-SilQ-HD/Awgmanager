@@ -373,3 +373,18 @@ func readFileOrEmpty(t *testing.T, path string) string {
 	}
 	return string(data)
 }
+
+// Имя служебного раздела HR Neo занято: такое правило после выключения
+// читалось бы как раздел «impossible to use».
+func TestRuleWrites_RejectServiceSectionName(t *testing.T) {
+	svc, _, _ := setupRuleFiles(t)
+	if _, err := svc.CreateRule(HRRule{Name: " Impossible To Use ", Subnets: []string{"10.0.0.0/8"}, Target: "nwg0"}); err == nil {
+		t.Fatal("CreateRule: expected reserved-name error")
+	}
+	if _, err := svc.CreateRule(HRRule{Name: "X", Subnets: []string{"10.0.0.0/8"}, Target: "nwg0"}); err != nil {
+		t.Fatalf("CreateRule: %v", err)
+	}
+	if _, err := svc.UpdateRule("X", HRRule{Name: "impossible to use", Subnets: []string{"10.0.0.0/8"}, Target: "nwg0"}); err == nil {
+		t.Fatal("UpdateRule: expected reserved-name error")
+	}
+}

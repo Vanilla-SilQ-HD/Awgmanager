@@ -4,9 +4,20 @@ import (
 	"strings"
 )
 
-// isImpossibleUseBlock is HR Neo's oversized-geoip service section header.
-func isImpossibleUseBlock(listName string) bool {
-	return strings.EqualFold(strings.TrimSpace(listName), "impossible to use")
+// HR Neo's oversized-geoip service section: `##impossible to use` followed by
+// `#/Too-big-geoip-tag` (cidrfile_migrate_oversized in HR Neo's geodat.c).
+const (
+	oversizedSectionName   = "impossible to use"
+	oversizedSectionTarget = "Too-big-geoip-tag"
+)
+
+// isOversizedSection reports whether a block named listName with the `#/`
+// target line target is HR Neo's service section. Both must match: a user
+// rule may not take the name (validateRule), but files edited by hand could
+// still hold a disabled rule called that way.
+func isOversizedSection(listName, target string) bool {
+	return strings.EqualFold(strings.TrimSpace(listName), oversizedSectionName) &&
+		strings.EqualFold(strings.TrimSpace(target), oversizedSectionTarget)
 }
 
 // parseDomainConf reads a domain.conf body and returns each `## Name` block
@@ -58,10 +69,9 @@ func parseDomainConf(content string) []ManagedEntry {
 
 // parseIPList reads an ip.list body and returns:
 //   - regular rule entries: blocks with a `/Target` line
-//   - oversized tag names: entries inside a service block whose target line
-//     starts with `#/` (HR Neo's 'disabled interface' marker, e.g.
-//     `#/Too-big-geoip-tag`). Only `geoip:TAG` lines in such blocks are
-//     collected; other lines are discarded.
+//   - oversized tag names: entries inside HR Neo's service block
+//     (`##impossible to use` + `#/Too-big-geoip-tag`). Only `geoip:TAG` lines
+//     in it are collected; other lines are discarded.
 //
 // For normal rules, `#/Target` marks the rule disabled (HR Neo's format, what
 // GenerateIPList writes). `#` on subnet lines is still read as disabled: older
@@ -98,10 +108,11 @@ func parseIPList(content string) (entries []ManagedEntry, oversized []string) {
 		}
 
 		if strings.HasPrefix(line, "#/") {
-			if active && isImpossibleUseBlock(cur.ListName) {
+			target := strings.TrimPrefix(line, "#/")
+			if active && isOversizedSection(cur.ListName, target) {
 				service = true
 			} else if active {
-				cur.Iface = strings.TrimPrefix(line, "#/")
+				cur.Iface = target
 				cur.Disabled = true
 			}
 			continue
