@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/hoaxisr/awg-manager/internal/downloader"
 	"github.com/hoaxisr/awg-manager/internal/events"
@@ -719,4 +721,42 @@ func (h *HydraRouteHandler) GetOversizedTags(w http.ResponseWriter, r *http.Requ
 		"maxelem":   cfg.EffectiveMaxElem(),
 		"tags":      response.MustNotNil(tags),
 	})
+}
+
+// DeleteOversizedTag removes a tag from HR Neo's disabled tags list (the
+// `##impossible to use` section of ip.list). The tag is not put back into any
+// rule: HR Neo does not record where it came from.
+//
+//	@Summary		Remove HydraRoute disabled geo tag
+//	@Description	Removes the tag from HR Neo's `##impossible to use` section in ip.list. Rules are not changed and HR Neo is not restarted.
+//	@Tags			hydraroute
+//	@Produce		json
+//	@Security		CookieAuth
+//	@Param			name	query		string	true	"Tag name, e.g. geoip:ru-blocked"
+//	@Success		200		{object}	OkResponse
+//	@Failure		400		{object}	APIErrorEnvelope
+//	@Failure		404		{object}	APIErrorEnvelope
+//	@Router			/hydraroute/oversized-tags/delete [delete]
+func (h *HydraRouteHandler) DeleteOversizedTag(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		response.MethodNotAllowed(w)
+		return
+	}
+
+	name := r.URL.Query().Get("name")
+	if strings.TrimSpace(name) == "" {
+		response.Error(w, "name query parameter is required", "BAD_REQUEST")
+		return
+	}
+
+	if err := h.svc.RemoveOversizedTag(name); err != nil {
+		if errors.Is(err, hydraroute.ErrOversizedTagNotFound) {
+			response.ErrorWithStatus(w, http.StatusNotFound, err.Error(), "TAG_NOT_FOUND")
+			return
+		}
+		response.Error(w, err.Error(), "OVERSIZED_ERROR")
+		return
+	}
+
+	response.Success(w, map[string]bool{"ok": true})
 }

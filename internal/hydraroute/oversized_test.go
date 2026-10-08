@@ -2,6 +2,7 @@ package hydraroute
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -79,4 +80,67 @@ func setupGeoDataWithTags(t *testing.T, tagsByName map[string][]GeoTag) *GeoData
 	}
 	gds.tagCache[path] = all
 	return gds
+}
+
+func TestRemoveOversizedTag(t *testing.T) {
+	const rule = "## 2ip\n/HydraRoute\ngeoip:RU\n\n"
+	const seed = rule +
+		"##impossible to use\n#/Too-big-geoip-tag\ngeoip:ru-blocked\ngeoip:cn\n"
+
+	t.Run("one of several", func(t *testing.T) {
+		svc, domainPath, ipPath := setupRuleFiles(t)
+		if err := os.WriteFile(ipPath, []byte(seed), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		// Регистр и префикс geoip: не важны — как HR Neo сравнивает теги.
+		if err := svc.RemoveOversizedTag(" RU-Blocked "); err != nil {
+			t.Fatal(err)
+		}
+		want := rule + "##impossible to use\n#/Too-big-geoip-tag\ngeoip:cn\n"
+		if got := readFileOrEmpty(t, ipPath); got != want {
+			t.Errorf("ip.list:\n%s\nwant:\n%s", got, want)
+		}
+		if _, err := os.Stat(domainPath); !os.IsNotExist(err) {
+			t.Errorf("domain.conf must not be written, stat err = %v", err)
+		}
+		svc.mu.Lock()
+		restart := svc.restartTimer != nil
+		svc.mu.Unlock()
+		if restart {
+			t.Error("HR Neo restart scheduled, want none: rules did not change")
+		}
+	})
+
+	t.Run("last tag drops the section", func(t *testing.T) {
+		svc, _, ipPath := setupRuleFiles(t)
+		if err := os.WriteFile(ipPath, []byte(rule+"##impossible to use\n#/Too-big-geoip-tag\ngeoip:cn\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.RemoveOversizedTag("geoip:cn"); err != nil {
+			t.Fatal(err)
+		}
+		if got := readFileOrEmpty(t, ipPath); got != rule {
+			t.Errorf("ip.list:\n%s\nwant:\n%s", got, rule)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		svc, _, ipPath := setupRuleFiles(t)
+		if err := os.WriteFile(ipPath, []byte(seed), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.RemoveOversizedTag("geoip:ru"); !errors.Is(err, ErrOversizedTagNotFound) {
+			t.Fatalf("err = %v, want ErrOversizedTagNotFound", err)
+		}
+		if got := readFileOrEmpty(t, ipPath); got != seed {
+			t.Errorf("ip.list changed:\n%s", got)
+		}
+	})
+
+	t.Run("empty name", func(t *testing.T) {
+		svc, _, _ := setupRuleFiles(t)
+		if err := svc.RemoveOversizedTag(" geoip: "); err == nil {
+			t.Fatal("expected error for empty name")
+		}
+	})
 }

@@ -4271,6 +4271,10 @@
 		}
 	],
 	"hrneo_disabled_tags_title": "Disabled tags",
+	"hrneo_disabled_tags_remove": "Remove",
+	"hrneo_disabled_tags_remove_title": "Remove disabled tag",
+	"hrneo_disabled_tags_remove_message": "Remove “{tag}” from disabled tags?",
+	"hrneo_disabled_tags_remove_secondary": "The tag is removed from the “impossible to use” section of ip.list. It does not return to a rule: HR Neo does not record which rule it was taken from. To route the tag again, raise IpsetMaxElem and add it to a rule.",
 	"hrneo_geo_refresh_title": "Geo file auto-refresh",
 	"hrneo_geo_refresh_description": "Periodically re-download custom geoip/geosite files on a schedule.",
 	"hrneo_geo_refresh_mode": "Refresh mode:",

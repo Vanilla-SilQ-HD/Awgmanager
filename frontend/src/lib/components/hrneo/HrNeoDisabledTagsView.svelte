@@ -1,13 +1,35 @@
 <script lang="ts">
 	import type { OversizedTag } from '$lib/types';
+	import { api } from '$lib/api/client';
+	import { notifications } from '$lib/stores/notifications';
+	import { Button, ConfirmModal } from '$lib/components/ui';
 	import { m, formatLocale } from '$lib/i18n';
 
 	interface Props {
 		tags: OversizedTag[];
 		maxelem: number;
+		/** Вызывается после удаления тега — список нужно перечитать. */
+		onremoved?: () => void;
 	}
 
-	let { tags, maxelem }: Props = $props();
+	let { tags, maxelem, onremoved }: Props = $props();
+
+	let pendingRemove = $state<OversizedTag | null>(null);
+	let removing = $state(false);
+
+	async function confirmRemove() {
+		if (!pendingRemove) return;
+		removing = true;
+		try {
+			await api.deleteHydraRouteOversizedTag(pendingRemove.name);
+			pendingRemove = null;
+			onremoved?.();
+		} catch (e: unknown) {
+			notifications.error(e instanceof Error ? e.message : String(e));
+		} finally {
+			removing = false;
+		}
+	}
 
 	function fmtCount(n: number): string {
 		if (n < 0) return '?';
@@ -30,11 +52,34 @@
 		{#each tags as t (t.name)}
 			<div class="tag-row">
 				<span class="tag-name">{t.name}</span>
-				<span class="tag-count">{m.hrneo_disabled_tags_entries({ count: Math.max(0, t.count), formatted: fmtCount(t.count) })}</span>
+				<span class="tag-side">
+					<span class="tag-count">{m.hrneo_disabled_tags_entries({ count: Math.max(0, t.count), formatted: fmtCount(t.count) })}</span>
+					<Button
+						variant="secondary"
+						size="sm"
+						disabled={removing}
+						onclick={() => (pendingRemove = t)}
+					>
+						{m.hrneo_disabled_tags_remove()}
+					</Button>
+				</span>
 			</div>
 		{/each}
 	</div>
 </div>
+
+{#if pendingRemove}
+	<ConfirmModal
+		open={true}
+		title={m.hrneo_disabled_tags_remove_title()}
+		message={m.hrneo_disabled_tags_remove_message({ tag: pendingRemove.name })}
+		secondary={m.hrneo_disabled_tags_remove_secondary()}
+		confirmLabel={m.hrneo_disabled_tags_remove()}
+		busy={removing}
+		onConfirm={confirmRemove}
+		onClose={() => (pendingRemove = null)}
+	/>
+{/if}
 
 <style>
 	.disabled-pane {
@@ -90,6 +135,12 @@
 		background: var(--bg-secondary);
 		border: 1px solid var(--border);
 		border-radius: 6px;
+	}
+
+	.tag-side {
+		display: flex;
+		align-items: center;
+		gap: 12px;
 	}
 
 	.tag-name {

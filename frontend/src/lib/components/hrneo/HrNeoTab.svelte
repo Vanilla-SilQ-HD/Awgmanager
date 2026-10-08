@@ -183,6 +183,14 @@
 		}
 	}
 
+	/** Последний тег убран — пункта «Отключённые теги» в боковой панели больше нет. */
+	async function handleOversizedRemoved() {
+		await loadOversized();
+		if (oversizedTags.length > 0) return;
+		const sel = selection;
+		if (sel?.type === 'service' && sel.item === 'disabled-tags') selection = null;
+	}
+
 	function scheduleOversizedRefresh(delayMs = 3000) {
 		if (pendingOversizedRefresh) clearTimeout(pendingOversizedRefresh);
 		pendingOversizedRefresh = setTimeout(() => {
@@ -511,7 +519,7 @@
 					oniconrule={openIconPicker}
 				/>
 			{:else if selection?.type === 'service' && selection.item === 'disabled-tags'}
-				<HrNeoDisabledTagsView tags={oversizedTags} {maxelem} />
+				<HrNeoDisabledTagsView tags={oversizedTags} {maxelem} onremoved={handleOversizedRemoved} />
 			{:else if selection?.type === 'service' && selection.item === 'settings'}
 				<HrNeoSettingsView />
 			{/if}
@@ -577,7 +585,7 @@
 			{#if oversizedInstalled && oversizedTags.length > 0}
 				<details>
 					<summary>{m.hrneo_sidebar_disabled_tags()}</summary>
-					<div class="acc-body"><HrNeoDisabledTagsView tags={oversizedTags} {maxelem} /></div>
+					<div class="acc-body"><HrNeoDisabledTagsView tags={oversizedTags} {maxelem} onremoved={handleOversizedRemoved} /></div>
 				</details>
 			{/if}
 		</div>

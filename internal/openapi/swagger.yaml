@@ -11245,6 +11245,36 @@ paths:
       summary: HydraRoute oversized geo tags
       tags:
       - hydraroute
+  /hydraroute/oversized-tags/delete:
+    delete:
+      description: Removes the tag from HR Neo's `##impossible to use` section in
+        ip.list. Rules are not changed and HR Neo is not restarted.
+      parameters:
+      - description: Tag name, e.g. geoip:ru-blocked
+        in: query
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.OkResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.APIErrorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.APIErrorEnvelope'
+      security:
+      - CookieAuth: []
+      summary: Remove HydraRoute disabled geo tag
+      tags:
+      - hydraroute
   /hydraroute/policy-order:
     post:
       consumes:

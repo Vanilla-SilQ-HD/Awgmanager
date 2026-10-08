@@ -366,6 +366,7 @@ func (s *Server) registerSystemRoutes(mux *http.ServeMux, h *routeHandlers) {
 		mux.HandleFunc("/api/hydraroute/geo-expand", h.guarded(hrHandler.ExpandGeoTag))
 		mux.HandleFunc("/api/hydraroute/ipset-usage", h.guarded(hrHandler.GetIpsetUsage))
 		mux.HandleFunc("/api/hydraroute/oversized-tags", h.guarded(hrHandler.GetOversizedTags))
+		mux.HandleFunc("/api/hydraroute/oversized-tags/delete", h.guarded(hrHandler.DeleteOversizedTag))
 		mux.HandleFunc("/api/hydraroute/policy-order", h.guarded(hrHandler.SetPolicyOrder))
 	}
 

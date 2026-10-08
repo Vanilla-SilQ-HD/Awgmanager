@@ -3252,6 +3252,7 @@ export const RESPONSE_SCHEMAS: Record<string, v.GenericSchema> = {
 	"DELETE /awg3-endpoints/{id}": v.lazy(() => api_Awg3ListResponse),
 	"DELETE /connections": v.lazy(() => api_ConnectionKillEnvelope),
 	"DELETE /hydraroute/geo-files/delete": v.lazy(() => api_OkResponse),
+	"DELETE /hydraroute/oversized-tags/delete": v.lazy(() => api_OkResponse),
 	"DELETE /managed-servers/{id}": v.lazy(() => api_ServersAllResponse),
 	"DELETE /managed-servers/{id}/peers/{pubkey}": v.lazy(() => api_ServersAllResponse),
 	"DELETE /proxy/instance": v.lazy(() => api_APIEnvelope),
