@@ -27,7 +27,7 @@ type ManagedEntry struct {
 	Domains  []string // regular domains + geosite: tags
 	Subnets  []string // CIDR ranges + geoip: tags
 	Iface    string   // kernel interface name or policy name (DirectRoute target)
-	Disabled bool     // rule is commented out in HR files with a leading '#'
+	Disabled bool     // rule is off in HR files: '#' before the domain.conf line, `#/Target` in ip.list
 }
 
 // Config represents the managed subset of hrneo.conf fields.
