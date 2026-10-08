@@ -156,6 +156,16 @@ func TestParseDomainConf_DisabledLine(t *testing.T) {
 	}
 }
 
+// Формат HR Neo: подсети выключенного блока без `#` — правило выключено.
+func TestParseIPList_DisabledBlockHRNeoFormat(t *testing.T) {
+	got, _ := parseIPList("## Telegram\n#/nwg0\n91.108.4.0/22\n\n")
+	if len(got) != 1 || !got[0].Disabled || got[0].Iface != "nwg0" ||
+		!reflect.DeepEqual(got[0].Subnets, []string{"91.108.4.0/22"}) {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+// Прежний формат AWGM (`#` перед подсетями) по-прежнему читается как выключенный.
 func TestParseIPList_DisabledRule(t *testing.T) {
 	content := "## Telegram\n#/nwg0\n#91.108.4.0/22\n\n"
 	got, oversized := parseIPList(content)
