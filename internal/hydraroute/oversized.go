@@ -3,13 +3,18 @@ package hydraroute
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 )
 
-// ErrOversizedTagNotFound is returned by RemoveOversizedTag when the tag is
-// not in HR Neo's service section.
-var ErrOversizedTagNotFound = errors.New("tag is not in the disabled tags list")
+// Errors returned by RemoveOversizedTag that callers map to client errors.
+var (
+	// ErrOversizedTagNotFound: the tag is not in HR Neo's service section.
+	ErrOversizedTagNotFound = errors.New("tag is not in the disabled tags list")
+	// ErrInvalidOversizedTag: the tag name is empty (or only `geoip:`).
+	ErrInvalidOversizedTag = errors.New("tag name must not be empty")
+	// ErrNotInstalled: HR Neo is not installed, there is no ip.list to edit.
+	ErrNotInstalled = errors.New("HydraRoute Neo is not installed")
+)
 
 // OversizedTag describes a single geoip tag that HR Neo excluded from
 // routing because its entry count exceeds IpsetMaxElem. Count is -1 when
@@ -66,34 +71,35 @@ func (s *Service) OversizedTags(ctx context.Context) ([]OversizedTag, error) {
 // RemoveOversizedTag drops a tag from HR Neo's `##impossible to use` section
 // in ip.list. HR Neo only appends to the section and does not record which
 // rule a tag came from, so it cannot be put back automatically: to route the
-// tag again, add it to a rule. Rules stay as they are, so HR Neo is not
-// restarted — it ignores the section anyway (`#/` target).
+// tag again, add it to a rule.
+//
+// The file is edited as text (removeOversizedTag): only the tag's lines
+// leave, and an emptied section goes with its header. Rules, comments and
+// anything else in ip.list stay byte-for-byte — the rules are deliberately
+// not regenerated from loadEntries, which would merge domain.conf into them.
+// domain.conf is not touched and HR Neo is not restarted — it ignores the
+// section anyway (`#/` target).
 func (s *Service) RemoveOversizedTag(name string) error {
 	want := normalizeOversizedTag(name)
 	if want == "geoip:" {
-		return fmt.Errorf("tag name must not be empty")
+		return ErrInvalidOversizedTag
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if !s.status.Installed {
-		return fmt.Errorf("HydraRoute Neo is not installed")
+		return ErrNotInstalled
 	}
-	entries, oversized, err := s.loadEntries()
+	content, err := readOrEmpty(ipListPath)
 	if err != nil {
 		return err
 	}
-	kept := make([]string, 0, len(oversized))
-	for _, t := range oversized {
-		if normalizeOversizedTag(t) != want {
-			kept = append(kept, t)
-		}
-	}
-	if len(kept) == len(oversized) {
+	updated, found := removeOversizedTag(content, want)
+	if !found {
 		return ErrOversizedTagNotFound
 	}
-	if err := WriteWholeFile(ipListPath, GenerateIPList(sortedEntries(entries), kept)); err != nil {
+	if err := WriteWholeFile(ipListPath, updated); err != nil {
 		return err
 	}
 	s.appLog.Info("remove-oversized-tag", want, "removed from ip.list service section")

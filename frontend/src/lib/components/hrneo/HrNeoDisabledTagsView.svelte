@@ -138,6 +138,7 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
+		gap: 8px;
 		padding: 10px 12px;
 		background: var(--bg-secondary);
 		border: 1px solid var(--border);
@@ -146,6 +147,7 @@
 
 	.tag-side {
 		display: flex;
+		flex-shrink: 0;
 		align-items: center;
 		gap: 12px;
 	}
@@ -153,6 +155,9 @@
 	.tag-name {
 		/* Оттенок — в --tag-hue: светлая тема берёт его же, а не копию hex. */
 		--tag-hue: #bb8bff;
+		/* Длинное имя без разделителей переносится, а не выталкивает кнопку. */
+		min-width: 0;
+		overflow-wrap: anywhere;
 		font-family: ui-monospace, monospace;
 		font-weight: 600;
 		color: var(--tag-hue);
@@ -167,5 +172,6 @@
 		color: var(--text-muted);
 		font-size: 0.8125rem;
 		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
 	}
 </style>

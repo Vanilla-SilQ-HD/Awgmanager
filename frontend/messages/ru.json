@@ -4566,7 +4566,7 @@
 	"hrneo_disabled_tags_remove": "Убрать",
 	"hrneo_disabled_tags_remove_title": "Убрать отключённый тег",
 	"hrneo_disabled_tags_remove_message": "Убрать «{tag}» из отключённых тегов?",
-	"hrneo_disabled_tags_remove_secondary": "Тег удаляется из раздела «impossible to use» в ip.list. В правило он не вернётся: HR Neo не запоминает, из какого правила его убрал. Чтобы тег снова маршрутизировался, увеличьте IpsetMaxElem и добавьте его в нужное правило.",
+	"hrneo_disabled_tags_remove_secondary": "Тег будет удалён из раздела «impossible to use» в ip.list. В правило он не вернётся: HR Neo не запоминает, из какого правила его убрал. Чтобы тег снова маршрутизировался, увеличьте IpsetMaxElem и добавьте его в нужное правило.",
 	"hrneo_geo_refresh_title": "Автообновление гео-файлов",
 	"hrneo_geo_refresh_description": "Периодически перекачивать пользовательские geoip/geosite по расписанию.",
 	"hrneo_geo_refresh_mode": "Режим обновления:",

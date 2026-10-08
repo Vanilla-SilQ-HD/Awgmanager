@@ -2,9 +2,14 @@ package api
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/hoaxisr/awg-manager/internal/downloader"
+	"github.com/hoaxisr/awg-manager/internal/hydraroute"
 	"github.com/hoaxisr/awg-manager/internal/storage"
 )
 
@@ -97,4 +102,58 @@ func TestDownloadSettingsRouteProvider_UsesStoredTag(t *testing.T) {
 		t.Fatalf("route after empty = %+v, want direct", route)
 	}
 
+}
+
+func TestDeleteOversizedTag(t *testing.T) {
+	const seed = "## A\n/Wireguard0\n1.1.1.1\n\n" +
+		"##impossible to use\n#/Too-big-geoip-tag\ngeoip:ru-blocked\ngeoip:cn\n"
+
+	setup := func(t *testing.T, installed bool) (*HydraRouteHandler, string) {
+		t.Helper()
+		dir := t.TempDir()
+		ipPath := filepath.Join(dir, "ip.list")
+		if err := os.WriteFile(ipPath, []byte(seed), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(hydraroute.SetPaths(filepath.Join(dir, "domain.conf"), ipPath))
+		svc := &hydraroute.Service{}
+		svc.SetStatusForTest(installed)
+		return NewHydraRouteHandler(svc, nil), ipPath
+	}
+
+	cases := []struct {
+		name      string
+		method    string
+		query     string
+		installed bool
+		status    int
+		ipList    string
+	}{
+		{"wrong method", http.MethodPost, "?name=geoip:cn", true, http.StatusMethodNotAllowed, seed},
+		{"no name", http.MethodDelete, "", true, http.StatusBadRequest, seed},
+		{"blank name", http.MethodDelete, "?name=%20", true, http.StatusBadRequest, seed},
+		{"prefix only", http.MethodDelete, "?name=geoip:", true, http.StatusBadRequest, seed},
+		{"not installed", http.MethodDelete, "?name=geoip:cn", false, http.StatusBadRequest, seed},
+		{"missing tag", http.MethodDelete, "?name=geoip:us", true, http.StatusNotFound, seed},
+		{"removed", http.MethodDelete, "?name=GEOIP:CN", true, http.StatusOK,
+			"## A\n/Wireguard0\n1.1.1.1\n\n##impossible to use\n#/Too-big-geoip-tag\ngeoip:ru-blocked\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h, ipPath := setup(t, tc.installed)
+			req := httptest.NewRequest(tc.method, "/api/hydraroute/oversized-tags/delete"+tc.query, nil)
+			rec := httptest.NewRecorder()
+			h.DeleteOversizedTag(rec, req)
+			if rec.Code != tc.status {
+				t.Errorf("status = %d, want %d (body %s)", rec.Code, tc.status, rec.Body.String())
+			}
+			got, err := os.ReadFile(ipPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got) != tc.ipList {
+				t.Errorf("ip.list:\n%s\nwant:\n%s", got, tc.ipList)
+			}
+		})
+	}
 }

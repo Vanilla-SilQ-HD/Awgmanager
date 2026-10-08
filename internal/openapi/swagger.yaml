@@ -11248,7 +11248,10 @@ paths:
   /hydraroute/oversized-tags/delete:
     delete:
       description: Removes the tag from HR Neo's `##impossible to use` section in
-        ip.list. Rules are not changed and HR Neo is not restarted.
+        ip.list (all duplicates; an emptied section is removed). The rest of ip.list,
+        domain.conf and the rules are not changed and HR Neo is not restarted. 400
+        for an empty name or when HR Neo is not installed, 404 when the tag is not
+        in the section.
       parameters:
       - description: Tag name, e.g. geoip:ru-blocked
         in: query

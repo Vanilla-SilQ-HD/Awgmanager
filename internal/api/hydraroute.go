@@ -728,7 +728,7 @@ func (h *HydraRouteHandler) GetOversizedTags(w http.ResponseWriter, r *http.Requ
 // rule: HR Neo does not record where it came from.
 //
 //	@Summary		Remove HydraRoute disabled geo tag
-//	@Description	Removes the tag from HR Neo's `##impossible to use` section in ip.list. Rules are not changed and HR Neo is not restarted.
+//	@Description	Removes the tag from HR Neo's `##impossible to use` section in ip.list (all duplicates; an emptied section is removed). The rest of ip.list, domain.conf and the rules are not changed and HR Neo is not restarted. 400 for an empty name or when HR Neo is not installed, 404 when the tag is not in the section.
 //	@Tags			hydraroute
 //	@Produce		json
 //	@Security		CookieAuth
@@ -751,11 +751,16 @@ func (h *HydraRouteHandler) DeleteOversizedTag(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := h.svc.RemoveOversizedTag(name); err != nil {
-		if errors.Is(err, hydraroute.ErrOversizedTagNotFound) {
+		switch {
+		case errors.Is(err, hydraroute.ErrInvalidOversizedTag):
+			response.Error(w, err.Error(), "BAD_REQUEST")
+		case errors.Is(err, hydraroute.ErrNotInstalled):
+			response.Error(w, err.Error(), "NOT_INSTALLED")
+		case errors.Is(err, hydraroute.ErrOversizedTagNotFound):
 			response.ErrorWithStatus(w, http.StatusNotFound, err.Error(), "TAG_NOT_FOUND")
-			return
+		default:
+			response.InternalError(w, err.Error())
 		}
-		response.InternalError(w, err.Error())
 		return
 	}
 
