@@ -114,7 +114,8 @@ func (s *Service) DeleteRule(name string) error {
 }
 
 // SetRuleEnabled toggles whether a rule is active in HR Neo config files.
-// Disabled rules are written with a leading '#' on their content lines;
+// A disabled rule is written in HR Neo's disabled form: a leading '#' on its
+// domain.conf line, `#/Target` for its ip.list block (CIDR lines stay as is);
 // saveEntries schedules a debounced neo restart.
 func (s *Service) SetRuleEnabled(name string, enabled bool) error {
 	s.mu.Lock()

@@ -55,6 +55,12 @@ func GenerateDomainConf(lists []ManagedEntry) string {
 //	cidr1
 //	cidr2
 //	<empty line>
+//
+// A disabled entry gets `#/Target` and keeps its lines as they are — HR Neo's
+// own disabled-block format ("содержимое игнорируется"). A `#` in front of a
+// CIDR is not a comment for HR Neo: anything but `##`, `#/` and `/` is read
+// as an entry, so `#10.0.0.0/8` is an invalid CIDR and HRweb refuses to save
+// any rule while the file has one (#1022).
 func GenerateIPList(lists []ManagedEntry) string {
 	var sb strings.Builder
 	for _, e := range lists {
@@ -68,12 +74,8 @@ func GenerateIPList(lists []ManagedEntry) string {
 		}
 		fmt.Fprintf(&sb, "%s\n", target)
 		for _, s := range e.Subnets {
-			if e.Disabled {
-				fmt.Fprintf(&sb, "#%s\n", s)
-			} else {
-				sb.WriteString(s)
-				sb.WriteByte('\n')
-			}
+			sb.WriteString(s)
+			sb.WriteByte('\n')
 		}
 		sb.WriteByte('\n') // HR Neo block terminator
 	}

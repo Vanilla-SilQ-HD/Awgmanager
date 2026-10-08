@@ -79,6 +79,21 @@ func TestGenerateIPList_GeoIPTag(t *testing.T) {
 	mustContain(t, got, "geoip:RU")
 }
 
+// TestGenerateIPList_DisabledUsesHRNeoFormat — #1022: выключенный блок —
+// `#/Target`, а подсети без `#`. Для HR Neo строка `#10.0.0.0/8` не
+// комментарий, а неверный CIDR, и HRweb из-за неё не сохраняет ни одно правило.
+func TestGenerateIPList_DisabledUsesHRNeoFormat(t *testing.T) {
+	got := GenerateIPList([]ManagedEntry{
+		{ListName: "Off", Subnets: []string{"10.0.0.0/8", "geoip:RU"}, Iface: "nwg0", Disabled: true},
+		{ListName: "On", Subnets: []string{"91.108.4.0/22"}, Iface: "nwg1"},
+	})
+	want := "## Off\n#/nwg0\n10.0.0.0/8\ngeoip:RU\n\n" +
+		"## On\n/nwg1\n91.108.4.0/22\n\n"
+	if got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func mustContain(t *testing.T, s, substr string) {
 	t.Helper()
 	if !strings.Contains(s, substr) {

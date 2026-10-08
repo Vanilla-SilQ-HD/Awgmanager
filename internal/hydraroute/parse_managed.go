@@ -63,7 +63,9 @@ func parseDomainConf(content string) []ManagedEntry {
 //     `#/Too-big-geoip-tag`). Only `geoip:TAG` lines in such blocks are
 //     collected; other lines are discarded.
 //
-// For normal rules, `#/Target` or `#` on subnet lines marks the rule disabled.
+// For normal rules, `#/Target` marks the rule disabled (HR Neo's format, what
+// GenerateIPList writes). `#` on subnet lines is still read as disabled: older
+// versions wrote it, and the next write replaces it with the HR Neo format.
 //
 // Empty lines or a new `##` header terminate the current block.
 func parseIPList(content string) (entries []ManagedEntry, oversized []string) {
