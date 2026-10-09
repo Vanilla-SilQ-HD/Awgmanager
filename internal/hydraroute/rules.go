@@ -42,7 +42,7 @@ func (s *Service) CreateRule(rule HRRule) (*HRRule, error) {
 		return nil, err
 	}
 
-	entries, _, err := s.loadEntries()
+	entries, oversized, err := s.loadEntries()
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (s *Service) CreateRule(rule HRRule) (*HRRule, error) {
 		return nil, fmt.Errorf("rule %q already exists", rule.Name)
 	}
 	entries[rule.Name] = ruleToEntry(rule)
-	if err := s.saveEntries(entries); err != nil {
+	if err := s.saveEntries(entries, oversized); err != nil {
 		return nil, err
 	}
 	s.appLog.Info("create-rule", rule.Name, fmt.Sprintf("target=%q domains=%d subnets=%d", rule.Target, len(rule.Domains), len(rule.Subnets)))
@@ -69,7 +69,7 @@ func (s *Service) UpdateRule(originalName string, rule HRRule) (*HRRule, error) 
 		return nil, err
 	}
 
-	entries, _, err := s.loadEntries()
+	entries, oversized, err := s.loadEntries()
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (s *Service) UpdateRule(originalName string, rule HRRule) (*HRRule, error) 
 	newEntry := ruleToEntry(rule)
 	newEntry.Disabled = prev.Disabled
 	entries[rule.Name] = newEntry
-	if err := s.saveEntries(entries); err != nil {
+	if err := s.saveEntries(entries, oversized); err != nil {
 		return nil, err
 	}
 	s.appLog.Info("update-rule", rule.Name, fmt.Sprintf("target=%q domains=%d subnets=%d", rule.Target, len(rule.Domains), len(rule.Subnets)))
@@ -98,7 +98,7 @@ func (s *Service) DeleteRule(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	entries, _, err := s.loadEntries()
+	entries, oversized, err := s.loadEntries()
 	if err != nil {
 		return err
 	}
@@ -106,7 +106,7 @@ func (s *Service) DeleteRule(name string) error {
 		return nil
 	}
 	delete(entries, name)
-	if err := s.saveEntries(entries); err != nil {
+	if err := s.saveEntries(entries, oversized); err != nil {
 		return err
 	}
 	s.appLog.Info("delete-rule", name, "rule deleted")
@@ -121,7 +121,7 @@ func (s *Service) SetRuleEnabled(name string, enabled bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	entries, _, err := s.loadEntries()
+	entries, oversized, err := s.loadEntries()
 	if err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func (s *Service) SetRuleEnabled(name string, enabled bool) error {
 	}
 	e.Disabled = !enabled
 	entries[name] = e
-	if err := s.saveEntries(entries); err != nil {
+	if err := s.saveEntries(entries, oversized); err != nil {
 		return err
 	}
 	s.appLog.Info("set-rule-enabled", name, fmt.Sprintf("enabled=%v", enabled))
@@ -176,8 +176,9 @@ func (s *Service) loadEntries() (map[string]ManagedEntry, []string, error) {
 }
 
 // saveEntries writes the full content of both files and schedules a daemon
-// restart so HR Neo picks up the change.
-func (s *Service) saveEntries(entries map[string]ManagedEntry) error {
+// restart so HR Neo picks up the change. oversized (from loadEntries) keeps
+// HR Neo's `##impossible to use` section in ip.list.
+func (s *Service) saveEntries(entries map[string]ManagedEntry, oversized []string) error {
 	if !s.status.Installed {
 		return fmt.Errorf("HydraRoute Neo is not installed")
 	}
@@ -191,7 +192,7 @@ func (s *Service) saveEntries(entries map[string]ManagedEntry) error {
 	if err := WriteWholeFile(domainConfPath, GenerateDomainConf(ordered)); err != nil {
 		return err
 	}
-	if err := WriteWholeFile(ipListPath, GenerateIPList(ordered)); err != nil {
+	if err := WriteWholeFile(ipListPath, GenerateIPList(ordered, oversized)); err != nil {
 		return err
 	}
 	s.updateForceInterface(entries)
@@ -222,6 +223,9 @@ func entryToRule(e ManagedEntry) HRRule {
 func validateRule(r HRRule) error {
 	if strings.TrimSpace(r.Name) == "" {
 		return fmt.Errorf("rule name must not be empty")
+	}
+	if strings.EqualFold(strings.TrimSpace(r.Name), oversizedSectionName) {
+		return fmt.Errorf("rule name %q is reserved by HydraRoute Neo", oversizedSectionName)
 	}
 	if r.Target == "" {
 		return fmt.Errorf("rule target (interface or policy) must not be empty")

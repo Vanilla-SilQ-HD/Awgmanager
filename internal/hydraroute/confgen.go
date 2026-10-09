@@ -61,7 +61,13 @@ func GenerateDomainConf(lists []ManagedEntry) string {
 // CIDR is not a comment for HR Neo: anything but `##`, `#/` and `/` is read
 // as an entry, so `#10.0.0.0/8` is an invalid CIDR and HRweb refuses to save
 // any rule while the file has one (#1022).
-func GenerateIPList(lists []ManagedEntry) string {
+//
+// oversized are the geoip tags HR Neo moved to its own service section
+// (`##impossible to use` / `#/Too-big-geoip-tag`): HR Neo removes such a tag
+// from the rule it was in, so that section is the only place it is kept.
+// They are written back as HR Neo writes them, or a rewrite of the file
+// would lose them for good (#1025).
+func GenerateIPList(lists []ManagedEntry, oversized []string) string {
 	var sb strings.Builder
 	for _, e := range lists {
 		if len(e.Subnets) == 0 {
@@ -79,6 +85,7 @@ func GenerateIPList(lists []ManagedEntry) string {
 		}
 		sb.WriteByte('\n') // HR Neo block terminator
 	}
+	writeOversizedSection(&sb, oversized)
 	return sb.String()
 }
 
@@ -93,4 +100,26 @@ func WriteWholeFile(filePath, content string) error {
 
 func atomicWrite(filePath, content string) error {
 	return storage.AtomicWrite(filePath, []byte(content))
+}
+
+// writeOversizedSection appends HR Neo's service section in its own format
+// (cidrfile_migrate_oversized in HR Neo's geodat.c): tags lower-cased and
+// without duplicates. Every rule block already ends with a blank line, so the
+// section needs no separator of its own. Nothing is written without tags.
+func writeOversizedSection(sb *strings.Builder, tags []string) {
+	seen := make(map[string]bool, len(tags))
+	first := true
+	for _, t := range tags {
+		t = strings.ToLower(strings.TrimSpace(t))
+		if t == "" || seen[t] {
+			continue
+		}
+		seen[t] = true
+		if first {
+			fmt.Fprintf(sb, "##%s\n#/%s\n", oversizedSectionName, oversizedSectionTarget)
+			first = false
+		}
+		sb.WriteString(t)
+		sb.WriteByte('\n')
+	}
 }

@@ -69,7 +69,7 @@ func TestRoundtrip_GenerateThenParse_IPList(t *testing.T) {
 	original := []ManagedEntry{
 		{ListName: "Russia", Subnets: []string{"5.8.0.0/21", "geoip:RU"}, Iface: "nwg0"},
 	}
-	generated := GenerateIPList(original)
+	generated := GenerateIPList(original, nil)
 	parsed, _ := parseIPList(generated)
 
 	if !reflect.DeepEqual(parsed, original) {
@@ -194,8 +194,22 @@ func TestRoundtrip_DisabledIPList(t *testing.T) {
 	original := []ManagedEntry{
 		{ListName: "Off", Subnets: []string{"10.0.0.0/8"}, Iface: "nwg0", Disabled: true},
 	}
-	parsed, _ := parseIPList(GenerateIPList(original))
+	parsed, _ := parseIPList(GenerateIPList(original, nil))
 	if !reflect.DeepEqual(parsed, original) {
 		t.Errorf("roundtrip mismatch:\noriginal: %+v\nparsed:   %+v", original, parsed)
+	}
+}
+
+// Служебный раздел HR Neo узнаётся по имени и цели вместе: выключенное
+// правило с тем же именем, но своей целью остаётся правилом, его geoip-теги
+// не попадают в «Отключённые теги».
+func TestParseIPList_DisabledRuleNamedLikeServiceSection(t *testing.T) {
+	got, oversized := parseIPList("##impossible to use\n#/nwg0\ngeoip:ru\n10.0.0.0/8\n\n")
+	if len(oversized) != 0 {
+		t.Fatalf("oversized = %v, want none", oversized)
+	}
+	if len(got) != 1 || got[0].ListName != "impossible to use" || !got[0].Disabled ||
+		got[0].Iface != "nwg0" || !reflect.DeepEqual(got[0].Subnets, []string{"geoip:ru", "10.0.0.0/8"}) {
+		t.Fatalf("got %+v", got)
 	}
 }
