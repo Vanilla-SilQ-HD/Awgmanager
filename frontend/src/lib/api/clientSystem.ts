@@ -208,6 +208,10 @@ export class SystemClient extends TunnelsClient {
 		return this.request('/hydraroute/oversized-tags');
 	}
 
+	async deleteHydraRouteOversizedTag(name: string): Promise<void> {
+		await this.request(`/hydraroute/oversized-tags/delete?name=${encodeURIComponent(name)}`, { method: 'DELETE' });
+	}
+
 	async importNativeHydraRouteRules(): Promise<{ imported: number }> {
 		return this.request('/hydraroute/import-native', { method: 'POST' });
 	}

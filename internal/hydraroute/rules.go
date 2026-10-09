@@ -183,12 +183,7 @@ func (s *Service) saveEntries(entries map[string]ManagedEntry, oversized []strin
 		return fmt.Errorf("HydraRoute Neo is not installed")
 	}
 
-	ordered := make([]ManagedEntry, 0, len(entries))
-	for _, e := range entries {
-		ordered = append(ordered, e)
-	}
-	sort.Slice(ordered, func(i, j int) bool { return ordered[i].ListName < ordered[j].ListName })
-
+	ordered := sortedEntries(entries)
 	if err := WriteWholeFile(domainConfPath, GenerateDomainConf(ordered)); err != nil {
 		return err
 	}
@@ -198,6 +193,16 @@ func (s *Service) saveEntries(entries map[string]ManagedEntry, oversized []strin
 	s.updateForceInterface(entries)
 	s.scheduleRestart("rules-write")
 	return nil
+}
+
+// sortedEntries returns entries ordered by name, the order both files use.
+func sortedEntries(entries map[string]ManagedEntry) []ManagedEntry {
+	ordered := make([]ManagedEntry, 0, len(entries))
+	for _, e := range entries {
+		ordered = append(ordered, e)
+	}
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].ListName < ordered[j].ListName })
+	return ordered
 }
 
 func ruleToEntry(r HRRule) ManagedEntry {
