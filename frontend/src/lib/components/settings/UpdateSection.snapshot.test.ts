@@ -27,9 +27,10 @@ function settingsWith(snapshotDisabled?: boolean): Settings {
 }
 
 describe('UpdateSection: снимок перед обновлением', () => {
-	it('включён по умолчанию; выключение сохраняет snapshotDisabled=true', async () => {
+	// F684: шлётся только изменённое поле, а не снимок настроек.
+	it('включён по умолчанию; выключение шлёт только updates.snapshotDisabled=true', async () => {
 		const initial = settingsWith(undefined);
-		vi.mocked(api.updateSettings).mockImplementation(async (s) => s as Settings);
+		vi.mocked(api.updateSettings).mockResolvedValue(initial);
 		render(UpdateSection, { props: { updateInfo: null, settings: initial } });
 
 		const toggle = screen.getByRole<HTMLInputElement>('checkbox', { name: 'Снимок настроек перед обновлением' });
@@ -37,8 +38,6 @@ describe('UpdateSection: снимок перед обновлением', () => 
 
 		await fireEvent.input(toggle, { target: { checked: false } });
 		await waitFor(() => expect(api.updateSettings).toHaveBeenCalled());
-		const sent = vi.mocked(api.updateSettings).mock.calls[0][0] as Settings;
-		expect(sent.updates.snapshotDisabled).toBe(true);
-		expect(sent.updates.statsEnabled).toBe(true);
+		expect(vi.mocked(api.updateSettings).mock.calls[0][0]).toEqual({ updates: { snapshotDisabled: true } });
 	});
 });

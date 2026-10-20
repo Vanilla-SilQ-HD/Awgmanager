@@ -134,10 +134,7 @@
 	async function toggleSnapshot(enabled: boolean) {
 		savingSnapshot = true;
 		try {
-			settings = await api.updateSettings({
-				...settings,
-				updates: { ...settings.updates, snapshotDisabled: !enabled },
-			});
+			settings = await api.updateSettings({ updates: { snapshotDisabled: !enabled } });
 			setGlobalSettings(settings);
 		} catch (e) {
 			notifications.error(m.settings_update_snapshot_failed({ error: downloadErrorToText(e) }));
