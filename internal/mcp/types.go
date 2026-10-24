@@ -229,6 +229,14 @@ type SingboxDNSRule struct {
 	Server string `json:"server,omitempty" jsonschema:"DNS server tag from list_singbox_dns_servers that answers matching queries"`
 }
 
+// SingboxRuleSetDeletion is what delete_singbox_ruleset removed: the set,
+// and with force the routing and DNS rules that used it, as they were.
+type SingboxRuleSetDeletion struct {
+	Deleted  SingboxRuleSet
+	Rules    []SingboxRule
+	DNSRules []SingboxDNSRule
+}
+
 // SingboxDNSRules is the router's DNS rule list with the settings that
 // decide what an unmatched query does.
 type SingboxDNSRules struct {

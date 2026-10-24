@@ -1122,14 +1122,14 @@ func isSystemPrivateRule(r Rule) bool {
 
 // isSystemRule reports whether r is one of the leading system rules that
 // EnsureSystemRules manages — bulk outbound changes must never touch them.
+func isSystemRule(r Rule) bool {
+	return isSystemSniffRule(r) || isSystemHijackRule(r) || isSystemUDPTimeoutRule(r) || isSystemPrivateRule(r)
+}
+
 // IsSystemRule reports a rule EnsureSystemRules keeps on top (sniff,
 // hijack-dns, the udp_timeout route options, the ip_is_private bypass):
 // user edits cannot touch it or go above it.
 func IsSystemRule(r Rule) bool { return isSystemRule(r) }
-
-func isSystemRule(r Rule) bool {
-	return isSystemSniffRule(r) || isSystemHijackRule(r) || isSystemUDPTimeoutRule(r) || isSystemPrivateRule(r)
-}
 
 // systemPrefixLen counts the leading system rules (sniff / hijack-dns /
 // ip_is_private bypass) that EnsureSystemRules keeps ahead of any user routing

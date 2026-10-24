@@ -73,8 +73,9 @@ type deletedRuleOut struct {
 type deletedRuleSetOut struct {
 	Staged  bool           `json:"staged" jsonschema:"always true: the deletion is in the draft and does NOT affect traffic until apply_singbox_staging"`
 	Deleted SingboxRuleSet `json:"deleted" jsonschema:"the rule set as it was"`
-	// Affected are the rules force took the set out of.
-	Affected []SingboxRule `json:"affectedRules,omitempty" jsonschema:"with force: the rules that used the set, as they were. Each lost this condition; one left with no condition was deleted, and the rules below it moved up"`
+	// Affected and AffectedDNS are the rules force took the set out of.
+	Affected    []SingboxRule    `json:"affectedRules,omitempty" jsonschema:"with force: the routing rules that used the set, as they were. Each lost this condition; one left with no condition was deleted, and the rules below it moved up"`
+	AffectedDNS []SingboxDNSRule `json:"affectedDnsRules,omitempty" jsonschema:"with force: the DNS rules that used the set, as they were — changed the same way"`
 }
 
 type stagedRuleOut struct {
@@ -316,7 +317,7 @@ func registerRuleTools(s *mcp.Server, d Deps) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "delete_singbox_ruleset",
-		Description: "Delete a rule set of the sing-box router. Refused while rules use it, unless force: then the references are removed and a rule left with no condition is deleted too. " +
+		Description: "Delete a rule set of the sing-box router. Refused while routing or DNS rules use it, unless force: then the references are removed and a rule left with no condition is deleted too. " +
 			"The deletion goes into the router's DRAFT and can be discarded until apply_singbox_staging runs; after that nothing in MCP restores it. Refused while the router runs in fakeip-tun mode.",
 		Annotations: destructiveWrite("Delete sing-box rule set", false),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in deleteRuleSetIn) (*mcp.CallToolResult, deletedRuleSetOut, error) {
@@ -324,10 +325,10 @@ func registerRuleTools(s *mcp.Server, d Deps) {
 		if err != nil {
 			return nil, deletedRuleSetOut{}, err
 		}
-		deleted, affected, err := d.DeleteSingboxRuleSet(ctx, tag, in.Force)
+		del, err := d.DeleteSingboxRuleSet(ctx, tag, in.Force)
 		if err != nil {
 			return nil, deletedRuleSetOut{}, err
 		}
-		return stagedResult(), deletedRuleSetOut{Staged: true, Deleted: deleted, Affected: affected}, nil
+		return stagedResult(), deletedRuleSetOut{Staged: true, Deleted: del.Deleted, Affected: del.Rules, AffectedDNS: del.DNSRules}, nil
 	})
 }

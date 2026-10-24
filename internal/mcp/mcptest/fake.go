@@ -1707,15 +1707,15 @@ func (f *Fake) AddSingboxRuleSet(_ context.Context, in mcpsrv.SingboxRuleSetInpu
 	return nil
 }
 
-func (f *Fake) DeleteSingboxRuleSet(_ context.Context, tag string, force bool) (mcpsrv.SingboxRuleSet, []mcpsrv.SingboxRule, error) {
+func (f *Fake) DeleteSingboxRuleSet(_ context.Context, tag string, force bool) (mcpsrv.SingboxRuleSetDeletion, error) {
 	if f.Err != nil {
-		return mcpsrv.SingboxRuleSet{}, nil, f.Err
+		return mcpsrv.SingboxRuleSetDeletion{}, f.Err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	i := slices.IndexFunc(f.RuleSets, func(rs mcpsrv.SingboxRuleSet) bool { return rs.Tag == tag })
 	if i < 0 {
-		return mcpsrv.SingboxRuleSet{}, nil, fmt.Errorf("rule set not found: %q (use list_singbox_rulesets)", tag)
+		return mcpsrv.SingboxRuleSetDeletion{}, fmt.Errorf("rule set not found: %q (use list_singbox_rulesets)", tag)
 	}
 	var users []mcpsrv.SingboxRule
 	var indexes []int
@@ -1726,14 +1726,14 @@ func (f *Fake) DeleteSingboxRuleSet(_ context.Context, tag string, force bool) (
 		}
 	}
 	if len(users) > 0 && !force {
-		return mcpsrv.SingboxRuleSet{}, nil, fmt.Errorf("rule set is referenced by one or more rules: %q referenced by route rules %v (retarget or delete those rules first, or pass force)", tag, indexes)
+		return mcpsrv.SingboxRuleSetDeletion{}, fmt.Errorf("rule set is referenced by one or more rules: %q referenced by route rules %v (edit or delete those rules first, or pass force)", tag, indexes)
 	}
 	if err := f.stageRouterEdit(); err != nil {
-		return mcpsrv.SingboxRuleSet{}, nil, err
+		return mcpsrv.SingboxRuleSetDeletion{}, err
 	}
 	deleted := f.RuleSets[i]
 	f.RuleSets = slices.Delete(f.RuleSets, i, i+1)
-	return deleted, users, nil
+	return mcpsrv.SingboxRuleSetDeletion{Deleted: deleted, Rules: users}, nil
 }
 
 func (f *Fake) CreateSingboxOutboundGroup(_ context.Context, in mcpsrv.SingboxGroupInput) error {

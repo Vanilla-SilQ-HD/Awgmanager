@@ -90,6 +90,8 @@ func TestInsertRule(t *testing.T) {
 		"reject with one":     {2, Rule{DomainSuffix: []string{"x"}, Action: "reject", Outbound: "vpn"}, ErrRuleUnsupported},
 		"other action":        {2, Rule{DomainSuffix: []string{"x"}, Action: "hijack-dns"}, ErrRuleUnsupported},
 		"private is system":   {2, Rule{IPIsPrivate: &yes, Outbound: "vpn"}, ErrRuleUnsupported},
+		"logical":             {2, Rule{Type: "logical", Mode: "or", Rules: []Rule{{DomainSuffix: []string{"x"}}, {DomainSuffix: []string{"y"}}}, Outbound: "vpn"}, ErrRuleUnsupported},
+		"managed mark":        {2, Rule{DomainSuffix: []string{"x"}, Outbound: "vpn", AwgmManaged: "dnsroute"}, ErrRuleUnsupported},
 		"no matcher":          {2, Rule{Outbound: "vpn"}, ErrInvalidMatchers},
 		"unknown rule set":    {2, Rule{RuleSet: []string{"ghost"}, Outbound: "vpn"}, ErrRuleSetNotFound},
 		"past the end":        {99, Rule{DomainSuffix: []string{"x"}, Outbound: "vpn"}, ErrRuleIndexOutOfRange},
@@ -136,6 +138,10 @@ func TestReplaceDeleteMoveUserRule(t *testing.T) {
 		"move onto system": svc.MoveUserRule(ctx, 2, 1),
 		"move managed":     svc.MoveUserRule(ctx, 3, 2),
 		"move out of list": svc.MoveUserRule(ctx, 2, 9),
+		"move from past":   svc.MoveUserRule(ctx, 9, 2),
+		"replace past":     svc.ReplaceUserRule(ctx, 9, Rule{DomainSuffix: []string{"x"}, Outbound: "vpn"}),
+		"delete past":      second(svc.DeleteUserRule(ctx, 9)),
+		"delete negative":  second(svc.DeleteUserRule(ctx, -1)),
 	} {
 		if err == nil {
 			t.Errorf("%s: must be refused", name)
