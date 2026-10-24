@@ -222,6 +222,33 @@ func TestTakeUpdateSnapshotDoesNotOverwriteSameSecond(t *testing.T) {
 			t.Errorf("%s: время %v, want %v", s.ID, s.CreatedAt, at)
 		}
 	}
+	if list[0].ID != second.ID {
+		t.Fatalf("новым первым должен идти второй снимок той же секунды: %+v", list)
+	}
+}
+
+// При одной метке времени порядок задаёт номер -N, а не сравнение строк.
+func TestSnapshotIDsOrderSameSecond(t *testing.T) {
+	dir := t.TempDir()
+	names := []string{
+		"before-update-20000101-000000.tar.gz",
+		"before-update-20000101-000000-2.tar.gz",
+		"before-update-20000101-000000-10.tar.gz",
+		"before-update-19991231-235959-3.tar.gz",
+	}
+	for _, n := range names {
+		if err := os.WriteFile(filepath.Join(dir, n), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ids, err := snapshotIDs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{names[2], names[1], names[0], names[3]}
+	if strings.Join(ids, " ") != strings.Join(want, " ") {
+		t.Fatalf("порядок %v, want %v", ids, want)
+	}
 }
 
 func TestPruneExpiredSnapshots(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -187,8 +188,10 @@ func snapshotTime(id string) (time.Time, bool) {
 	return t, err == nil
 }
 
-// snapshotIDs возвращает имена снимков в dir, новые первыми (метка времени
-// в имени сортируется как строка).
+// snapshotIDs возвращает имена снимков в dir, новые первыми: по метке
+// времени, а при одной метке — по суффиксу -N (без него — первый). Строкой
+// сравнивать нельзя: «-» меньше «.», и -2 оказался бы старше снимка без
+// суффикса, а -10 — старше -2.
 func snapshotIDs(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
@@ -203,8 +206,28 @@ func snapshotIDs(dir string) ([]string, error) {
 			ids = append(ids, e.Name())
 		}
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(ids)))
+	sort.Slice(ids, func(i, j int) bool {
+		si, ni := snapshotOrder(ids[i])
+		sj, nj := snapshotOrder(ids[j])
+		if si != sj {
+			return si > sj
+		}
+		return ni > nj
+	})
 	return ids, nil
+}
+
+// snapshotOrder — метка времени и номер снимка с этой меткой (1 без суффикса).
+func snapshotOrder(id string) (string, int) {
+	m := snapshotName.FindStringSubmatch(id)
+	if m == nil {
+		return "", 0
+	}
+	n := 1
+	if m[2] != "" {
+		n, _ = strconv.Atoi(m[2][1:])
+	}
+	return m[1], n
 }
 
 // pruneSnapshots оставляет fresh и keep-1 самых новых из остальных.
