@@ -28,7 +28,7 @@ type tunnelSettingsIn struct {
 	MTU                 *int         `json:"mtu,omitempty" jsonschema:"interface MTU, 576–9000"`
 	DNS                 *string      `json:"dns,omitempty" jsonschema:"DNS servers, comma-separated as in the .conf; empty clears them"`
 	PersistentKeepalive *string      `json:"persistentKeepalive,omitempty" jsonschema:"seconds between keepalives (0 turns them off), or a min-max range on AmneziaWG 2/3"`
-	ISPInterface        *string      `json:"ispInterface,omitempty" jsonschema:"connection the tunnel goes out through: auto (the router's default), a WAN id from list_routing_targets (wan:…), or tunnel:<id> to chain it through another tunnel. A running tunnel restarts to apply it"`
+	ISPInterface        *string      `json:"ispInterface,omitempty" jsonschema:"connection the tunnel goes out through: auto (the router's default), a WAN id from list_routing_targets (wan:…), or tunnel:<id> to chain it through another awg-manager tunnel (type managed in list_routing_targets). A running tunnel restarts to apply it"`
 	ConnectivityCheck   *string      `json:"connectivityCheck,omitempty" jsonschema:"how the tunnel's health is judged: http, ping, handshake or disabled"`
 	PingTarget          string       `json:"pingTarget,omitempty" jsonschema:"IP address to ping, for connectivityCheck ping"`
 	AWG                 *awgParamsIn `json:"awg,omitempty" jsonschema:"AmneziaWG obfuscation parameters to change; both ends must match, so change them only to match the server"`
