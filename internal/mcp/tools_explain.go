@@ -180,10 +180,14 @@ func explainNote(out *explainOut) string {
 		parts = append(parts, "more than one list covers this target; the router applies them in its own order, so treat the list above as candidates rather than a decision")
 	}
 	// The NDMS lists are only half the picture wherever sing-box does the
-	// routing: its rules are evaluated separately and this tool does not
-	// read them. Saying so on every answer beats confidently naming a
-	// tunnel that sing-box then overrides.
-	parts = append(parts, "if the sing-box router is in use, its own rules apply too and are not covered here — check list_singbox_rules")
+	// routing: its rules are judged separately, under singbox. Saying so on
+	// every answer beats confidently naming a tunnel that sing-box then
+	// overrides; without that section the rules were not read at all.
+	if out.Singbox != nil {
+		parts = append(parts, "the sing-box router's own verdict is under singbox; which of the two carries a flow depends on how the router hands traffic to sing-box (get_singbox_router_status)")
+	} else {
+		parts = append(parts, "if the sing-box router is in use, its own rules apply too and are not covered here — check list_singbox_rules")
+	}
 	if len(parts) == 1 {
 		return "one routing list covers this target; " + parts[0]
 	}
