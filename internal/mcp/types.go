@@ -674,6 +674,25 @@ type AccessPolicy struct {
 	Interfaces  []string `json:"interfaces"`
 	DeviceCount int      `json:"deviceCount"`
 	IsStandard  bool     `json:"isStandard"`
+	// Standalone and Order describe the policy in full, as the access
+	// policy tools edit it.
+	Standalone bool                    `json:"standalone" jsonschema:"devices of the policy reach only the interfaces it permits, never the router's default connection"`
+	Order      []AccessPolicyInterface `json:"order,omitempty" jsonschema:"every interface in the policy in priority order, denied ones included"`
+}
+
+// AccessPolicyInterface is one interface in a policy's list.
+type AccessPolicyInterface struct {
+	Name   string `json:"name"`
+	Label  string `json:"label,omitempty"`
+	Order  int    `json:"order" jsonschema:"position: traffic uses the first permitted interface that is up"`
+	Denied bool   `json:"denied,omitempty" jsonschema:"in the list but not used"`
+}
+
+// PolicyInterface is a router interface a policy can permit.
+type PolicyInterface struct {
+	Name  string `json:"name" jsonschema:"the name the access policy tools take"`
+	Label string `json:"label,omitempty"`
+	Up    bool   `json:"up"`
 }
 
 type Device struct {
