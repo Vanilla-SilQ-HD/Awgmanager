@@ -112,8 +112,18 @@ func TestLocal_SingboxUserConfig(t *testing.T) {
 		t.Fatalf("a sing-box refusal is a failed check: %+v, %v", check, err)
 	}
 	fs.applyErr = nil
-	if check, err = l.ApplySingboxUserConfig(ctx); err != nil || !check.Ok || len(fs.enabledTo) != 1 || !fs.enabledTo[0] {
+	if check, err = l.ApplySingboxUserConfig(ctx); err != nil || !check.Ok || len(fs.enabledTo) != 1 || !fs.enabledTo[0] || len(check.Warnings) != 0 {
 		t.Fatalf("a good apply enables the slot: %+v, %v, %v", check, err, fs.enabledTo)
+	}
+	// A rule mixing a rule_set with its own addresses is flagged on save and
+	// on apply, as the editor's check and apply do (#699).
+	mixed := []byte(`{"route":{"rules":[{"rule_set":["geosite-x"],"ip_cidr":["10.0.0.0/8"],"outbound":"vpn"}]}}`)
+	fs.checkRes = singboxorch.ValidationResult{}
+	if check, err = l.SaveSingboxUserConfig(ctx, mixed); err != nil || len(check.Warnings) != 1 || !strings.Contains(check.Warnings[0], "route.rules[0]") {
+		t.Fatalf("save must flag the rule: %+v, %v", check, err)
+	}
+	if check, err = l.ApplySingboxUserConfig(ctx); err != nil || len(check.Warnings) != 1 {
+		t.Fatalf("apply must flag the rule of the draft it applied: %+v, %v", check, err)
 	}
 	if err := l.DiscardSingboxUserConfig(ctx); err != nil || fs.draft != nil {
 		t.Fatal("discard must drop the draft")
