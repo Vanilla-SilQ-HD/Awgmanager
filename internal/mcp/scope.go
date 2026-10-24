@@ -48,6 +48,7 @@ var readOnlyTools = map[string]bool{
 	"list_singbox_dns_rules":     true,
 	"list_singbox_dns_rewrites":  true,
 	"list_routing_targets":       true,
+	"list_singbox_connections":   true,
 }
 
 // credentialTools change nothing on the router but hand out material

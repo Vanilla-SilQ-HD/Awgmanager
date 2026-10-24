@@ -35,6 +35,7 @@ func NewServer(deps Deps, version string) *mcp.Server {
 	})
 	registerSystemTools(s, deps)
 	registerObservabilityTools(s, deps)
+	registerSingboxObserveTools(s, deps)
 	registerTunnelTools(s, deps)
 	registerTunnelSettingsTools(s, deps)
 	registerRoutingTools(s, deps)
