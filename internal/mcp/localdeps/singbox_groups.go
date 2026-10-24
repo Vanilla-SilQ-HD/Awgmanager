@@ -681,8 +681,10 @@ func errSubscriptionNotFound(id string) error {
 // quotes the label of the subscription that holds the tag, which is the
 // provider's text for a fetched one.
 //
-// No invalidation event is published, for the reason
-// SetSingboxSubscriptionEnabled gives: the REST handler publishes none.
+// No invalidation event is published, as in the REST handler (CreateGroup
+// publishes none). The group lives in the group store, which, unlike the
+// subscription store, has no change hook: an open web page shows the group
+// once it reloads its data.
 func (l *Local) CreateSingboxAggregateGroup(ctx context.Context, in mcpsrv.SingboxAggregateGroupInput) (mcpsrv.SingboxAggregateGroup, error) {
 	if l.c.Subscriptions == nil {
 		return mcpsrv.SingboxAggregateGroup{}, errUnavailable("sing-box subscriptions")

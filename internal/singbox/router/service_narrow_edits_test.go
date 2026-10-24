@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -192,6 +193,13 @@ func TestSetCompositeOutboundMembers_Refusals(t *testing.T) {
 		{"itself", "auto", []string{"auto"}, ErrOutboundInvalid},
 		{"cycle", "a", []string{"auto"}, nil},
 		{"unknown group", "nope", []string{"a"}, ErrOutboundNotFound},
+		{"not a group", "lan", []string{"a"}, ErrOutboundInvalid},
+	}
+	if err := svc.withConfig(ctx, "outbounds", func(c *RouterConfig) error {
+		c.Outbounds = append(c.Outbounds, Outbound{Type: "direct", Tag: "lan"})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
 	}
 	for _, c := range cases {
 		err := svc.SetCompositeOutboundMembers(ctx, c.tag, c.members)
@@ -208,5 +216,11 @@ func TestSetCompositeOutboundMembers_Refusals(t *testing.T) {
 	}
 	if got := outboundByTag(t, svc, "a"); !slices.Equal(got.Outbounds, []string{"direct"}) {
 		t.Fatalf("a refused cycle must write nothing: %v", got.Outbounds)
+	}
+	if err := svc.SetCompositeOutboundMembers(ctx, "lan", []string{"a"}); err == nil || !strings.Contains(err.Error(), "не группа") {
+		t.Fatalf("an outbound that is not a group is refused as such, not by a later check: %v", err)
+	}
+	if got := outboundByTag(t, svc, "lan"); len(got.Outbounds) != 0 {
+		t.Fatalf("an outbound that is not a group gets no members: %v", got.Outbounds)
 	}
 }
