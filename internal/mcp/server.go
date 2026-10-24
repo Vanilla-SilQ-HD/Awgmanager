@@ -21,7 +21,7 @@ func NewServer(deps Deps, version string) *mcp.Server {
 	}, &mcp.ServerOptions{
 		Instructions: "Tools manage AmneziaWG/WireGuard tunnels and routing on a Keenetic router via awg-manager. " +
 			"Tunnel ids come from list_tunnels. Writes are reversible except the tools marked destructive (remove_*, delete_*, discard_*): what they remove, MCP cannot restore — remove_dns_route and remove_static_route delete a routing list permanently. " +
-			"To stop a routing list from applying, use set_dns_route_enabled / set_static_route_enabled / set_client_route_enabled; to change one, use update_dns_route. Removal is for lists the user wants gone for good. " +
+			"To stop a routing list from applying, use set_dns_route_enabled / set_static_route_enabled / set_client_route_enabled; to change one, use update_dns_route or update_static_route. Removal is for lists the user wants gone for good. " +
 			"Sing-box router edits — rules, router groups, DNS server and rule set detours — go into a DRAFT shared with the web interface: they change nothing until apply_singbox_staging, and discarding one destroys the user's unsaved edits too. " +
 			"Subscription edits are not drafted: creating an aggregate group or adding a server to a subscription applies at once. " +
 			"In fakeip-tun mode (get_singbox_router_status) the router reads come from that mode's own configuration and the router edits are refused. " +

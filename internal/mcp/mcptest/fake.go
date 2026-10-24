@@ -25,6 +25,9 @@ type Fake struct {
 	Configs      map[string]string
 	DNSRoutes    []mcpsrv.DNSRouteDetail
 	StaticRoutes []mcpsrv.StaticRoute
+	// ExtraTargets are routing targets besides the tunnels: NDMS
+	// interfaces and WAN, as routing.Catalog lists them.
+	ExtraTargets []mcpsrv.RoutingTarget
 	ClientRoutes []mcpsrv.ClientRoute
 	Policies     []mcpsrv.AccessPolicy
 	Devices      []mcpsrv.Device
@@ -149,6 +152,10 @@ func New() *Fake {
 		},
 		NotOutbound: map[string]string{
 			"sub-706dcf33-x9": `it is excluded from subscription "AXO auto" by the user, so it is not an outbound`,
+		},
+		ExtraTargets: []mcpsrv.RoutingTarget{
+			{ID: "system:Proxy0", Name: "Proxy0", Type: "system", Status: "up", Available: true},
+			{ID: "wan:ppp0", Name: "ISP", Type: "wan", Status: "up", Available: true},
 		},
 		DNSServers: []mcpsrv.SingboxDNSServer{
 			{Tag: "dns-direct", Type: "udp", Server: "77.88.8.8", Managed: true},
@@ -418,17 +425,74 @@ func (f *Fake) GetDNSRoute(_ context.Context, id string) (mcpsrv.DNSRouteDetail,
 	return mcpsrv.DNSRouteDetail{}, fmt.Errorf("dns route %q not found", id)
 }
 
+// routingTargets lists the tunnels and ExtraTargets, as the catalog does.
+// Called with f.mu held.
+func (f *Fake) routingTargets() []mcpsrv.RoutingTarget {
+	out := make([]mcpsrv.RoutingTarget, 0, len(f.Tunnels)+len(f.ExtraTargets))
+	for _, t := range f.Tunnels {
+		out = append(out, mcpsrv.RoutingTarget{ID: t.ID, Name: t.Name, Type: "managed", Status: t.State, Available: t.State == "running"})
+	}
+	return append(out, f.ExtraTargets...)
+}
+
+func (f *Fake) ListRoutingTargets(context.Context) ([]mcpsrv.RoutingTarget, error) {
+	if f.Err != nil {
+		return nil, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.routingTargets(), nil
+}
+
+// checkTargets mirrors localdeps: an id the catalog does not list is
+// refused. Called with f.mu held.
+func (f *Fake) checkTargets(ids []string) error {
+	for _, id := range ids {
+		if !slices.ContainsFunc(f.routingTargets(), func(t mcpsrv.RoutingTarget) bool { return t.ID == id }) {
+			return fmt.Errorf("%q is not a routing target (use list_routing_targets)", id)
+		}
+	}
+	return nil
+}
+
+func fakeRouteTargets(ids []string, killSwitch bool) []mcpsrv.RouteTarget {
+	out := make([]mcpsrv.RouteTarget, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, mcpsrv.RouteTarget{TunnelID: id})
+	}
+	if killSwitch && len(out) > 0 {
+		out[len(out)-1].Fallback = "reject"
+	}
+	return out
+}
+
+// fakeSubscriptionURL keeps what dnsRouteDetail keeps of a URL: scheme and
+// host.
+func fakeSubscriptionURL(raw string) string {
+	scheme, rest, _ := strings.Cut(raw, "://")
+	host, _, _ := strings.Cut(rest, "/")
+	return scheme + "://" + host
+}
+
 func (f *Fake) AddDNSRoute(_ context.Context, in mcpsrv.DNSRouteInput) (mcpsrv.DNSRoute, error) {
 	if f.Err != nil {
 		return mcpsrv.DNSRoute{}, f.Err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if _, err := f.findTunnel(in.TunnelID); err != nil {
+	targets := in.Targets
+	if len(targets) == 0 {
+		targets = []string{in.TunnelID}
+	}
+	if err := f.checkTargets(targets); err != nil {
 		return mcpsrv.DNSRoute{}, err
 	}
 	// Always enabled — same as dnsroute.Create; MCP has no enabled input.
-	r := mcpsrv.DNSRouteDetail{ID: f.nextID("dl"), Name: in.Name, Enabled: true, Domains: in.Domains, ManualDomains: in.Domains, Routes: []mcpsrv.RouteTarget{{TunnelID: in.TunnelID}}}
+	r := mcpsrv.DNSRouteDetail{ID: f.nextID("dl"), Name: in.Name, Enabled: true, Domains: in.Domains, ManualDomains: in.Domains,
+		Excludes: in.Excludes, Routes: fakeRouteTargets(targets, in.KillSwitch)}
+	for _, u := range in.SubscriptionURLs {
+		r.Subscriptions = append(r.Subscriptions, mcpsrv.DNSSubscription{URL: fakeSubscriptionURL(u)})
+	}
 	f.DNSRoutes = append(f.DNSRoutes, r)
 	return r.Summary(), nil
 }
@@ -472,13 +536,46 @@ func (f *Fake) UpdateDNSRoute(_ context.Context, in mcpsrv.DNSRouteUpdate) (mcps
 			}
 		}
 		if in.TunnelID != "" {
-			if _, err := f.findTunnel(in.TunnelID); err != nil {
-				return mcpsrv.DNSRoute{}, nil, err
-			}
 			if len(r.Routes) > 1 {
 				warnings = append(warnings, fmt.Sprintf("the list had %d route targets; they were replaced by tunnel %q", len(r.Routes), in.TunnelID))
 			}
-			r.Routes = []mcpsrv.RouteTarget{{TunnelID: in.TunnelID}}
+			in.Targets = []string{in.TunnelID}
+		}
+		killSwitch := len(r.Routes) > 0 && r.Routes[len(r.Routes)-1].Fallback == "reject"
+		if in.KillSwitch != nil {
+			killSwitch = *in.KillSwitch
+		}
+		if in.Targets != nil {
+			if err := f.checkTargets(in.Targets); err != nil {
+				return mcpsrv.DNSRoute{}, nil, err
+			}
+			r.Routes = fakeRouteTargets(in.Targets, killSwitch)
+		} else if in.KillSwitch != nil && len(r.Routes) > 0 {
+			ids := make([]string, 0, len(r.Routes))
+			for _, t := range r.Routes {
+				ids = append(ids, t.TunnelID)
+			}
+			r.Routes = fakeRouteTargets(ids, killSwitch)
+		}
+		if in.Excludes != nil {
+			r.Excludes = append([]string{}, in.Excludes...)
+		}
+		for _, i := range in.RemoveSubscriptions {
+			if i >= len(r.Subscriptions) {
+				return mcpsrv.DNSRoute{}, nil, fmt.Errorf("removeSubscriptions: position %d is out of range", i)
+			}
+		}
+		if len(in.RemoveSubscriptions) > 0 {
+			var kept []mcpsrv.DNSSubscription
+			for i, sub := range r.Subscriptions {
+				if !slices.Contains(in.RemoveSubscriptions, i) {
+					kept = append(kept, sub)
+				}
+			}
+			r.Subscriptions = kept
+		}
+		for _, u := range in.AddSubscriptionURLs {
+			r.Subscriptions = append(r.Subscriptions, mcpsrv.DNSSubscription{URL: fakeSubscriptionURL(u)})
 		}
 		return r.Summary(), warnings, nil
 	}
@@ -530,12 +627,48 @@ func (f *Fake) AddStaticRoute(_ context.Context, in mcpsrv.StaticRouteInput) (mc
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if _, err := f.findTunnel(in.TunnelID); err != nil {
+	if err := f.checkTargets([]string{in.TunnelID}); err != nil {
 		return mcpsrv.StaticRoute{}, err
 	}
 	enabled := in.Enabled == nil || *in.Enabled
 	r := mcpsrv.StaticRoute{ID: f.nextID("sr"), Name: in.Name, TunnelID: in.TunnelID, Subnets: in.Subnets, Enabled: enabled}
+	if in.KillSwitch {
+		r.Fallback = "reject"
+	}
 	f.StaticRoutes = append(f.StaticRoutes, r)
+	return r, nil
+}
+
+func (f *Fake) UpdateStaticRoute(_ context.Context, in mcpsrv.StaticRouteUpdate) (mcpsrv.StaticRoute, error) {
+	if f.Err != nil {
+		return mcpsrv.StaticRoute{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	i := slices.IndexFunc(f.StaticRoutes, func(r mcpsrv.StaticRoute) bool { return r.ID == in.RouteID })
+	if i < 0 {
+		return mcpsrv.StaticRoute{}, fmt.Errorf("static route %q not found (use list_static_routes)", in.RouteID)
+	}
+	r := f.StaticRoutes[i]
+	if in.Name != "" {
+		r.Name = in.Name
+	}
+	if in.TunnelID != "" {
+		if err := f.checkTargets([]string{in.TunnelID}); err != nil {
+			return mcpsrv.StaticRoute{}, err
+		}
+		r.TunnelID = in.TunnelID
+	}
+	if in.Subnets != nil {
+		r.Subnets = slices.Clone(in.Subnets)
+	}
+	if in.KillSwitch != nil {
+		r.Fallback = ""
+		if *in.KillSwitch {
+			r.Fallback = "reject"
+		}
+	}
+	f.StaticRoutes[i] = r
 	return r, nil
 }
 

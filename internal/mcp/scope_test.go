@@ -320,3 +320,16 @@ func TestScope_ReadOnlyKeyAndRuleEdits(t *testing.T) {
 		}
 	}
 }
+
+// TestScope_ReadOnlyKeyAndRoutingTargets — список целей читается, правка
+// IP-списка — нет.
+func TestScope_ReadOnlyKeyAndRoutingTargets(t *testing.T) {
+	s := scopedSession(t, true)
+	if res, _ := callTool(t, s, "list_routing_targets", nil); res.IsError {
+		t.Errorf("list_routing_targets must be allowed on a read-only key: %s", toolText(res))
+	}
+	res, _ := callTool(t, s, "update_static_route", map[string]any{"routeId": "sr-1", "name": "x"})
+	if !res.IsError || !strings.Contains(strings.ToLower(toolText(res)), "read-only") {
+		t.Errorf("update_static_route: a read-only key must be refused: %q", toolText(res))
+	}
+}

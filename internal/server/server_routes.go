@@ -1208,6 +1208,7 @@ func (s *Server) registerMcpRoutes(mux *http.ServeMux, h *routeHandlers) {
 		Traffic:        trafficStats,
 		DNSRoutes:      s.dnsRouteService,
 		StaticRoutes:   s.staticRouteService,
+		Targets:        s.catalog,
 		ClientRoutes:   s.clientRouteService,
 		Policies:       s.accessPolicyService,
 		Logs:           logs,
