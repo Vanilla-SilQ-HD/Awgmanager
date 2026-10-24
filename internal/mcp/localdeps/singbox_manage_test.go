@@ -69,7 +69,8 @@ func TestLocal_CreateSingboxSubscription(t *testing.T) {
 func TestLocal_DeleteSingboxSubscriptionChecksReferences(t *testing.T) {
 	subs := subsHarness()
 	refs := fakeRouterRefs{"sub-706dcf33-b2": {4}}
-	l := New(Config{Subscriptions: subs, RouterRefs: refs, AppLog: &recLog{}})
+	journal := &recLog{}
+	l := New(Config{Subscriptions: subs, RouterRefs: refs, AppLog: journal})
 	ctx := context.Background()
 
 	_, err := l.DeleteSingboxSubscription(ctx, subAutoID)
@@ -82,6 +83,11 @@ func TestLocal_DeleteSingboxSubscriptionChecksReferences(t *testing.T) {
 	}
 	if _, err := l.DeleteSingboxSubscription(ctx, "deadbeefdeadbeefdeadbeef"); err == nil || !strings.Contains(err.Error(), "list_singbox_subscriptions") {
 		t.Fatalf("err = %v", err)
+	}
+	subs.mgmtErr = errors.New("subscription: delete reload: sing-box check failed")
+	if _, err := l.DeleteSingboxSubscription(ctx, subPasteID); err == nil || !strings.Contains(err.Error(), "get_logs") ||
+		!strings.Contains(strings.Join(journal.lines, "\n"), "delete reload") {
+		t.Fatalf("a failed delete sends the agent to the journal, and the cause is there: %v / %v", err, journal.lines)
 	}
 }
 
@@ -130,6 +136,12 @@ func TestLocal_ExcludeRestoreSingboxSubscriptionServers(t *testing.T) {
 	if _, err := l.RestoreSingboxSubscriptionServers(ctx, subAutoID, []string{"sub-706dcf33-x9"}); err != nil || len(subs.restored) != 1 {
 		t.Fatalf("restore: %v, %v", subs.restored, err)
 	}
+	journal := &recLog{}
+	l = New(Config{Subscriptions: subs, AppLog: journal})
+	subs.mgmtErr = errors.New("rebuild group outbound: sing-box check failed")
+	if _, err := l.ExcludeSingboxSubscriptionServers(ctx, subAutoID, []string{"x"}); err == nil || !strings.Contains(strings.Join(journal.lines, "\n"), "rebuild group outbound") {
+		t.Fatalf("an unmapped failure is journalled with its cause: %v / %v", err, journal.lines)
+	}
 	for svcErr, want := range map[error]string{
 		subscription.ErrExcludeOnInline:    "fetched from a URL",
 		subscription.ErrAllMembersExcluded: "no server",
@@ -173,6 +185,10 @@ func TestLocal_AddSingboxTunnel(t *testing.T) {
 	calls := len(op.addedLinks)
 	if _, _, err := l.AddSingboxTunnel(ctx, "not a link at all"); err == nil || len(op.addedLinks) != calls {
 		t.Fatalf("an unparsable link must be refused before the operator: %v", err)
+	}
+	bound := "vless://11111111-2222-3333-4444-555555555555@n.example.net:443?security=tls&sni=n.example.net&type=tcp&bind_interface=ppp0#x"
+	if _, _, err := l.AddSingboxTunnel(ctx, bound); err == nil || !strings.Contains(err.Error(), "interface") || len(op.addedLinks) != calls {
+		t.Fatalf("an interface binding must be refused before the operator: %v", err)
 	}
 }
 

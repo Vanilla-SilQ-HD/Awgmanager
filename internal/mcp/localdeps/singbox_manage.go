@@ -112,7 +112,9 @@ func (l *Local) DeleteSingboxSubscription(ctx context.Context, id string) (mcpsr
 		return mcpsrv.SingboxSubscription{}, err
 	}
 	if err := l.c.Subscriptions.Delete(ctx, id); err != nil {
-		l.subLog.Warn("subscription-delete", label, "Failed to delete subscription (MCP)")
+		// The cause names tags and sing-box's check output, not the
+		// address; the journal cuts any URL to its host all the same.
+		l.subLog.Warn("subscription-delete", label, "Failed to delete subscription (MCP): "+err.Error())
 		return mcpsrv.SingboxSubscription{}, fmt.Errorf(`the subscription could not be deleted; the cause is in the journal — get_logs with bucket "singbox"`)
 	}
 	l.subLog.Info("subscription-delete", label, "Subscription deleted (MCP)")
@@ -219,7 +221,7 @@ func (l *Local) editMembers(ctx context.Context, id string, tags []string, verb 
 		if mapped := memberEditError(err, current.SelectorTag); mapped != nil {
 			return mcpsrv.SingboxSubscription{}, mapped
 		}
-		l.subLog.Warn("subscription-"+verb, label, "Failed to "+verb+" servers (MCP); the service journalled the cause in bucket singbox")
+		l.subLog.Warn("subscription-"+verb, label, "Failed to "+verb+" servers (MCP): "+err.Error())
 		return mcpsrv.SingboxSubscription{}, fmt.Errorf(`the servers could not be changed; the cause is in the journal — get_logs with bucket "singbox"`)
 	}
 	if updated == nil {
@@ -231,9 +233,9 @@ func (l *Local) editMembers(ctx context.Context, id string, tags []string, verb 
 
 // AddSingboxTunnel parses the link the way the REST handler does and
 // refuses what that handler checks with dependencies MCP does not hold: a
-// bind_interface (validated against NDMS there) and a multi-address
-// TrustTunnel config (a group, not a proxy). A share link carries neither
-// as a rule; they come from configuration files, which the tool refuses.
+// bind_interface (validated against NDMS there; a link may carry one in
+// its query). A multi-address TrustTunnel config parses to one outbound per
+// address, so the one-link check already refuses it.
 //
 // The operator's errors are judged as the REST handler does, by what was
 // added: a proxy whose NDMS ProxyN setup failed stays in the configuration
@@ -252,8 +254,8 @@ func (l *Local) AddSingboxTunnel(ctx context.Context, shareLink string) (mcpsrv.
 		BindInterface string `json:"bind_interface"`
 	}
 	_ = json.Unmarshal(p.Outbound, &peek)
-	if p.MultiAddress || peek.BindInterface != "" {
-		return mcpsrv.SingboxTunnel{}, nil, fmt.Errorf("this link needs settings MCP does not check (an interface binding or several addresses); add it in the web interface")
+	if peek.BindInterface != "" {
+		return mcpsrv.SingboxTunnel{}, nil, fmt.Errorf("this link binds the proxy to an interface, which MCP does not check; add it in the web interface")
 	}
 	added, errs, err := l.c.Singbox.AddTunnels(ctx, shareLink)
 	if len(added) > 0 {
@@ -273,7 +275,7 @@ func (l *Local) AddSingboxTunnel(ctx context.Context, shareLink string) (mcpsrv.
 		return mcpsrv.SingboxTunnel{}, nil, fmt.Errorf("this proxy is already configured (list_singbox_tunnels); nothing was added")
 	}
 	l.singboxLog.Warn("single-add", "", "Failed to add a proxy (MCP); the cause is not journalled here because it can quote the link")
-	return mcpsrv.SingboxTunnel{}, nil, fmt.Errorf("the proxy was not added: sing-box cannot use this link (an unsupported protocol, or a setting this build lacks)")
+	return mcpsrv.SingboxTunnel{}, nil, fmt.Errorf("the proxy was not added: sing-box cannot use this link or could not apply it (an unsupported protocol, a setting this build lacks, or a configuration sing-box refused)")
 }
 
 func (l *Local) DeleteSingboxTunnel(ctx context.Context, tag string) (mcpsrv.SingboxTunnel, error) {
