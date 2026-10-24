@@ -100,6 +100,7 @@ func TestServer_ListsToolsWithAnnotations(t *testing.T) {
 		"get_singbox_router_status", "list_singbox_dns_rules", "list_singbox_dns_rewrites",
 		"add_singbox_rule", "update_singbox_rule", "move_singbox_rule", "delete_singbox_rule",
 		"set_singbox_route_final", "add_singbox_ruleset", "delete_singbox_ruleset",
+		"list_routing_targets", "update_static_route",
 	}
 	for _, n := range want {
 		if byName[n] == nil {

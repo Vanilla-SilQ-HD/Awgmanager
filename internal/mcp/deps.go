@@ -48,7 +48,16 @@ type Deps interface {
 	// the user. See tools_routing.go removedDNSOut.
 	RemoveDNSRoute(ctx context.Context, id string) (DNSRoute, error)
 
+	// ListRoutingTargets returns what a routing list can send traffic
+	// through, as the web interface's target picker lists it, without the
+	// WireGuard servers.
+	ListRoutingTargets(ctx context.Context) ([]RoutingTarget, error)
+
 	ListStaticRoutes(ctx context.Context) ([]StaticRoute, error)
+	// UpdateStaticRoute applies a partial edit and returns the list as it
+	// stands afterwards; the kill switch, the icon and the on/off state
+	// survive an edit that does not name them.
+	UpdateStaticRoute(ctx context.Context, in StaticRouteUpdate) (StaticRoute, error)
 	AddStaticRoute(ctx context.Context, in StaticRouteInput) (StaticRoute, error)
 	// SetStaticRouteEnabled is SetDNSRouteEnabled for subnet lists.
 	SetStaticRouteEnabled(ctx context.Context, id string, enabled bool) (StaticRoute, error)
