@@ -235,6 +235,18 @@ func TestLocal_CreateSingboxAggregateGroupDoesNotQuoteTheService(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 
+	// Other ErrValidation answers are not about the tag: an old sing-box
+	// without the group type must not send the agent renaming the group.
+	subs.createErr = fmt.Errorf("%w: установленный sing-box не поддерживает группы типа %q — обновите sing-box", subscription.ErrValidation, "urltest")
+	_, err = l.CreateSingboxAggregateGroup(context.Background(), mcpsrv.SingboxAggregateGroupInput{Label: "x", Tag: "mygroup", SubscriptionIDs: []string{subAutoID}})
+	if err == nil || strings.Contains(err.Error(), "taken") || !strings.Contains(err.Error(), "get_logs") {
+		t.Fatalf("a refusal that is not the tag's must point at the journal: %v", err)
+	}
+	subs.createErr = fmt.Errorf("%w: префикс \"sub-\" зарезервирован за подписками", subscription.ErrValidation)
+	if _, err = l.CreateSingboxAggregateGroup(context.Background(), mcpsrv.SingboxAggregateGroupInput{Label: "x", Tag: "sub-x", SubscriptionIDs: []string{subAutoID}}); err == nil || !strings.Contains(err.Error(), "not allowed") {
+		t.Fatalf("the sub- prefix is the tag's fault: %v", err)
+	}
+
 	subs.createErr = errors.New("sing-box check: FATAL outbound sub-706dcf33-a1")
 	journal := &recLog{}
 	l = New(Config{Subscriptions: subs, AppLog: journal})

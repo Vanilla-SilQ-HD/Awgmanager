@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -458,9 +459,9 @@ func (l *Local) CheckSingboxDelay(ctx context.Context, tag string) (mcpsrv.Singb
 // and keeps the stored value, so a sparse patch is what leaves the
 // filters, the mode and the URL alone.
 //
-// No invalidation event is published, because the REST handler publishes
-// none: there is no subscription resource in internal/events, and an
-// open web tab sees the change on its next fetch either way.
+// No invalidation event is published here, as in the REST handler: the
+// subscription store publishes singbox.subscriptions itself on every save
+// (SetOnChange in cmd/awg-manager), whoever made the change.
 func (l *Local) SetSingboxSubscriptionEnabled(_ context.Context, id string, enabled bool) (mcpsrv.SingboxSubscription, []string, error) {
 	if l.c.Subscriptions == nil {
 		return mcpsrv.SingboxSubscription{}, nil, errUnavailable("sing-box subscriptions")
@@ -710,7 +711,7 @@ func (l *Local) CreateSingboxAggregateGroup(ctx context.Context, in mcpsrv.Singb
 	switch {
 	case errors.Is(err, subscription.ErrGroupsDisabled):
 		return mcpsrv.SingboxAggregateGroup{}, errUnavailable("aggregate subscription groups")
-	case errors.Is(err, subscription.ErrValidation):
+	case errors.Is(err, subscription.ErrValidation) && groupTagRefused(err, in.Tag):
 		l.subLog.Warn("subscription-group-create", label, "Aggregate group refused (MCP): tag not allowed or taken")
 		return mcpsrv.SingboxAggregateGroup{}, fmt.Errorf("the tag %q is not allowed or already taken. A tag is Latin letters, digits and . _ - (up to 32, starting with a letter or digit, not starting with sub-); or leave tag empty to let awg-manager name the group", in.Tag)
 	case errors.Is(err, subscription.ErrGroupSubscriptionNotFound):
@@ -726,6 +727,21 @@ func (l *Local) CreateSingboxAggregateGroup(ctx context.Context, in mcpsrv.Singb
 	}
 	l.subLog.Info("subscription-group-create", label, "Aggregate group created (MCP)")
 	return aggregateGroup(g), nil
+}
+
+// groupTagRefused tells a refusal of the group's own tag from the other
+// ErrValidation answers of CreateGroup — sing-box rejecting the group, an
+// unread slot, nothing left after filtering — which are not the agent's
+// tag and go to the journal instead. The service has no typed error for
+// it: its tag messages (validateGroupTag, the taken checks, a clash with
+// 90-user.json) all quote the tag after the word "тег", and the sub-
+// prefix one names the prefix.
+func groupTagRefused(err error, tag string) bool {
+	if tag == "" {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "тег "+strconv.Quote(tag)) || strings.Contains(msg, `префикс "sub-"`)
 }
 
 func aggregateGroup(g *subscription.AggregateGroup) mcpsrv.SingboxAggregateGroup {
