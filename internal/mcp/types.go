@@ -1065,6 +1065,68 @@ type LANSegment struct {
 	Subnet string `json:"subnet,omitempty"`
 }
 
+// HydraRouteStatus is the HydraRoute Neo daemon and the state it keeps.
+type HydraRouteStatus struct {
+	Installed    bool              `json:"installed"`
+	Running      bool              `json:"running"`
+	State        string            `json:"state" jsonschema:"not_installed, stopped, running or dead"`
+	Version      string            `json:"version,omitempty"`
+	IpsetMaxElem int               `json:"ipsetMaxElem,omitempty" jsonschema:"entries one ipset can hold; a list larger than this is cut"`
+	IpsetUsage   map[string]int    `json:"ipsetUsage,omitempty" jsonschema:"entries per target interface now"`
+	DisabledTags []HydraRouteTag   `json:"disabledTags,omitempty" jsonschema:"geoip tags HydraRoute could not use (\"impossible to use\") — too large for the ipset"`
+	Settings     HydraRouteSetting `json:"settings"`
+}
+
+// HydraRouteTag is one disabled geoip tag.
+type HydraRouteTag struct {
+	Name  string `json:"name"`
+	Count int    `json:"count" jsonschema:"addresses in it; -1 when no geo file has it any more"`
+}
+
+// HydraRouteSetting is the part of hrneo.conf the tools show and change.
+type HydraRouteSetting struct {
+	AutoStart           bool `json:"autoStart"`
+	ClearIPSet          bool `json:"clearIpset"`
+	IpsetTimeoutEnabled bool `json:"ipsetTimeoutEnabled"`
+	IpsetTimeout        int  `json:"ipsetTimeout" jsonschema:"seconds an address stays in an ipset when the timeout is on"`
+	IpsetMaxElem        int  `json:"ipsetMaxElem"`
+	ConntrackFlush      bool `json:"conntrackFlush"`
+	DirectRoute         bool `json:"directRoute" jsonschema:"shown only; changed in the web interface"`
+	GlobalRouting       bool `json:"globalRouting" jsonschema:"shown only: it overwrites the router's policies, so it is changed in the web interface"`
+}
+
+// HydraRouteSettingsPatch changes hrneo.conf; a nil field keeps its value.
+type HydraRouteSettingsPatch struct {
+	AutoStart, ClearIPSet, IpsetTimeoutEnabled, ConntrackFlush *bool
+	IpsetTimeout, IpsetMaxElem                                 *int
+}
+
+// HydraRouteGeoFile is one geo data file. Only the host of its URL is
+// returned.
+type HydraRouteGeoFile struct {
+	Type     string `json:"type" jsonschema:"geoip or geosite"`
+	Path     string `json:"path" jsonschema:"the id the geo tools take"`
+	Host     string `json:"host,omitempty" jsonschema:"host it is downloaded from"`
+	Size     int64  `json:"size"`
+	TagCount int    `json:"tagCount"`
+	Updated  string `json:"updated,omitempty"`
+	External bool   `json:"external" jsonschema:"placed by hand, not downloaded by awg-manager; it is not updated"`
+}
+
+// HydraRouteGeoTags is one page of a geo file's tags.
+type HydraRouteGeoTags struct {
+	Path      string             `json:"path"`
+	Tags      []HydraRouteGeoTag `json:"tags"`
+	Total     int                `json:"total"`
+	Truncated bool               `json:"truncated"`
+}
+
+// HydraRouteGeoTag is one tag of a geo file.
+type HydraRouteGeoTag struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
 // ServerPeer is one client of a WireGuard server hosted on this router.
 // The peer's private key and preshared key are NOT here: they exist in
 // storage only to render the client's .conf, which get_server_peer_config

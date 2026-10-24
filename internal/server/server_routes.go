@@ -1204,6 +1204,21 @@ func (s *Server) registerMcpRoutes(mux *http.ServeMux, h *routeHandlers) {
 	if s.bus != nil {
 		bus = s.bus
 	}
+	// Интерфейсы, а не указатели: nil-указатель в интерфейсе — не nil.
+	var (
+		hydraForMcp     localdeps.HydraRoute
+		hydraGeoForMcp  localdeps.HydraGeo
+		downloadsForMcp localdeps.Downloads
+	)
+	if s.hydraService != nil {
+		hydraForMcp = s.hydraService
+		if gds := s.hydraService.GetGeoData(); gds != nil {
+			hydraGeoForMcp = gds
+		}
+	}
+	if s.downloadSvc != nil {
+		downloadsForMcp = s.downloadSvc
+	}
 	var pingSnapshot func()
 	if h.pingCheckHandler != nil {
 		pingSnapshot = h.pingCheckHandler.PublishSnapshot
@@ -1230,6 +1245,9 @@ func (s *Server) registerMcpRoutes(mux *http.ServeMux, h *routeHandlers) {
 		ListServers:     h.serverHandler.ListServers,
 		Managed:         managedForMcp,
 		Connections:     connsForMcp,
+		Hydra:           hydraForMcp,
+		HydraGeo:        hydraGeoForMcp,
+		Downloads:       downloadsForMcp,
 		Router:          routerForMcp,
 		TunnelEdit:      h.tunnelsHandler.EditTunnelWith,
 		FakeIP:          fakeipForMcp,
