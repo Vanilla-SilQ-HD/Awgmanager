@@ -239,6 +239,37 @@ type Deps interface {
 	// is left behind.
 	CreateSingboxAggregateGroup(ctx context.Context, in SingboxAggregateGroupInput) (SingboxAggregateGroup, error)
 
+	// CreateSingboxSubscription creates an enabled subscription and fetches
+	// it at once; a fetch that fails or yields no server leaves nothing
+	// behind. The URL and the links carry the provider's token or the
+	// servers' credentials: implementations never put them, or the service's
+	// text about them, into an error or the journal.
+	CreateSingboxSubscription(ctx context.Context, in SingboxSubscriptionInput) (SingboxSubscription, error)
+	// DeleteSingboxSubscription removes a subscription with its group and
+	// servers and returns it as it was. A subscription whose group or
+	// servers routing rules or the device proxy still use is refused, as in
+	// the web interface.
+	DeleteSingboxSubscription(ctx context.Context, id string) (SingboxSubscription, error)
+	// RefreshSingboxSubscription fetches a subscription now and waits for
+	// the result.
+	RefreshSingboxSubscription(ctx context.Context, id string) (SingboxRefreshResult, error)
+	// UpdateSingboxSubscriptionSettings applies the patch and returns the
+	// subscription as it stands afterwards. A filter change refetches it.
+	UpdateSingboxSubscriptionSettings(ctx context.Context, p SingboxSubscriptionPatch) (SingboxSubscription, error)
+	// ExcludeSingboxSubscriptionServers takes servers out of a fetched
+	// subscription's group for good (a refresh keeps them out);
+	// RestoreSingboxSubscriptionServers brings them back and refetches.
+	ExcludeSingboxSubscriptionServers(ctx context.Context, id string, tags []string) (SingboxSubscription, error)
+	RestoreSingboxSubscriptionServers(ctx context.Context, id string, tags []string) (SingboxSubscription, error)
+
+	// AddSingboxTunnel adds one hand-configured proxy from a share link and
+	// returns it. The link carries credentials and is handled as
+	// AddSingboxSubscriptionServer handles one.
+	AddSingboxTunnel(ctx context.Context, shareLink string) (SingboxTunnel, error)
+	// DeleteSingboxTunnel removes a proxy and returns it as it was; one
+	// that routing rules, groups or the device proxy still use is refused.
+	DeleteSingboxTunnel(ctx context.Context, tag string) (SingboxTunnel, error)
+
 	// AddSingboxSubscriptionServer adds one server, given as a share link,
 	// to a pasted (inline) subscription and applies it at once. The link
 	// carries the server's credentials: implementations never put it, or

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -2054,6 +2055,213 @@ func (f *Fake) AddSingboxSubscriptionServer(_ context.Context, id, shareLink str
 	f.GroupMembers[sub.GroupTag] = append(f.GroupMembers[sub.GroupTag], mcpsrv.SingboxGroupMember{Tag: tag, Kind: "member"})
 	f.Subscriptions[i].MemberCount++
 	return mcpsrv.SingboxServerAdded{SubscriptionID: id, GroupTag: sub.GroupTag, MemberTag: tag, MemberCount: f.Subscriptions[i].MemberCount}, nil
+}
+
+// referenced mirrors the REST handlers' guard: a tag a rule targets or a
+// group lists cannot be deleted. Called with f.mu held.
+func (f *Fake) referenced(tags ...string) error {
+	rules, groups := 0, 0
+	for _, r := range f.routerRules() {
+		if slices.Contains(tags, r.Outbound) {
+			rules++
+		}
+	}
+	for g, members := range f.GroupMembers {
+		if slices.Contains(tags, g) {
+			continue
+		}
+		for _, m := range members {
+			if slices.Contains(tags, m.Tag) {
+				groups++
+			}
+		}
+	}
+	if rules+groups > 0 {
+		return fmt.Errorf("tunnel %s is referenced by: %d router rule(s), %d router outbound reference(s) — retarget those rules and groups first", tags[0], rules, groups)
+	}
+	return nil
+}
+
+func (f *Fake) subscriptionIndex(id string) (int, error) {
+	i := slices.IndexFunc(f.Subscriptions, func(s mcpsrv.SingboxSubscription) bool { return s.ID == id })
+	if i < 0 {
+		return -1, fmt.Errorf("sing-box subscription %q not found (use list_singbox_subscriptions)", id)
+	}
+	return i, nil
+}
+
+func (f *Fake) CreateSingboxSubscription(_ context.Context, in mcpsrv.SingboxSubscriptionInput) (mcpsrv.SingboxSubscription, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxSubscription{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if strings.Contains(in.URL, "fail") {
+		return mcpsrv.SingboxSubscription{}, fmt.Errorf("the subscription was not created and nothing was left behind")
+	}
+	f.seq++
+	id := fmt.Sprintf("%024x", 0xc0de0000+f.seq)
+	mode := cmp.Or(in.Mode, "selector")
+	sub := mcpsrv.SingboxSubscription{ID: id, Label: in.Label, SourceType: "url", Enabled: true, Mode: mode, GroupTag: "sub-" + id[len(id)-8:], MemberCount: 2, RefreshHours: in.RefreshHours}
+	if in.URL != "" {
+		sub.Host = fakeSubscriptionURL(in.URL)[strings.Index(fakeSubscriptionURL(in.URL), "://")+3:]
+	} else {
+		sub.SourceType = "inline"
+	}
+	f.Subscriptions = append(f.Subscriptions, sub)
+	f.GroupMembers[sub.GroupTag] = []mcpsrv.SingboxGroupMember{{Tag: sub.GroupTag + "-a", Kind: "member"}, {Tag: sub.GroupTag + "-b", Kind: "member"}}
+	f.RouterOutbounds = append(f.RouterOutbounds, mcpsrv.SingboxOutbound{Tag: sub.GroupTag, Type: mode, Source: "subscription", SubscriptionID: id})
+	return sub, nil
+}
+
+func (f *Fake) DeleteSingboxSubscription(_ context.Context, id string) (mcpsrv.SingboxSubscription, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxSubscription{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	i, err := f.subscriptionIndex(id)
+	if err != nil {
+		return mcpsrv.SingboxSubscription{}, err
+	}
+	sub := f.Subscriptions[i]
+	tags := []string{sub.GroupTag}
+	for _, m := range f.GroupMembers[sub.GroupTag] {
+		tags = append(tags, m.Tag)
+	}
+	if err := f.referenced(tags...); err != nil {
+		return mcpsrv.SingboxSubscription{}, err
+	}
+	f.Subscriptions = slices.Delete(f.Subscriptions, i, i+1)
+	delete(f.GroupMembers, sub.GroupTag)
+	f.RouterOutbounds = slices.DeleteFunc(f.RouterOutbounds, func(o mcpsrv.SingboxOutbound) bool { return o.Tag == sub.GroupTag })
+	return sub, nil
+}
+
+func (f *Fake) RefreshSingboxSubscription(_ context.Context, id string) (mcpsrv.SingboxRefreshResult, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxRefreshResult{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	i, err := f.subscriptionIndex(id)
+	if err != nil {
+		return mcpsrv.SingboxRefreshResult{}, err
+	}
+	return mcpsrv.SingboxRefreshResult{SubscriptionID: id, MemberCount: f.Subscriptions[i].MemberCount}, nil
+}
+
+func (f *Fake) UpdateSingboxSubscriptionSettings(_ context.Context, p mcpsrv.SingboxSubscriptionPatch) (mcpsrv.SingboxSubscription, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxSubscription{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	i, err := f.subscriptionIndex(p.ID)
+	if err != nil {
+		return mcpsrv.SingboxSubscription{}, err
+	}
+	for _, re := range []*string{p.FilterInclude, p.FilterExclude} {
+		if re != nil {
+			if _, err := regexp.Compile(*re); err != nil {
+				return mcpsrv.SingboxSubscription{}, fmt.Errorf("the filter is not a valid regular expression: %v", err)
+			}
+		}
+	}
+	if p.Label != nil {
+		f.Subscriptions[i].Label = *p.Label
+	}
+	if p.RefreshHours != nil {
+		f.Subscriptions[i].RefreshHours = *p.RefreshHours
+	}
+	return f.Subscriptions[i], nil
+}
+
+func (f *Fake) ExcludeSingboxSubscriptionServers(_ context.Context, id string, tags []string) (mcpsrv.SingboxSubscription, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxSubscription{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	i, err := f.subscriptionIndex(id)
+	if err != nil {
+		return mcpsrv.SingboxSubscription{}, err
+	}
+	sub := &f.Subscriptions[i]
+	if sub.SourceType == "inline" {
+		return mcpsrv.SingboxSubscription{}, fmt.Errorf("only a subscription fetched from a URL has servers to exclude")
+	}
+	members := f.GroupMembers[sub.GroupTag]
+	for _, tag := range tags {
+		if !slices.ContainsFunc(members, func(m mcpsrv.SingboxGroupMember) bool { return m.Tag == tag }) {
+			return mcpsrv.SingboxSubscription{}, fmt.Errorf("a tag is not a server of this subscription")
+		}
+	}
+	if len(tags) >= len(members) {
+		return mcpsrv.SingboxSubscription{}, fmt.Errorf("that would leave the group with no server; nothing was changed")
+	}
+	f.GroupMembers[sub.GroupTag] = slices.DeleteFunc(slices.Clone(members), func(m mcpsrv.SingboxGroupMember) bool { return slices.Contains(tags, m.Tag) })
+	sub.MemberCount -= len(tags)
+	sub.ExcludedCount += len(tags)
+	return *sub, nil
+}
+
+func (f *Fake) RestoreSingboxSubscriptionServers(_ context.Context, id string, tags []string) (mcpsrv.SingboxSubscription, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxSubscription{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	i, err := f.subscriptionIndex(id)
+	if err != nil {
+		return mcpsrv.SingboxSubscription{}, err
+	}
+	sub := &f.Subscriptions[i]
+	n := min(len(tags), sub.ExcludedCount)
+	for _, tag := range tags[:n] {
+		f.GroupMembers[sub.GroupTag] = append(f.GroupMembers[sub.GroupTag], mcpsrv.SingboxGroupMember{Tag: tag, Kind: "member"})
+	}
+	sub.MemberCount += n
+	sub.ExcludedCount -= n
+	return *sub, nil
+}
+
+func (f *Fake) AddSingboxTunnel(_ context.Context, shareLink string) (mcpsrv.SingboxTunnel, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxTunnel{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	scheme, rest, ok := strings.Cut(shareLink, "://")
+	if !ok || (scheme != "vless" && scheme != "hysteria2" && scheme != "trojan" && scheme != "ss") {
+		return mcpsrv.SingboxTunnel{}, fmt.Errorf("the proxy was not added: sing-box cannot use this link")
+	}
+	_, tag, _ := strings.Cut(rest, "#")
+	tag = cmp.Or(tag, fmt.Sprintf("%s-%d", scheme, len(f.SingboxTunnels)+1))
+	if slices.ContainsFunc(f.SingboxTunnels, func(t mcpsrv.SingboxTunnel) bool { return t.Tag == tag }) {
+		return mcpsrv.SingboxTunnel{}, fmt.Errorf("this proxy is already configured (list_singbox_tunnels); nothing was added")
+	}
+	t := mcpsrv.SingboxTunnel{Tag: tag, Protocol: scheme, Running: true}
+	f.SingboxTunnels = append(f.SingboxTunnels, t)
+	return t, nil
+}
+
+func (f *Fake) DeleteSingboxTunnel(_ context.Context, tag string) (mcpsrv.SingboxTunnel, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxTunnel{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	i := slices.IndexFunc(f.SingboxTunnels, func(t mcpsrv.SingboxTunnel) bool { return t.Tag == tag })
+	if i < 0 {
+		return mcpsrv.SingboxTunnel{}, fmt.Errorf("sing-box proxy %q not found (use list_singbox_tunnels)", tag)
+	}
+	if err := f.referenced(tag); err != nil {
+		return mcpsrv.SingboxTunnel{}, err
+	}
+	t := f.SingboxTunnels[i]
+	f.SingboxTunnels = slices.Delete(f.SingboxTunnels, i, i+1)
+	return t, nil
 }
 
 func (f *Fake) OpenAPISpec() []byte { return f.Spec }

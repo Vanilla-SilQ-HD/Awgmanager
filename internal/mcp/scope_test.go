@@ -333,3 +333,25 @@ func TestScope_ReadOnlyKeyAndRoutingTargets(t *testing.T) {
 		t.Errorf("update_static_route: a read-only key must be refused: %q", toolText(res))
 	}
 }
+
+// TestScope_ReadOnlyKeyAndSingboxManagement — создание, обновление и
+// удаление подписок и прокси ключу «только чтение» закрыты.
+func TestScope_ReadOnlyKeyAndSingboxManagement(t *testing.T) {
+	s := scopedSession(t, true)
+	id := "706dcf33aabbccddeeff0011"
+	for name, args := range map[string]map[string]any{
+		"create_singbox_subscription":          {"label": "x", "url": "https://a.example/l"},
+		"delete_singbox_subscription":          {"subscriptionId": id},
+		"refresh_singbox_subscription":         {"subscriptionId": id},
+		"set_singbox_subscription_settings":    {"subscriptionId": id, "refreshHours": 1},
+		"exclude_singbox_subscription_servers": {"subscriptionId": id, "tags": []any{"sub-706dcf33-a1"}},
+		"restore_singbox_subscription_servers": {"subscriptionId": id, "tags": []any{"sub-706dcf33-a1"}},
+		"add_singbox_tunnel":                   {"shareLink": "vless://u@h.example.net:443#x"},
+		"delete_singbox_tunnel":                {"tag": "hy2-de"},
+	} {
+		res, _ := callTool(t, s, name, args)
+		if !res.IsError || !strings.Contains(strings.ToLower(toolText(res)), "read-only") {
+			t.Errorf("%s: a read-only key must be refused: %q", name, toolText(res))
+		}
+	}
+}
