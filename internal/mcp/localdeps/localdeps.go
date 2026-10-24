@@ -1728,12 +1728,12 @@ func (l *Local) PingCheckLogs(_ context.Context, tunnelID string, limit int) ([]
 	return out, nil
 }
 
-// RunDiagnostics starts a sweep. A sweep already in progress is not an
-// error — the caller simply must not report a fresh run, hence Started.
 // RunDiagnostics starts a full sweep through RunWithStream, which takes the
 // options: Runner.Run always adds the restart test, and that stops and
 // starts every running kernel tunnel — not what a read is allowed to do.
-// The events are drained and dropped; get_diagnostics reads the report.
+// The events are drained and dropped; get_diagnostics reads the report. A
+// sweep already in progress is not an error — the caller simply must not
+// report a fresh run, hence Started.
 func (l *Local) RunDiagnostics(ctx context.Context, includeRestart bool) (mcpsrv.DiagnosticsRun, error) {
 	if l.c.Diagnostics == nil {
 		return mcpsrv.DiagnosticsRun{}, errUnavailable("diagnostics")
