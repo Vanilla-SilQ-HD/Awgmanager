@@ -114,6 +114,12 @@ func (l *Local) UpdateAccessPolicy(ctx context.Context, name string, description
 	}
 	if standalone != nil {
 		if err := l.c.Policies.SetStandalone(ctx, name, *standalone); err != nil {
+			if description != nil {
+				// The description is written already: open tabs must see it,
+				// and the agent must not think nothing changed.
+				l.publish(events.ResourceRoutingAccessPolicies, "mcp-update")
+				return mcpsrv.AccessPolicy{}, fmt.Errorf("the description was changed, but the standalone mode was not: %w", err)
+			}
 			return mcpsrv.AccessPolicy{}, err
 		}
 	}
@@ -179,6 +185,8 @@ func (l *Local) AssignDevicePolicy(ctx context.Context, mac, policy string) (mcp
 		return mcpsrv.Device{}, err
 	}
 	l.policyLog.Info("assign", mac, "Device moved to "+cmpOr(policy, "the default")+" (MCP)")
+	// As REST: the policy list carries device counts.
+	l.publish(events.ResourceRoutingAccessPolicies, "mcp-assign")
 	l.publish(events.ResourceRoutingPolicyDevices, "mcp-assign")
 	d := devices[i]
 	return mcpsrv.Device{MAC: d.MAC, IP: d.IP, Name: d.Name, Hostname: d.Hostname, Active: d.Active, Policy: policy}, nil

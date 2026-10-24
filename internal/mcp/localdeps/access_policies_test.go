@@ -2,10 +2,12 @@ package localdeps
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/hoaxisr/awg-manager/internal/accesspolicy"
+	"github.com/hoaxisr/awg-manager/internal/events"
 	"github.com/hoaxisr/awg-manager/internal/storage"
 )
 
@@ -13,11 +15,12 @@ import (
 // fields.
 type fakePolicies struct {
 	accesspolicy.Service
-	policies  []accesspolicy.Policy
-	devices   []accesspolicy.Device
-	globals   []accesspolicy.GlobalInterface
-	calls     []string
-	deleteErr error
+	policies      []accesspolicy.Policy
+	devices       []accesspolicy.Device
+	globals       []accesspolicy.GlobalInterface
+	calls         []string
+	deleteErr     error
+	standaloneErr error
 }
 
 func (f *fakePolicies) List(context.Context) ([]accesspolicy.Policy, error) { return f.policies, nil }
@@ -43,6 +46,9 @@ func (f *fakePolicies) SetDescription(_ context.Context, name, d string) error {
 }
 func (f *fakePolicies) SetStandalone(_ context.Context, name string, on bool) error {
 	f.calls = append(f.calls, "standalone "+name)
+	if f.standaloneErr != nil {
+		return f.standaloneErr
+	}
 	f.policies[0].Standalone = on
 	return nil
 }
@@ -78,9 +84,15 @@ func policiesHarness() *fakePolicies {
 // Interfaces, как и раньше.
 func TestLocal_AccessPolicyWrites(t *testing.T) {
 	fp := policiesHarness()
-	l := New(Config{Policies: fp})
+	bus := &recBus{}
+	l := New(Config{Policies: fp, Bus: bus})
 	ctx := context.Background()
 
+	fp.standaloneErr = errors.New("rci: busy")
+	if _, err := l.UpdateAccessPolicy(ctx, "Policy0", ptr("Kids"), ptr(true)); err == nil || !strings.Contains(err.Error(), "description was changed") || !bus.has(events.ResourceRoutingAccessPolicies) {
+		t.Fatalf("a write that half-succeeded must say so and publish: %v, %v", err, bus.pub)
+	}
+	fp.standaloneErr, fp.calls, bus.pub = nil, nil, nil
 	got, err := l.UpdateAccessPolicy(ctx, "Policy0", nil, ptr(true))
 	if err != nil || !got.Standalone || len(got.Interfaces) != 1 || len(got.Order) != 2 || !got.Order[1].Denied {
 		t.Fatalf("got %+v, %v", got, err)
@@ -94,8 +106,9 @@ func TestLocal_AccessPolicyWrites(t *testing.T) {
 	if _, err := l.SetAccessPolicyInterface(ctx, "Policy0", "Ghost0", true, 0); err == nil {
 		t.Fatal("an interface the router does not offer must be refused")
 	}
-	if _, err := l.AssignDevicePolicy(ctx, "AA:BB:CC:DD:EE:FF", "Policy0"); err != nil {
-		t.Fatal(err)
+	bus.pub = nil
+	if _, err := l.AssignDevicePolicy(ctx, "AA:BB:CC:DD:EE:FF", "Policy0"); err != nil || !bus.has(events.ResourceRoutingAccessPolicies) || !bus.has(events.ResourceRoutingPolicyDevices) {
+		t.Fatalf("moving a device changes the policy list's counts too, as REST publishes: %v, %v", err, bus.pub)
 	}
 	if _, err := l.AssignDevicePolicy(ctx, "aa:bb:cc:dd:ee:ff", ""); err != nil {
 		t.Fatal(err)
