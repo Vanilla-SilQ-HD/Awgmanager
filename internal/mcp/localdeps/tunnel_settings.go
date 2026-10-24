@@ -64,7 +64,7 @@ func (l *Local) UpdateTunnelSettings(ctx context.Context, in mcpsrv.TunnelSettin
 		req.Peer.PersistentKeepalive = storage.Keepalive(strings.TrimSpace(*in.PersistentKeepalive))
 	}
 	if in.ISPInterface != nil {
-		isp, label, err := l.ispInterface(ctx, *in.ISPInterface)
+		isp, label, err := l.ispInterface(ctx, in.TunnelID, *in.ISPInterface)
 		if err != nil {
 			return mcpsrv.TunnelDetail{}, nil, err
 		}
@@ -99,17 +99,24 @@ func (l *Local) UpdateTunnelSettings(ctx context.Context, in mcpsrv.TunnelSettin
 // "auto", a kernel WAN name (the routing catalog's wan:<name> without the
 // prefix) or tunnel:<id>. A WAN or a tunnel the catalog does not list is
 // refused; the label is the catalog's name for it, as the card stores.
-func (l *Local) ispInterface(ctx context.Context, v string) (isp, label string, err error) {
+// A chain goes through another awg-manager tunnel only, as the card offers
+// (its list is the other managed tunnels): resolveWAN looks the parent up
+// in the tunnel store, so a system interface, a WAN or the tunnel itself
+// would leave it unable to come up.
+func (l *Local) ispInterface(ctx context.Context, tunnelID, v string) (isp, label string, err error) {
 	if v == "auto" {
 		return "auto", "", nil
 	}
-	lookup := v
+	lookup, wantType := v, "wan"
 	if id, ok := strings.CutPrefix(v, "tunnel:"); ok {
-		lookup = id
+		if id == tunnelID {
+			return "", "", fmt.Errorf("a tunnel cannot be chained through itself")
+		}
+		lookup, wantType = id, "managed"
 	}
 	if l.c.Targets != nil {
 		for _, e := range l.c.Targets.ListAll(ctx) {
-			if e.ID == lookup && !e.Server {
+			if e.ID == lookup && !e.Server && e.Type == wantType {
 				label = sanitizeLabel(e.Name)
 				if name, ok := strings.CutPrefix(v, "wan:"); ok {
 					return name, label, nil
@@ -117,7 +124,7 @@ func (l *Local) ispInterface(ctx context.Context, v string) (isp, label string, 
 				return v, label, nil
 			}
 		}
-		return "", "", fmt.Errorf("%q is not a WAN connection or a tunnel (use list_routing_targets)", v)
+		return "", "", fmt.Errorf("%q is not a WAN connection or another awg-manager tunnel (use list_routing_targets: wan: ids and managed tunnels)", v)
 	}
 	if name, ok := strings.CutPrefix(v, "wan:"); ok {
 		return name, "", nil

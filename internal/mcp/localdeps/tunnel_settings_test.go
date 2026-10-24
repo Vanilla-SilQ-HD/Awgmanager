@@ -88,6 +88,14 @@ func TestLocal_UpdateTunnelSettingsRefusals(t *testing.T) {
 	if _, _, err := l.UpdateTunnelSettings(ctx, mcpsrv.TunnelSettingsInput{TunnelID: "tn-raw", MTU: ptr(1400)}); err == nil || called {
 		t.Fatalf("a wdtt-raw tunnel takes no MTU, and EditTunnel would drop it silently: %v", err)
 	}
+	for _, v := range []string{"tunnel:tn-1", "tunnel:system:Proxy0", "tunnel:wan:ppp0"} {
+		if _, _, err := l.UpdateTunnelSettings(ctx, mcpsrv.TunnelSettingsInput{TunnelID: "tn-1", ISPInterface: ptr(v)}); err == nil || called {
+			t.Fatalf("%s: a chain goes through another managed tunnel only: %v", v, err)
+		}
+	}
+	if isp, label, err := l.ispInterface(ctx, "tn-2", "tunnel:tn-1"); err != nil || isp != "tunnel:tn-1" || label != "AMS" {
+		t.Fatalf("another managed tunnel is a chain target: %q %q %v", isp, label, err)
+	}
 	if _, _, err := l.UpdateTunnelSettings(ctx, mcpsrv.TunnelSettingsInput{TunnelID: "tn-1", ISPInterface: ptr("wan:ghost")}); err == nil || called {
 		t.Fatalf("an unknown WAN must be refused before the edit: %v", err)
 	}
