@@ -273,6 +273,7 @@ type Local struct {
 	dnsLog     *logging.ScopedLogger
 	staticLog  *logging.ScopedLogger
 	clientLog  *logging.ScopedLogger
+	policyLog  *logging.ScopedLogger
 	serverLog  *logging.ScopedLogger
 	singboxLog *logging.ScopedLogger
 	subLog     *logging.ScopedLogger
@@ -289,6 +290,7 @@ func New(cfg Config) *Local {
 		dnsLog:           logging.NewScopedLogger(cfg.AppLog, logging.GroupRouting, logging.SubDnsRoute),
 		staticLog:        logging.NewScopedLogger(cfg.AppLog, logging.GroupRouting, logging.SubStaticRoute),
 		clientLog:        logging.NewScopedLogger(cfg.AppLog, logging.GroupRouting, logging.SubClientRoute),
+		policyLog:        logging.NewScopedLogger(cfg.AppLog, logging.GroupRouting, logging.SubAccessPolicy),
 		serverLog:        logging.NewScopedLogger(cfg.AppLog, logging.GroupServer, logging.SubManaged),
 		singboxLog:       logging.NewScopedLogger(cfg.AppLog, logging.GroupSingbox, logging.SubSBRouter),
 		// Same scope as api.SubscriptionHandler: user actions on

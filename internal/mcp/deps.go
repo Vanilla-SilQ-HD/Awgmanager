@@ -77,6 +77,26 @@ type Deps interface {
 	SetClientRouteEnabled(ctx context.Context, clientIP string, enabled bool) (ClientRoute, error)
 
 	ListAccessPolicies(ctx context.Context) ([]AccessPolicy, error)
+	// ListPolicyInterfaces returns the router interfaces a policy can
+	// permit.
+	ListPolicyInterfaces(ctx context.Context) ([]PolicyInterface, error)
+	// The access policy writes below apply at once in NDMS. HydraRoute's
+	// own policies are refused by the service.
+
+	// CreateAccessPolicy creates a policy in the first free PolicyN slot.
+	CreateAccessPolicy(ctx context.Context, description string) (AccessPolicy, error)
+	// DeleteAccessPolicy removes a policy and returns it as it was; the
+	// policy the sing-box router routes by is refused.
+	DeleteAccessPolicy(ctx context.Context, name string) (AccessPolicy, error)
+	// UpdateAccessPolicy changes the description and the standalone flag;
+	// nil keeps a field.
+	UpdateAccessPolicy(ctx context.Context, name string, description *string, standalone *bool) (AccessPolicy, error)
+	// SetAccessPolicyInterface permits iface at position order, or denies
+	// it, and returns the policy afterwards.
+	SetAccessPolicyInterface(ctx context.Context, name, iface string, permit bool, order int) (AccessPolicy, error)
+	// AssignDevicePolicy moves a device (by MAC) to a policy; "" returns it
+	// to the router's default.
+	AssignDevicePolicy(ctx context.Context, mac, policy string) (Device, error)
 	ListDevices(ctx context.Context) ([]Device, error)
 
 	GetLogs(ctx context.Context, q LogsQuery) ([]LogEntry, int, error) // entries, total matched

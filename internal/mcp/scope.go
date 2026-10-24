@@ -50,6 +50,7 @@ var readOnlyTools = map[string]bool{
 	"list_routing_targets":       true,
 	"list_singbox_connections":   true,
 	"run_tunnel_diagnostics":     true,
+	"list_policy_interfaces":     true,
 }
 
 // credentialTools change nothing on the router but hand out material
