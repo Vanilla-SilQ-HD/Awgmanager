@@ -1588,18 +1588,7 @@ func (l *Local) ListAccessPolicies(ctx context.Context) ([]mcpsrv.AccessPolicy, 
 	}
 	out := make([]mcpsrv.AccessPolicy, 0, len(list))
 	for _, p := range list {
-		// Denied interfaces are "in the list but not used" — the tool
-		// documents Interfaces as the interfaces the policy PERMITS, and an
-		// agent that saw a denied interface here could route traffic over a
-		// path the policy actually blocks.
-		names := make([]string, 0, len(p.Interfaces))
-		for _, iface := range p.Interfaces {
-			if iface.Denied || iface.Name == "" {
-				continue
-			}
-			names = append(names, iface.Name)
-		}
-		out = append(out, mcpsrv.AccessPolicy{Name: p.Name, Description: p.Description, Interfaces: names, DeviceCount: p.DeviceCount, IsStandard: p.IsStandard})
+		out = append(out, accessPolicy(p))
 	}
 	return out, nil
 }

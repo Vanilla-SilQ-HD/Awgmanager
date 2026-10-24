@@ -11,9 +11,11 @@ import (
 	mcpsrv "github.com/hoaxisr/awg-manager/internal/mcp"
 )
 
-// accessPolicy maps one policy. Interfaces keeps the permitted ones only
-// (see ListAccessPolicies); Order is the whole list, as the edit tools see
-// it.
+// accessPolicy maps one policy, for the list and the edit tools alike.
+// Interfaces keeps the permitted ones only: denied interfaces are "in the
+// list but not used", and an agent that saw one there could route traffic
+// over a path the policy blocks. Order is the whole list, as the edit tools
+// see it.
 func accessPolicy(p accesspolicy.Policy) mcpsrv.AccessPolicy {
 	out := mcpsrv.AccessPolicy{Name: p.Name, Description: sanitizeLabel(p.Description), DeviceCount: p.DeviceCount, IsStandard: p.IsStandard, Standalone: p.Standalone, Interfaces: []string{}}
 	for _, iface := range p.Interfaces {

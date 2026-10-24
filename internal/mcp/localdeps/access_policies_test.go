@@ -69,6 +69,22 @@ func (f *fakePolicies) UnassignDevice(_ context.Context, mac string) error {
 	return nil
 }
 
+// TestLocal_ListAccessPolicies — список отдаёт то же, что инструменты
+// правки: автономный режим и весь порядок интерфейсов с запрещёнными, а в
+// interfaces — только разрешённые.
+func TestLocal_ListAccessPolicies(t *testing.T) {
+	f := policiesHarness()
+	f.policies[0].Standalone = true
+	got, err := New(Config{Policies: f}).ListAccessPolicies(context.Background())
+	if err != nil || len(got) != 1 {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	p := got[0]
+	if !p.Standalone || len(p.Interfaces) != 1 || p.Interfaces[0] != "Wireguard0" || len(p.Order) != 2 || !p.Order[1].Denied {
+		t.Fatalf("policy = %+v", p)
+	}
+}
+
 func policiesHarness() *fakePolicies {
 	return &fakePolicies{
 		policies: []accesspolicy.Policy{{Name: "Policy0", Description: "VPN", IsStandard: true, Interfaces: []accesspolicy.PermittedIface{
