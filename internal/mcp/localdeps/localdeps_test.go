@@ -2395,6 +2395,7 @@ type fakeRouter struct {
 
 	settings storage.SingboxRouterSettings
 	status   router.Status
+	switched chan string
 	dns      []router.DNSServer
 	dnsRules []router.DNSRule
 	dnsFinal string
@@ -2453,6 +2454,15 @@ func (f *fakeRouter) GetSettings(context.Context) (storage.SingboxRouterSettings
 	return f.settings, nil
 }
 func (f *fakeRouter) GetStatus(context.Context) (router.Status, error) { return f.status, nil }
+func (f *fakeRouter) UpdateSettings(_ context.Context, s storage.SingboxRouterSettings) error {
+	f.edits++
+	f.settings = s
+	return f.editErr
+}
+func (f *fakeRouter) SwitchRoutingMode(_ context.Context, mode string) error {
+	f.switched <- mode
+	return nil
+}
 func (f *fakeRouter) ListDNSRules(context.Context) ([]router.DNSRule, error) {
 	return f.dnsRules, nil
 }

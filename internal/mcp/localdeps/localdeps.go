@@ -90,6 +90,8 @@ type (
 	SingboxRouter interface {
 		GetStatus(ctx context.Context) (router.Status, error)
 		GetSettings(ctx context.Context) (storage.SingboxRouterSettings, error)
+		UpdateSettings(ctx context.Context, s storage.SingboxRouterSettings) error
+		SwitchRoutingMode(ctx context.Context, target string) error
 		ListRules(ctx context.Context) ([]router.Rule, error)
 		ListCompositeOutbounds(ctx context.Context) ([]router.CompositeOutboundView, error)
 		ListDNSServers(ctx context.Context) ([]router.DNSServer, error)
@@ -127,6 +129,18 @@ type (
 		FakeIPListDNSRules(ctx context.Context) ([]router.DNSRule, error)
 		FakeIPGetDNSGlobals(ctx context.Context) (final, strategy, timeout string, err error)
 		FakeIPListRuleSets(ctx context.Context) ([]router.RuleSet, error)
+	}
+	// SingboxSlots is the part of the sing-box orchestrator the expert
+	// configuration tools use: the 90-user.json slot and its draft.
+	SingboxSlots interface {
+		Snapshot() []singboxorch.SlotState
+		LoadEffective(slot singboxorch.Slot) ([]byte, error)
+		HasDraft(slot singboxorch.Slot) bool
+		SaveDraft(slot singboxorch.Slot, jsonBytes []byte) error
+		CheckMerged(slot singboxorch.Slot, jsonBytes []byte) (singboxorch.ValidationResult, error)
+		ApplyDraft(slot singboxorch.Slot) (singboxorch.ValidationResult, error)
+		DiscardDraft(slot singboxorch.Slot) error
+		SetEnabled(slot singboxorch.Slot, enabled bool) error
 	}
 	// DNSRewriteLister is the read half of *dnsrewrite.Service.
 	DNSRewriteLister interface {
@@ -218,6 +232,8 @@ type Config struct {
 	// router's reads report it unavailable in fakeip-tun mode.
 	FakeIP FakeIPRouter
 	// DNSRewrites serves list_singbox_dns_rewrites.
+	// UserConfig is the sing-box orchestrator, for the 90-user.json tools.
+	UserConfig  SingboxSlots
 	DNSRewrites DNSRewriteLister
 	Singbox     SingboxOperator
 	// Subscriptions serves the subscription tools. nil makes them report

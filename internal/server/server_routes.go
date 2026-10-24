@@ -1142,6 +1142,12 @@ func (s *Server) registerMcpRoutes(mux *http.ServeMux, h *routeHandlers) {
 			fakeipForMcp = svc
 		}
 	}
+	var userConfigForMcp localdeps.SingboxSlots
+	if s.singboxConfigEditorHandler != nil {
+		if o := s.singboxConfigEditorHandler.Orchestrator(); o != nil {
+			userConfigForMcp = o
+		}
+	}
 	var rewritesForMcp localdeps.DNSRewriteLister
 	if s.dnsRewritesHandler != nil {
 		if svc := s.dnsRewritesHandler.Service(); svc != nil {
@@ -1228,6 +1234,7 @@ func (s *Server) registerMcpRoutes(mux *http.ServeMux, h *routeHandlers) {
 		TunnelEdit:      h.tunnelsHandler.EditTunnelWith,
 		FakeIP:          fakeipForMcp,
 		DNSRewrites:     rewritesForMcp,
+		UserConfig:      userConfigForMcp,
 		Diagnostics:     diagForMcp,
 		Singbox:         singboxOp,
 		Subscriptions:   subsForMcp,

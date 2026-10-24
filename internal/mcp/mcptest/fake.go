@@ -37,11 +37,14 @@ type Fake struct {
 	// what ExplainSingboxRoute answers (nil: no sing-box router).
 	SingboxConnections []mcpsrv.SingboxConnection
 	SingboxExplain     *mcpsrv.SingboxRouteExplanation
-	ClientRoutes       []mcpsrv.ClientRoute
-	Policies           []mcpsrv.AccessPolicy
-	Devices            []mcpsrv.Device
-	Logs               []mcpsrv.LogEntry
-	Singbox            mcpsrv.SingboxStatus
+	// UserConfig and UserConfigDraft are the 90-user.json slot.
+	UserConfig      string
+	UserConfigDraft string
+	ClientRoutes    []mcpsrv.ClientRoute
+	Policies        []mcpsrv.AccessPolicy
+	Devices         []mcpsrv.Device
+	Logs            []mcpsrv.LogEntry
+	Singbox         mcpsrv.SingboxStatus
 	// SingboxTunnels are the proxies inside sing-box; Delays maps a tag to
 	// the latency a probe answers with (0 = the proxy stayed silent).
 	SingboxTunnels []mcpsrv.SingboxTunnel
@@ -2506,6 +2509,96 @@ func (f *Fake) RunTunnelDiagnostics(_ context.Context, tunnelID string) ([]mcpsr
 		return nil, err
 	}
 	return []mcpsrv.DiagnosticsCheck{{Name: "interface", Status: "pass", TunnelID: tunnelID}, {Name: "handshake", Status: "warn", Detail: "stale", TunnelID: tunnelID}}, nil
+}
+
+func (f *Fake) SwitchSingboxRouterMode(_ context.Context, mode string) error {
+	if f.Err != nil {
+		return f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.RoutingMode = mode
+	return nil
+}
+
+func (f *Fake) UpdateSingboxRouterSettings(_ context.Context, p mcpsrv.SingboxRouterSettingsPatch) (mcpsrv.SingboxRouterStatus, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxRouterStatus{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	st := &f.RouterStatus
+	if p.Sniffer != nil {
+		st.Sniffer = *p.Sniffer
+	}
+	if p.UDPTimeout != nil {
+		st.UDPTimeout = *p.UDPTimeout
+	}
+	if p.BypassPorts != nil {
+		st.BypassPorts = *p.BypassPorts
+	}
+	if p.BypassSubnets != nil {
+		st.BypassSubnets = *p.BypassSubnets
+	}
+	if p.PolicyName != nil {
+		st.PolicyName = *p.PolicyName
+	}
+	out := *st
+	out.RoutingMode = cmp.Or(f.RoutingMode, "tproxy")
+	return out, nil
+}
+
+func (f *Fake) GetSingboxUserConfig(context.Context) (mcpsrv.SingboxUserConfig, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxUserConfig{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.UserConfigDraft != "" {
+		return mcpsrv.SingboxUserConfig{Content: f.UserConfigDraft, HasDraft: true, Enabled: true}, nil
+	}
+	return mcpsrv.SingboxUserConfig{Content: cmp.Or(f.UserConfig, "{}"), Enabled: true}, nil
+}
+
+// SaveSingboxUserConfig takes any JSON object as a draft and fails the
+// check when it names an outbound "broken".
+func (f *Fake) SaveSingboxUserConfig(_ context.Context, content []byte) (mcpsrv.SingboxConfigCheck, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxConfigCheck{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.UserConfigDraft = string(content)
+	if strings.Contains(f.UserConfigDraft, "broken") {
+		return mcpsrv.SingboxConfigCheck{Ok: false, Errors: []string{"unknown outbound: broken"}}, nil
+	}
+	return mcpsrv.SingboxConfigCheck{Ok: true}, nil
+}
+
+func (f *Fake) ApplySingboxUserConfig(context.Context) (mcpsrv.SingboxConfigCheck, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxConfigCheck{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.UserConfigDraft == "" {
+		return mcpsrv.SingboxConfigCheck{}, fmt.Errorf("there is no draft to apply")
+	}
+	if strings.Contains(f.UserConfigDraft, "broken") {
+		return mcpsrv.SingboxConfigCheck{Ok: false, Errors: []string{"unknown outbound: broken"}}, nil
+	}
+	f.UserConfig, f.UserConfigDraft = f.UserConfigDraft, ""
+	return mcpsrv.SingboxConfigCheck{Ok: true}, nil
+}
+
+func (f *Fake) DiscardSingboxUserConfig(context.Context) error {
+	if f.Err != nil {
+		return f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.UserConfigDraft = ""
+	return nil
 }
 
 func (f *Fake) OpenAPISpec() []byte { return f.Spec }

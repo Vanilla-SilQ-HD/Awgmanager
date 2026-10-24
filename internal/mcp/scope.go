@@ -68,6 +68,9 @@ var readOnlyTools = map[string]bool{
 var credentialTools = map[string]bool{
 	"export_tunnel_config":   true,
 	"get_server_peer_config": true,
+	// 90-user.json is hand-written sing-box JSON and can carry outbound
+	// credentials.
+	"get_singbox_user_config": true,
 }
 
 // IsReadOnlyTool reports whether name is allowed on a read-only key. An
