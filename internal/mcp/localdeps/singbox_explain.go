@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"slices"
 	"strings"
 
 	mcpsrv "github.com/hoaxisr/awg-manager/internal/mcp"
@@ -32,7 +33,7 @@ func (l *Local) ListSingboxConnections(_ context.Context, q mcpsrv.SingboxConnec
 		if q.Host != "" && !strings.Contains(strings.ToLower(m.Host), strings.ToLower(q.Host)) {
 			continue
 		}
-		if q.Outbound != "" && !containsString(c.Chains, q.Outbound) {
+		if q.Outbound != "" && !slices.Contains(c.Chains, q.Outbound) {
 			continue
 		}
 		total++
@@ -63,15 +64,6 @@ func ruleName(rule, payload string) string {
 		return rule
 	}
 	return rule + " " + payload
-}
-
-func containsString(list []string, s string) bool {
-	for _, v := range list {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }
 
 // tri is a three-valued match: a condition MCP cannot decide (a port, a
@@ -333,11 +325,20 @@ func evalRule(r router.Rule, q explainQuery) (tri, string) {
 			note(private, "the destination's addresses are not known (the lookup failed)")
 		}
 		for _, ip := range q.ips {
-			if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+			if router.IsPrivateAddr(ip) {
 				private = triYes
 			}
 		}
 		dest = append(dest, private)
+	}
+	// Whether the rule has destination alternatives at all — its own fields
+	// or a set folded into them — decides an unread set, wherever it stands
+	// in rule_set.
+	hasDest := len(dest) > 0
+	for _, tag := range r.RuleSet {
+		if rs, known := q.sets[tag]; known && rs.Type == "inline" && mergeableSet(rs) {
+			hasDest = true
+		}
 	}
 	var setConds []tri
 	for _, tag := range r.RuleSet {
@@ -349,7 +350,7 @@ func evalRule(r router.Rule, q explainQuery) (tri, string) {
 			dest = append(dest, v)
 		case known && rs.Type == "inline":
 			setConds = append(setConds, v)
-		case len(dest) > 0:
+		case hasDest:
 			// Merged or AND-ed, unknown which: OR would give anyOf(dest, ?),
 			// AND would give allOf(anyOf(dest), ?) — they never agree on a
 			// definite answer, so the set leaves the rule undecided.
