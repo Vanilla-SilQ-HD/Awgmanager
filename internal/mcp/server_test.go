@@ -97,6 +97,7 @@ func TestServer_ListsToolsWithAnnotations(t *testing.T) {
 		"list_singbox_dns_servers", "list_singbox_rulesets", "create_singbox_outbound_group", "set_singbox_outbound_group_members",
 		"set_singbox_dns_server_detour", "set_singbox_ruleset_detour",
 		"create_singbox_subscription_group", "add_singbox_subscription_server",
+		"get_singbox_router_status", "list_singbox_dns_rules", "list_singbox_dns_rewrites",
 	}
 	for _, n := range want {
 		if byName[n] == nil {
@@ -142,7 +143,7 @@ func TestServer_ListsToolsWithAnnotations(t *testing.T) {
 			t.Errorf("%s must not claim to be idempotent", n)
 		}
 	}
-	for _, n := range []string{"list_singbox_dns_servers", "list_singbox_rulesets"} {
+	for _, n := range []string{"list_singbox_dns_servers", "list_singbox_rulesets", "get_singbox_router_status", "list_singbox_dns_rules", "list_singbox_dns_rewrites"} {
 		if !byName[n].Annotations.ReadOnlyHint {
 			t.Errorf("%s must be read-only", n)
 		}

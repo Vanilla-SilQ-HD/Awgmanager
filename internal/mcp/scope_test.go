@@ -289,3 +289,14 @@ func TestScope_ReadOnlyKeyAndSingboxEdits(t *testing.T) {
 		t.Errorf("list_singbox_rulesets must be allowed on a read-only key: %s", toolText(res))
 	}
 }
+
+// TestScope_ReadOnlyKeyReadsTheRouterSetup — состояние маршрутизатора, DNS-
+// правила и DNS Rewrite только читаются и ключу «только чтение» открыты.
+func TestScope_ReadOnlyKeyReadsTheRouterSetup(t *testing.T) {
+	s := scopedSession(t, true)
+	for _, name := range []string{"get_singbox_router_status", "list_singbox_dns_rules", "list_singbox_dns_rewrites"} {
+		if res, _ := callTool(t, s, name, nil); res.IsError {
+			t.Errorf("%s must be allowed on a read-only key: %s", name, toolText(res))
+		}
+	}
+}

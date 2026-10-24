@@ -90,6 +90,9 @@ func lastErrorKind(s *subscription.Subscription) string {
 // sbIndex is one consistent read of what sing-box is configured with,
 // keyed the way the group tools look things up.
 type sbIndex struct {
+	// fakeIP: groups were read from the fakeip-tun configuration, which
+	// has no draft (routerReads).
+	fakeIP      bool
 	groups      map[string]router.CompositeOutboundView
 	order       []string          // group tags, in configuration order
 	subByGroup  map[string]string // a subscription's own group tag → its id
@@ -124,7 +127,12 @@ func (l *Local) singboxIndex(ctx context.Context) (sbIndex, error) {
 	}
 	var routerErr error
 	if l.c.Router != nil {
-		list, err := l.c.Router.ListCompositeOutbounds(ctx)
+		var list []router.CompositeOutboundView
+		rr, err := l.routerReads(ctx)
+		if err == nil {
+			idx.fakeIP = rr.fakeIP
+			list, err = rr.composites(ctx)
+		}
 		routerErr = err
 		for _, o := range list {
 			idx.groups[o.Tag] = o
@@ -260,6 +268,12 @@ func (idx sbIndex) outbound(o router.CompositeOutboundView, proxies map[string]s
 		RuntimeKnown: runtimeKnown,
 		OutOfSync:    engineAnswered && (!inEngine || !sameTags(gp.All, o.Outbounds)),
 	}
+	if o.Type == "urltest" || o.Type == "fallback" {
+		out.ProbeURL, out.ProbeInterval = probeURL(o.URL), token(o.Interval)
+		if o.Type == "urltest" {
+			out.ToleranceMs = o.Tolerance
+		}
+	}
 	if id, ok := idx.subByGroup[o.Tag]; ok {
 		out.SubscriptionID = id
 	}
@@ -310,7 +324,7 @@ func (l *Local) ListSingboxOutbounds(ctx context.Context) ([]mcpsrv.SingboxOutbo
 	for _, tag := range idx.order {
 		out = append(out, idx.outbound(idx.groups[tag], proxies, known))
 	}
-	return out, l.c.Router.StagingStatus(ctx).HasDraft, nil
+	return out, l.hasDraft(ctx, idx.fakeIP), nil
 }
 
 // groupMember describes one member of a group.
@@ -383,7 +397,7 @@ func (l *Local) GetSingboxOutbound(ctx context.Context, tag string) (mcpsrv.Sing
 	out := mcpsrv.SingboxOutboundDetail{
 		SingboxOutbound: idx.outbound(o, proxies, known),
 		Members:         make([]mcpsrv.SingboxGroupMember, 0, len(o.Outbounds)),
-		HasDraft:        l.c.Router.StagingStatus(ctx).HasDraft,
+		HasDraft:        l.hasDraft(ctx, idx.fakeIP),
 	}
 	for _, memberTag := range o.Outbounds {
 		out.Members = append(out.Members, idx.groupMember(memberTag, out.ActiveMember, proxies, out.RuntimeKnown))

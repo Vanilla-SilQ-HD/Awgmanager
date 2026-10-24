@@ -102,7 +102,10 @@ type Deps interface {
 	ControlSingbox(ctx context.Context, action string) (SingboxStatus, error)
 	ListSingboxTunnels(ctx context.Context) ([]SingboxTunnel, error)
 	// ListSingboxRules returns the router's rules in evaluation order.
-	// hasDraft reports whether they come from an unapplied draft.
+	// hasDraft reports whether they come from an unapplied draft. Like
+	// every router read here (groups, DNS, rule sets), it reads the
+	// configuration the router routes by: in fakeip-tun mode that mode's
+	// own, which has no draft.
 	ListSingboxRules(ctx context.Context) (rules []SingboxRule, hasDraft bool, err error)
 	// ListSingboxOutbounds returns every group. An engine that does not
 	// answer is not an error: the entries come back with RuntimeKnown
@@ -116,12 +119,23 @@ type Deps interface {
 	GetSingboxOutbound(ctx context.Context, tag string) (SingboxOutboundDetail, error)
 	SingboxStaging(ctx context.Context) (SingboxStaging, error)
 	// SetSingboxRuleOutbound retargets one rule. The write lands in the
-	// draft; nothing changes for traffic until ApplySingboxStaging.
+	// draft; nothing changes for traffic until ApplySingboxStaging. Refused
+	// in fakeip-tun mode, as the writes below are.
 	SetSingboxRuleOutbound(ctx context.Context, index int, outbound string) error
 	// ListSingboxDNSServers returns the router's DNS servers in
 	// configuration order. hasDraft is ListSingboxRules's: the list comes
 	// from the draft when one exists.
 	ListSingboxDNSServers(ctx context.Context) (servers []SingboxDNSServer, hasDraft bool, err error)
+	// SingboxRouterStatus describes how the router is set up and whether
+	// it works. It asks NDMS and probes the kernel, as the web page does,
+	// so it is slower than the lists.
+	SingboxRouterStatus(ctx context.Context) (SingboxRouterStatus, error)
+	// ListSingboxDNSRules returns the router's DNS rules in evaluation
+	// order with the DNS final and strategy, hasDraft as
+	// ListSingboxDNSServers.
+	ListSingboxDNSRules(ctx context.Context) (SingboxDNSRules, error)
+	// ListSingboxDNSRewrites returns the DNS Rewrite entries in order.
+	ListSingboxDNSRewrites(ctx context.Context) ([]SingboxDNSRewrite, error)
 	// ListSingboxRuleSets returns every rule set in configuration order,
 	// hasDraft as ListSingboxDNSServers. The tool pages the result;
 	// implementations must not truncate it.

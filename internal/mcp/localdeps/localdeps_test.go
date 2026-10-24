@@ -2316,7 +2316,10 @@ type fakeRouter struct {
 	listErr error
 
 	settings storage.SingboxRouterSettings
+	status   router.Status
 	dns      []router.DNSServer
+	dnsRules []router.DNSRule
+	dnsFinal string
 	ruleSets []router.RuleSet
 	// The edits record what they received; editErr fails every one of
 	// them, and edits counts the calls that reached the router.
@@ -2350,6 +2353,13 @@ func (f *fakeRouter) ApplyStaging(context.Context) (singboxorch.ValidationResult
 func (f *fakeRouter) DiscardStaging(context.Context) error { f.discarded++; return nil }
 func (f *fakeRouter) GetSettings(context.Context) (storage.SingboxRouterSettings, error) {
 	return f.settings, nil
+}
+func (f *fakeRouter) GetStatus(context.Context) (router.Status, error) { return f.status, nil }
+func (f *fakeRouter) ListDNSRules(context.Context) ([]router.DNSRule, error) {
+	return f.dnsRules, nil
+}
+func (f *fakeRouter) GetDNSGlobals(context.Context) (string, string, string, error) {
+	return f.dnsFinal, "prefer_ipv4", "", nil
 }
 func (f *fakeRouter) ListDNSServers(context.Context) ([]router.DNSServer, error) { return f.dns, nil }
 func (f *fakeRouter) ListRuleSets(context.Context) ([]router.RuleSet, error)     { return f.ruleSets, nil }
