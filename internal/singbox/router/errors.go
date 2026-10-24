@@ -9,6 +9,12 @@ var (
 	ErrOutboundReferenced        = errors.New("outbound is referenced by one or more rules")
 	ErrInvalidMatchers           = errors.New("rule must have at least one matcher")
 	ErrRuleIndexOutOfRange       = errors.New("rule index out of range")
+	// ErrRuleProtected — правило системное или managed: правки MCP его не
+	// трогают (InsertRule и соседи). Ввод, не сбой.
+	ErrRuleProtected = errors.New("правило защищено")
+	// ErrRuleUnsupported — правило из MCP не route с известным outbound и
+	// не reject. Ввод, не сбой.
+	ErrRuleUnsupported = errors.New("правило не поддерживается")
 	// ErrBulkEmptyIndices / ErrBulkEmptyTags reject an empty selection passed
 	// to a bulk rule/ruleset mutation (nothing to do — client error). Mapped
 	// to 400 by the API.

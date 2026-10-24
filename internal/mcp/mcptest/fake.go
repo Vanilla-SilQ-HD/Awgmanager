@@ -3,6 +3,7 @@
 package mcptest
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net"
@@ -1532,6 +1533,205 @@ func (f *Fake) checkGroupMembers(tag, kind string, members []string) error {
 		}
 	}
 	return nil
+}
+
+// fakeRuleMatch renders a rule input for the fake's rule list: enough for
+// a test to recognise the rule, not the adapter's full rendering.
+func fakeRuleMatch(in mcpsrv.SingboxRuleInput) string {
+	var parts []string
+	for label, values := range map[string][]string{"domain_suffix": in.DomainSuffix, "domain": in.Domain, "ip_cidr": in.IPCIDR, "rule_set": in.RuleSet} {
+		if len(values) > 0 {
+			parts = append(parts, label+" "+strings.Join(values, ", "))
+		}
+	}
+	slices.Sort(parts)
+	if len(parts) == 0 {
+		return "everything"
+	}
+	return strings.Join(parts, " AND ")
+}
+
+// editableRule mirrors the router's guard: a managed rule is neither
+// edited nor moved. Called with f.mu held.
+func (f *Fake) editableRule(rules []mcpsrv.SingboxRule, i int) error {
+	if i < 0 || i >= len(rules) {
+		return fmt.Errorf("rule index out of range (positions come from list_singbox_rules)")
+	}
+	if rules[i].Managed {
+		return fmt.Errorf("правило защищено: rule %d is managed by awg-manager", i)
+	}
+	return nil
+}
+
+func (f *Fake) checkRuleInput(in mcpsrv.SingboxRuleInput) error {
+	if in.Action == "route" && !f.knownOutbound(in.Outbound) {
+		return fmt.Errorf("правило не поддерживается: неизвестный outbound %q", in.Outbound)
+	}
+	for _, tag := range in.RuleSet {
+		if !slices.ContainsFunc(f.RuleSets, func(rs mcpsrv.SingboxRuleSet) bool { return rs.Tag == tag }) {
+			return fmt.Errorf("rule set %q not found", tag)
+		}
+	}
+	return nil
+}
+
+// reindex renumbers rules after an edit. Called with f.mu held.
+func reindex(rules []mcpsrv.SingboxRule) []mcpsrv.SingboxRule {
+	for i := range rules {
+		rules[i].Index = i
+	}
+	return rules
+}
+
+func (f *Fake) AddSingboxRule(_ context.Context, position int, in mcpsrv.SingboxRuleInput) error {
+	if f.Err != nil {
+		return f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	rules := append([]mcpsrv.SingboxRule(nil), f.routerRules()...)
+	if position < 0 {
+		position = len(rules)
+	}
+	if position > len(rules) {
+		return fmt.Errorf("rule index out of range (positions come from list_singbox_rules)")
+	}
+	if err := f.checkRuleInput(in); err != nil {
+		return err
+	}
+	if err := f.stageRouterEdit(); err != nil {
+		return err
+	}
+	rule := mcpsrv.SingboxRule{Match: fakeRuleMatch(in), Action: in.Action, Outbound: in.Outbound}
+	f.Draft = reindex(slices.Insert(rules, position, rule))
+	return nil
+}
+
+func (f *Fake) UpdateSingboxRule(_ context.Context, index int, in mcpsrv.SingboxRuleInput) error {
+	if f.Err != nil {
+		return f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	rules := append([]mcpsrv.SingboxRule(nil), f.routerRules()...)
+	if err := f.editableRule(rules, index); err != nil {
+		return err
+	}
+	if err := f.checkRuleInput(in); err != nil {
+		return err
+	}
+	if err := f.stageRouterEdit(); err != nil {
+		return err
+	}
+	rules[index] = mcpsrv.SingboxRule{Index: index, Match: fakeRuleMatch(in), Action: in.Action, Outbound: in.Outbound}
+	f.Draft = rules
+	return nil
+}
+
+func (f *Fake) DeleteSingboxRule(_ context.Context, index int) (mcpsrv.SingboxRule, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxRule{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	rules := append([]mcpsrv.SingboxRule(nil), f.routerRules()...)
+	if err := f.editableRule(rules, index); err != nil {
+		return mcpsrv.SingboxRule{}, err
+	}
+	if err := f.stageRouterEdit(); err != nil {
+		return mcpsrv.SingboxRule{}, err
+	}
+	deleted := rules[index]
+	f.Draft = reindex(slices.Delete(rules, index, index+1))
+	return deleted, nil
+}
+
+func (f *Fake) MoveSingboxRule(_ context.Context, from, to int) error {
+	if f.Err != nil {
+		return f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	rules := append([]mcpsrv.SingboxRule(nil), f.routerRules()...)
+	if err := f.editableRule(rules, from); err != nil {
+		return err
+	}
+	if to < 0 || to >= len(rules) {
+		return fmt.Errorf("rule index out of range (positions come from list_singbox_rules)")
+	}
+	if err := f.stageRouterEdit(); err != nil {
+		return err
+	}
+	r := rules[from]
+	rules = slices.Delete(rules, from, from+1)
+	f.Draft = reindex(slices.Insert(rules, to, r))
+	return nil
+}
+
+func (f *Fake) SetSingboxRouteFinal(_ context.Context, outbound string) error {
+	if f.Err != nil {
+		return f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.knownOutbound(outbound) {
+		return fmt.Errorf("unknown outbound tag %q for route.final", outbound)
+	}
+	if err := f.stageRouterEdit(); err != nil {
+		return err
+	}
+	f.RouterStatus.Final = outbound
+	return nil
+}
+
+func (f *Fake) AddSingboxRuleSet(_ context.Context, in mcpsrv.SingboxRuleSetInput) error {
+	if f.Err != nil {
+		return f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if slices.ContainsFunc(f.RuleSets, func(rs mcpsrv.SingboxRuleSet) bool { return rs.Tag == in.Tag }) {
+		return fmt.Errorf("rule set with this tag already exists: %q", in.Tag)
+	}
+	if err := f.stageRouterEdit(); err != nil {
+		return err
+	}
+	rs := mcpsrv.SingboxRuleSet{Tag: in.Tag, Type: in.Type}
+	if in.Type == "remote" {
+		rs.Format = cmp.Or(in.Format, "binary")
+		if i := strings.Index(in.URL, "://"); i >= 0 {
+			rs.Host, _, _ = strings.Cut(in.URL[i+3:], "/")
+		}
+	}
+	f.RuleSets = append(f.RuleSets, rs)
+	return nil
+}
+
+func (f *Fake) DeleteSingboxRuleSet(_ context.Context, tag string, force bool) (mcpsrv.SingboxRuleSet, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxRuleSet{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	i := slices.IndexFunc(f.RuleSets, func(rs mcpsrv.SingboxRuleSet) bool { return rs.Tag == tag })
+	if i < 0 {
+		return mcpsrv.SingboxRuleSet{}, fmt.Errorf("rule set not found: %q (use list_singbox_rulesets)", tag)
+	}
+	var users []int
+	for _, r := range f.routerRules() {
+		if strings.Contains(r.Match, "rule_set "+tag) {
+			users = append(users, r.Index)
+		}
+	}
+	if len(users) > 0 && !force {
+		return mcpsrv.SingboxRuleSet{}, fmt.Errorf("rule set is referenced by one or more rules: %q referenced by route rules %v (retarget or delete those rules first, or pass force)", tag, users)
+	}
+	if err := f.stageRouterEdit(); err != nil {
+		return mcpsrv.SingboxRuleSet{}, err
+	}
+	deleted := f.RuleSets[i]
+	f.RuleSets = slices.Delete(f.RuleSets, i, i+1)
+	return deleted, nil
 }
 
 func (f *Fake) CreateSingboxOutboundGroup(_ context.Context, in mcpsrv.SingboxGroupInput) error {

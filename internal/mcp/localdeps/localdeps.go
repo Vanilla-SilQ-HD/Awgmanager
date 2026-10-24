@@ -96,6 +96,13 @@ type (
 		SetCompositeOutboundMembers(ctx context.Context, tag string, members []string) error
 		SetDNSServerDetour(ctx context.Context, tag, detour string) error
 		BulkSetRuleSetDetour(ctx context.Context, tags []string, detour string) error
+		InsertRule(ctx context.Context, index int, r router.Rule) error
+		ReplaceUserRule(ctx context.Context, index int, r router.Rule) error
+		DeleteUserRule(ctx context.Context, index int) (router.Rule, error)
+		MoveUserRule(ctx context.Context, from, to int) error
+		SetRouteFinal(ctx context.Context, tag string) error
+		AddRuleSet(ctx context.Context, rs router.RuleSet) error
+		DeleteRuleSet(ctx context.Context, tag string, force bool) error
 		ApplyStaging(ctx context.Context) (singboxorch.ValidationResult, error)
 		DiscardStaging(ctx context.Context) error
 	}

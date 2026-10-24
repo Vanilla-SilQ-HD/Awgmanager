@@ -300,3 +300,23 @@ func TestScope_ReadOnlyKeyReadsTheRouterSetup(t *testing.T) {
 		}
 	}
 }
+
+// TestScope_ReadOnlyKeyAndRuleEdits — правки правил и наборов ложатся в
+// общий черновик; ключу «только чтение» они закрыты.
+func TestScope_ReadOnlyKeyAndRuleEdits(t *testing.T) {
+	s := scopedSession(t, true)
+	for name, args := range map[string]map[string]any{
+		"add_singbox_rule":        {"domain": []any{"a.example"}, "action": "reject"},
+		"update_singbox_rule":     {"index": 0, "domain": []any{"a.example"}, "action": "reject"},
+		"move_singbox_rule":       {"from": 0, "to": 1},
+		"delete_singbox_rule":     {"index": 0},
+		"set_singbox_route_final": {"outbound": "auto"},
+		"add_singbox_ruleset":     {"tag": "x", "type": "inline", "domain": []any{"a.example"}},
+		"delete_singbox_ruleset":  {"tag": "my-sites"},
+	} {
+		res, _ := callTool(t, s, name, args)
+		if !res.IsError || !strings.Contains(strings.ToLower(toolText(res)), "read-only") {
+			t.Errorf("%s: a read-only key must be refused with the cause named: %q", name, toolText(res))
+		}
+	}
+}

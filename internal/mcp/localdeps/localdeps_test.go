@@ -2332,6 +2332,13 @@ type fakeRouter struct {
 	ruleSetVia  string
 	editErr     error
 	edits       int
+	ruleAt      int
+	ruleTo      int
+	rule        router.Rule
+	final       string
+	addedSet    router.RuleSet
+	deletedSet  string
+	deleteForce bool
 }
 
 func (f *fakeRouter) ListRules(context.Context) ([]router.Rule, error) { return f.rules, nil }
@@ -2376,6 +2383,44 @@ func (f *fakeRouter) SetCompositeOutboundMembers(_ context.Context, tag string, 
 func (f *fakeRouter) SetDNSServerDetour(_ context.Context, tag, detour string) error {
 	f.edits++
 	f.dnsTag, f.dnsDetour = tag, detour
+	return f.editErr
+}
+func (f *fakeRouter) InsertRule(_ context.Context, index int, r router.Rule) error {
+	f.edits++
+	f.ruleAt, f.rule = index, r
+	return f.editErr
+}
+func (f *fakeRouter) ReplaceUserRule(_ context.Context, index int, r router.Rule) error {
+	f.edits++
+	f.ruleAt, f.rule = index, r
+	return f.editErr
+}
+func (f *fakeRouter) DeleteUserRule(_ context.Context, index int) (router.Rule, error) {
+	f.edits++
+	f.ruleAt = index
+	if f.editErr != nil {
+		return router.Rule{}, f.editErr
+	}
+	return f.rules[index], nil
+}
+func (f *fakeRouter) MoveUserRule(_ context.Context, from, to int) error {
+	f.edits++
+	f.ruleAt, f.ruleTo = from, to
+	return f.editErr
+}
+func (f *fakeRouter) SetRouteFinal(_ context.Context, tag string) error {
+	f.edits++
+	f.final = tag
+	return f.editErr
+}
+func (f *fakeRouter) AddRuleSet(_ context.Context, rs router.RuleSet) error {
+	f.edits++
+	f.addedSet = rs
+	return f.editErr
+}
+func (f *fakeRouter) DeleteRuleSet(_ context.Context, tag string, force bool) error {
+	f.edits++
+	f.deletedSet, f.deleteForce = tag, force
 	return f.editErr
 }
 func (f *fakeRouter) BulkSetRuleSetDetour(_ context.Context, tags []string, detour string) error {

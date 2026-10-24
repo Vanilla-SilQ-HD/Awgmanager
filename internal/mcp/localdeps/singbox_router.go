@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	mcpsrv "github.com/hoaxisr/awg-manager/internal/mcp"
@@ -377,4 +378,176 @@ func (l *Local) ListSingboxDNSRewrites(_ context.Context) ([]mcpsrv.SingboxDNSRe
 		out = append(out, mcpsrv.SingboxDNSRewrite{Pattern: sanitizeText(r.Pattern, 253), IPs: ips, Managed: r.Managed != ""})
 	}
 	return out, nil
+}
+
+// singboxRuleFrom builds the router rule an agent asked for.
+func singboxRuleFrom(in mcpsrv.SingboxRuleInput) router.Rule {
+	return router.Rule{
+		DomainSuffix: in.DomainSuffix, Domain: in.Domain, IPCIDR: in.IPCIDR, SourceIPCIDR: in.SourceIPCIDR,
+		SourceMACAddress: in.SourceMAC, Port: in.Port, RuleSet: in.RuleSet, Network: in.Network, Protocol: in.Protocol,
+		Action: in.Action, Outbound: in.Outbound,
+	}
+}
+
+// AddSingboxRule inserts through InsertRule, which checks the outbound and
+// keeps system rules on top in the same write. -1 is read as the end of
+// the list as it stands now.
+func (l *Local) AddSingboxRule(ctx context.Context, position int, in mcpsrv.SingboxRuleInput) error {
+	if l.c.Router == nil {
+		return errUnavailable("sing-box router")
+	}
+	if err := l.requireTProxyRouter(ctx); err != nil {
+		return err
+	}
+	if position < 0 {
+		rules, err := l.c.Router.ListRules(ctx)
+		if err != nil {
+			return err
+		}
+		position = len(rules)
+	}
+	if err := l.c.Router.InsertRule(ctx, position, singboxRuleFrom(in)); err != nil {
+		l.singboxLog.Warn("rule-add", strconv.Itoa(position), "Failed to add sing-box rule (MCP): "+err.Error())
+		return ruleEditError(err)
+	}
+	l.singboxLog.Info("rule-add", strconv.Itoa(position), "Sing-box rule added (MCP, staged)")
+	return nil
+}
+
+func (l *Local) UpdateSingboxRule(ctx context.Context, index int, in mcpsrv.SingboxRuleInput) error {
+	if l.c.Router == nil {
+		return errUnavailable("sing-box router")
+	}
+	if err := l.requireTProxyRouter(ctx); err != nil {
+		return err
+	}
+	if err := l.c.Router.ReplaceUserRule(ctx, index, singboxRuleFrom(in)); err != nil {
+		l.singboxLog.Warn("rule-update", strconv.Itoa(index), "Failed to replace sing-box rule (MCP): "+err.Error())
+		return ruleEditError(err)
+	}
+	l.singboxLog.Info("rule-update", strconv.Itoa(index), "Sing-box rule replaced (MCP, staged)")
+	return nil
+}
+
+func (l *Local) DeleteSingboxRule(ctx context.Context, index int) (mcpsrv.SingboxRule, error) {
+	if l.c.Router == nil {
+		return mcpsrv.SingboxRule{}, errUnavailable("sing-box router")
+	}
+	if err := l.requireTProxyRouter(ctx); err != nil {
+		return mcpsrv.SingboxRule{}, err
+	}
+	deleted, err := l.c.Router.DeleteUserRule(ctx, index)
+	if err != nil {
+		l.singboxLog.Warn("rule-delete", strconv.Itoa(index), "Failed to delete sing-box rule (MCP): "+err.Error())
+		return mcpsrv.SingboxRule{}, ruleEditError(err)
+	}
+	l.singboxLog.Info("rule-delete", strconv.Itoa(index), "Sing-box rule deleted (MCP, staged): "+ruleMatchSummary(deleted))
+	return singboxRule(index, deleted), nil
+}
+
+func (l *Local) MoveSingboxRule(ctx context.Context, from, to int) error {
+	if l.c.Router == nil {
+		return errUnavailable("sing-box router")
+	}
+	if err := l.requireTProxyRouter(ctx); err != nil {
+		return err
+	}
+	if err := l.c.Router.MoveUserRule(ctx, from, to); err != nil {
+		l.singboxLog.Warn("rule-move", strconv.Itoa(from), "Failed to move sing-box rule (MCP): "+err.Error())
+		return ruleEditError(err)
+	}
+	l.singboxLog.Info("rule-move", strconv.Itoa(from), "Sing-box rule moved to "+strconv.Itoa(to)+" (MCP, staged)")
+	return nil
+}
+
+func (l *Local) SetSingboxRouteFinal(ctx context.Context, outbound string) error {
+	if l.c.Router == nil {
+		return errUnavailable("sing-box router")
+	}
+	if err := l.requireTProxyRouter(ctx); err != nil {
+		return err
+	}
+	if err := l.c.Router.SetRouteFinal(ctx, outbound); err != nil {
+		l.singboxLog.Warn("route-final", outbound, "Failed to set sing-box final outbound (MCP): "+err.Error())
+		return routerEditError(err)
+	}
+	l.singboxLog.Info("route-final", outbound, "Sing-box final outbound set (MCP, staged)")
+	return nil
+}
+
+// AddSingboxRuleSet builds the set as the web form does: a remote one with
+// the service's defaults (binary, 24h), an inline one as a single headless
+// rule, whose destination fields sing-box treats as alternatives.
+func (l *Local) AddSingboxRuleSet(ctx context.Context, in mcpsrv.SingboxRuleSetInput) error {
+	if l.c.Router == nil {
+		return errUnavailable("sing-box router")
+	}
+	if err := l.requireTProxyRouter(ctx); err != nil {
+		return err
+	}
+	rs := router.RuleSet{Tag: in.Tag, Type: in.Type}
+	switch in.Type {
+	case "remote":
+		rs.URL, rs.Format, rs.UpdateInterval = in.URL, in.Format, in.UpdateInterval
+	case "inline":
+		rule := map[string]any{}
+		for key, values := range map[string][]string{"domain_suffix": in.DomainSuffix, "domain": in.Domain, "ip_cidr": in.IPCIDR} {
+			if len(values) > 0 {
+				rule[key] = values
+			}
+		}
+		rs.Rules = []map[string]any{rule}
+	default:
+		return fmt.Errorf("type must be remote or inline")
+	}
+	if err := l.c.Router.AddRuleSet(ctx, rs); err != nil {
+		l.singboxLog.Warn("ruleset-add", in.Tag, "Failed to add sing-box rule set (MCP): "+err.Error())
+		return ruleEditError(err)
+	}
+	l.singboxLog.Info("ruleset-add", in.Tag, "Sing-box "+in.Type+" rule set added (MCP, staged)")
+	return nil
+}
+
+// DeleteSingboxRuleSet reads the set first, to hand it back once it is
+// gone; the read and the deletion are two calls, so a set changed in
+// between comes back as it was before that change.
+func (l *Local) DeleteSingboxRuleSet(ctx context.Context, tag string, force bool) (mcpsrv.SingboxRuleSet, error) {
+	if l.c.Router == nil {
+		return mcpsrv.SingboxRuleSet{}, errUnavailable("sing-box router")
+	}
+	if err := l.requireTProxyRouter(ctx); err != nil {
+		return mcpsrv.SingboxRuleSet{}, err
+	}
+	sets, err := l.c.Router.ListRuleSets(ctx)
+	if err != nil {
+		return mcpsrv.SingboxRuleSet{}, err
+	}
+	i := slices.IndexFunc(sets, func(rs router.RuleSet) bool { return rs.Tag == tag })
+	if i < 0 {
+		return mcpsrv.SingboxRuleSet{}, fmt.Errorf("%w: %q (use list_singbox_rulesets)", router.ErrRuleSetNotFound, tag)
+	}
+	if err := l.c.Router.DeleteRuleSet(ctx, tag, force); err != nil {
+		l.singboxLog.Warn("ruleset-delete", tag, "Failed to delete sing-box rule set (MCP): "+err.Error())
+		return mcpsrv.SingboxRuleSet{}, ruleEditError(err)
+	}
+	l.singboxLog.Info("ruleset-delete", tag, "Sing-box rule set deleted (MCP, staged)")
+	rs := sets[i]
+	return mcpsrv.SingboxRuleSet{Tag: rs.Tag, Type: token(rs.Type), Format: token(rs.Format), Host: hostOf(rs.URL), DownloadDetour: rs.DownloadDetour}, nil
+}
+
+// ruleEditError adds to a refused rule edit the step that resolves it.
+func ruleEditError(err error) error {
+	switch {
+	case errors.Is(err, router.ErrRuleProtected):
+		return fmt.Errorf("%w (system rules and rules awg-manager manages stay as they are; list_singbox_rules marks them managed)", err)
+	case errors.Is(err, router.ErrRuleIndexOutOfRange):
+		return fmt.Errorf("%w (positions come from list_singbox_rules)", err)
+	case errors.Is(err, router.ErrRuleSetReferenced):
+		return fmt.Errorf("%w (retarget or delete those rules first, or pass force)", err)
+	case errors.Is(err, router.ErrRuleSetNotFound):
+		return fmt.Errorf("%w (rule sets come from list_singbox_rulesets; add_singbox_ruleset adds one)", err)
+	case errors.Is(err, router.ErrRuleSetTagConflict):
+		return fmt.Errorf("%w (choose another tag; list_singbox_rulesets shows those taken)", err)
+	}
+	return routerEditError(err)
 }

@@ -98,6 +98,8 @@ func TestServer_ListsToolsWithAnnotations(t *testing.T) {
 		"set_singbox_dns_server_detour", "set_singbox_ruleset_detour",
 		"create_singbox_subscription_group", "add_singbox_subscription_server",
 		"get_singbox_router_status", "list_singbox_dns_rules", "list_singbox_dns_rewrites",
+		"add_singbox_rule", "update_singbox_rule", "move_singbox_rule", "delete_singbox_rule",
+		"set_singbox_route_final", "add_singbox_ruleset", "delete_singbox_ruleset",
 	}
 	for _, n := range want {
 		if byName[n] == nil {
@@ -121,7 +123,9 @@ func TestServer_ListsToolsWithAnnotations(t *testing.T) {
 	}
 	// Deleting a routing list is permanent and MCP cannot recreate it, so
 	// the host must get the chance to ask the user first.
-	for _, n := range []string{"remove_dns_route", "remove_static_route"} {
+	// A deletion in the shared draft is destructive (README "Annotations"):
+	// once applied, nothing in MCP recreates the rule or the set.
+	for _, n := range []string{"remove_dns_route", "remove_static_route", "delete_singbox_rule", "delete_singbox_ruleset"} {
 		a := byName[n].Annotations
 		if a.ReadOnlyHint || a.DestructiveHint == nil || !*a.DestructiveHint {
 			t.Errorf("%s must be annotated destructive", n)

@@ -162,6 +162,28 @@ type Deps interface {
 	// are downloaded, so any other kind is an error.
 	SetSingboxRuleSetDetour(ctx context.Context, tags []string, detour string) error
 
+	// The rule and rule set writes below land in the draft and are refused
+	// in fakeip-tun mode, as the writes above are. System rules (sniff,
+	// hijack-dns, the private-address bypass) and rules awg-manager manages
+	// are neither edited nor moved, and nothing is put above a system rule.
+
+	// AddSingboxRule inserts a rule at position; -1 appends it.
+	AddSingboxRule(ctx context.Context, position int, in SingboxRuleInput) error
+	// UpdateSingboxRule replaces rule index whole.
+	UpdateSingboxRule(ctx context.Context, index int, in SingboxRuleInput) error
+	// DeleteSingboxRule removes rule index and returns it as it was.
+	DeleteSingboxRule(ctx context.Context, index int) (SingboxRule, error)
+	// MoveSingboxRule moves rule from to position to.
+	MoveSingboxRule(ctx context.Context, from, to int) error
+	// SetSingboxRouteFinal sets the outbound for traffic no rule matched.
+	SetSingboxRouteFinal(ctx context.Context, outbound string) error
+	// AddSingboxRuleSet adds a rule set; a tag already taken is an error.
+	AddSingboxRuleSet(ctx context.Context, in SingboxRuleSetInput) error
+	// DeleteSingboxRuleSet removes a rule set and returns it as it was. A
+	// set rules still use is refused unless force; with force the
+	// references go, and a rule left without any matcher goes with them.
+	DeleteSingboxRuleSet(ctx context.Context, tag string, force bool) (SingboxRuleSet, error)
+
 	ApplySingboxStaging(ctx context.Context) error
 	DiscardSingboxStaging(ctx context.Context) error
 	// CheckSingboxDelay probes one outbound: a proxy, a subscription
