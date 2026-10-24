@@ -160,6 +160,24 @@ type Deps interface {
 	// SetWireguardServerObfuscation lays the given AmneziaWG parameters over
 	// the server's current ones; clients need the new values too.
 	SetWireguardServerObfuscation(ctx context.Context, id string, params map[string]any) (WireguardServer, error)
+	// HydraRoute Neo: its rule groups are DNS routes (hr: ids); these
+	// methods cover the daemon, its settings, geo files and disabled tags.
+	HydraRouteStatus(ctx context.Context) (HydraRouteStatus, error)
+	// ControlHydraRoute runs start, stop or restart and returns the status.
+	ControlHydraRoute(ctx context.Context, action string) (HydraRouteStatus, error)
+	// UpdateHydraRouteSettings writes hrneo.conf with the patch over the
+	// stored values; the daemon restarts to read it.
+	UpdateHydraRouteSettings(ctx context.Context, p HydraRouteSettingsPatch) (HydraRouteStatus, error)
+	ListHydraRouteGeoFiles(ctx context.Context) ([]HydraRouteGeoFile, error)
+	// HydraRouteGeoTags returns one page of a geo file's tags.
+	HydraRouteGeoTags(ctx context.Context, path string, offset int) (HydraRouteGeoTags, error)
+	// UpdateHydraRouteGeoFiles downloads one file again (path) or every
+	// file (""), waits, and restarts the daemon to read them. partial means
+	// some files were updated and some were not.
+	UpdateHydraRouteGeoFiles(ctx context.Context, path string) (updated int, partial bool, err error)
+	// RemoveHydraRouteDisabledTag removes a tag from the disabled list. It
+	// renumbers every hr: id.
+	RemoveHydraRouteDisabledTag(ctx context.Context, name string) error
 	// ServerPeerConfig renders the client .conf, private key included.
 	ServerPeerConfig(ctx context.Context, serverID, publicKey string) (string, error)
 	ControlSingbox(ctx context.Context, action string) (SingboxStatus, error)
