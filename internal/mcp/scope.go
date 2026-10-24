@@ -54,12 +54,12 @@ var readOnlyTools = map[string]bool{
 }
 
 // credentialTools change nothing on the router but hand out material
-// that connects to it — a tunnel's or a peer's private key. A read-only
-// key is what an admin gives an agent they do not fully trust, and the
-// UI promises it "cannot change anything on the router"; a key that can
-// also walk away with VPN credentials is not that. So these tools keep
-// their read-only annotation (they ARE reads) and are still refused for
-// a read-only key.
+// that connects to it — a tunnel's or a peer's private key, an outbound's
+// password. A read-only key is what an admin gives an agent they do not
+// fully trust, and the UI promises it "cannot change anything on the
+// router"; a key that can also walk away with VPN credentials is not that.
+// So these tools keep their read-only annotation (they ARE reads) and are
+// still refused for a read-only key.
 //
 // Опасный ФЛАГ у читающего инструмента (get_logs raw=true — немаскированные
 // адреса) здесь не выразить: middleware аргументы не разбирает. Такой флаг
@@ -115,7 +115,7 @@ func RequireWriteScope() mcp.Middleware {
 				return &mcp.CallToolResult{
 					IsError: true,
 					Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf(
-						"Tool %q returns private keys, and this MCP key is read-only. Nothing was changed. "+
+						"Tool %q returns credentials (private keys, passwords), and this MCP key is read-only. Nothing was changed. "+
 							"Ask the user for a full-access key, or have them export the configuration from the web interface.", name)}},
 				}, nil
 			}

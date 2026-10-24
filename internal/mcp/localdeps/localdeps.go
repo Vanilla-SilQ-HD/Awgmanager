@@ -231,9 +231,9 @@ type Config struct {
 	// by in that mode instead of the tproxy one Router edits. nil makes the
 	// router's reads report it unavailable in fakeip-tun mode.
 	FakeIP FakeIPRouter
-	// DNSRewrites serves list_singbox_dns_rewrites.
 	// UserConfig is the sing-box orchestrator, for the 90-user.json tools.
-	UserConfig  SingboxSlots
+	UserConfig SingboxSlots
+	// DNSRewrites serves list_singbox_dns_rewrites.
 	DNSRewrites DNSRewriteLister
 	Singbox     SingboxOperator
 	// Subscriptions serves the subscription tools. nil makes them report
