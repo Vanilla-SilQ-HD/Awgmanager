@@ -357,6 +357,40 @@ type SingboxAggregateGroupInput struct {
 	SubscriptionIDs []string
 }
 
+// SingboxSubscriptionInput is a new subscription: fetched from URL, or
+// made of pasted share links (Links, one per line).
+type SingboxSubscriptionInput struct {
+	Label         string
+	URL           string
+	Links         string
+	RefreshHours  int
+	Mode          string // selector, urltest or fallback; "" is selector, the service's default
+	FilterInclude string
+	FilterExclude string
+}
+
+// SingboxSubscriptionPatch edits a subscription's settings; a nil field
+// keeps its value.
+type SingboxSubscriptionPatch struct {
+	ID            string
+	Label         *string
+	RefreshHours  *int
+	FilterInclude *string
+	FilterExclude *string
+}
+
+// SingboxRefreshResult counts what one refresh changed. The parser's own
+// messages are not returned: they can quote the provider's list.
+type SingboxRefreshResult struct {
+	SubscriptionID string `json:"subscriptionId"`
+	Added          int    `json:"added" jsonschema:"servers new in the list"`
+	Updated        int    `json:"updated" jsonschema:"servers whose settings changed"`
+	Orphaned       int    `json:"orphaned" jsonschema:"servers gone from the provider's list; kept until the user removes them"`
+	Skipped        int    `json:"skipped" jsonschema:"entries not taken: unsupported protocols, duplicates"`
+	ParseErrors    int    `json:"parseErrors" jsonschema:"entries that could not be read; the web interface shows them"`
+	MemberCount    int    `json:"memberCount" jsonschema:"servers in the group after the refresh"`
+}
+
 // SingboxServerAdded is the result of adding a server to a subscription.
 type SingboxServerAdded struct {
 	SubscriptionID string `json:"subscriptionId"`

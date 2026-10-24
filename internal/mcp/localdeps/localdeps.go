@@ -63,6 +63,8 @@ type (
 		// separate, and singbox.ErrProbeInFlight when a probe was already
 		// running, which is why Busy exists. Wired to DelayChecker.Probe.
 		CheckDelay(ctx context.Context, tag string) (int, error)
+		AddTunnels(ctx context.Context, linksText string) ([]singbox.TunnelInfo, []singbox.BatchError, error)
+		RemoveTunnel(ctx context.Context, tag string) error
 	}
 	// ManagedServers is the subset of *managed.Service the peer tools use.
 	ManagedServers interface {
@@ -140,6 +142,11 @@ type (
 		SetActiveMember(ctx context.Context, id, memberTag string) error
 		CreateGroup(ctx context.Context, in subscription.GroupCreateInput) (*subscription.AggregateGroup, error)
 		AddManualMember(ctx context.Context, id, shareLink string) (*subscription.Subscription, error)
+		Create(ctx context.Context, in subscription.CreateInput) (*subscription.Subscription, error)
+		Delete(ctx context.Context, id string) error
+		Refresh(ctx context.Context, id string) (*subscription.RefreshResult, error)
+		ExcludeMembers(ctx context.Context, id string, tags []string) (*subscription.Subscription, error)
+		RestoreMembers(ctx context.Context, id string, tags []string) (*subscription.Subscription, error)
 	}
 	// ClashState reads the running engine: which member each group routes
 	// through and the delays it has on record. Satisfied by
@@ -211,6 +218,11 @@ type Config struct {
 	// Subscriptions serves the subscription tools. nil makes them report
 	// that sing-box subscriptions are unavailable on this router.
 	Subscriptions SubscriptionService
+	// DeviceProxyRefs and RouterRefs are the REST handlers' guards against
+	// deleting a proxy or a subscription something still routes through.
+	// nil checks nothing, as in the handlers.
+	DeviceProxyRefs service.DeviceProxyRefChecker
+	RouterRefs      service.RouterRefChecker
 	// Clash reads the engine's runtime state. nil, or an engine that does
 	// not answer, makes every RuntimeKnown false.
 	Clash      ClashState
@@ -2231,16 +2243,20 @@ func (l *Local) ListSingboxTunnels(ctx context.Context) ([]mcpsrv.SingboxTunnel,
 	}
 	out := make([]mcpsrv.SingboxTunnel, 0, len(list))
 	for _, t := range list {
-		// A proxy is usually imported from a share link, so these fields
-		// are someone else's text — shaped as for a subscription's
-		// servers in get_singbox_outbound.
-		out = append(out, mcpsrv.SingboxTunnel{
-			Tag: t.Tag, Protocol: token(t.Protocol), Server: hostShaped(t.Server), Port: t.Port,
-			Security: token(t.Security), Transport: token(t.Transport), ListenPort: t.ListenPort,
-			ProxyInterface: t.ProxyInterface, SNI: hostShaped(t.SNI), Running: t.Running,
-		})
+		out = append(out, singboxTunnel(t))
 	}
 	return out, nil
+}
+
+// singboxTunnel maps one proxy. A proxy is usually imported from a share
+// link, so these fields are someone else's text — shaped as for a
+// subscription's servers in get_singbox_outbound.
+func singboxTunnel(t singbox.TunnelInfo) mcpsrv.SingboxTunnel {
+	return mcpsrv.SingboxTunnel{
+		Tag: t.Tag, Protocol: token(t.Protocol), Server: hostShaped(t.Server), Port: t.Port,
+		Security: token(t.Security), Transport: token(t.Transport), ListenPort: t.ListenPort,
+		ProxyInterface: t.ProxyInterface, SNI: hostShaped(t.SNI), Running: t.Running,
+	}
 }
 
 // onOff renders a flag for the journal, matching the REST handlers.

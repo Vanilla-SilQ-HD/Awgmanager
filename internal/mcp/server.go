@@ -31,7 +31,7 @@ func NewServer(deps Deps, version string) *mcp.Server {
 			"add_server_peer creates working VPN credentials and get_server_peer_config returns a client's private key: call them only when the user asked, and hand the config to them rather than repeating it elsewhere. " +
 			"add_singbox_subscription_server takes a share link with a server's credentials: use only a link the user gave you for it, and do not repeat it. " +
 			"A key may be read-only, in which case every tool that changes the router is refused with nothing applied. " +
-			"Other destructive operations (delete tunnel, delete peer, backup restore, system update) are not exposed.",
+			"Other destructive operations (deleting an AmneziaWG/WireGuard tunnel or a server peer, backup restore, system update) are not exposed.",
 	})
 	registerSystemTools(s, deps)
 	registerObservabilityTools(s, deps)
@@ -42,6 +42,7 @@ func NewServer(deps Deps, version string) *mcp.Server {
 	registerRouterTools(s, deps)
 	registerRuleTools(s, deps)
 	registerSubscriptionTools(s, deps)
+	registerSubscriptionManageTools(s, deps)
 	registerServerTools(s, deps)
 	registerPeerTools(s, deps)
 	s.AddResource(&mcp.Resource{

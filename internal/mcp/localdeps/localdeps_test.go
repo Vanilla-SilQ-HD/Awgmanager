@@ -1743,10 +1743,35 @@ type fakeSingboxOp struct {
 	asked   []string
 	err     error
 	listed  int // ListTunnels calls
+	// AddTunnels and RemoveTunnel record what they got; addErrs makes the
+	// operator report the link as unusable, addDup as a known duplicate.
+	addedLinks   []string
+	addErrs      bool
+	addDup       bool
+	removed      []string
+	notInstalled bool
+}
+
+func (f *fakeSingboxOp) AddTunnels(_ context.Context, links string) ([]singbox.TunnelInfo, []singbox.BatchError, error) {
+	f.addedLinks = append(f.addedLinks, links)
+	switch {
+	case f.addErrs:
+		return nil, []singbox.BatchError{{Line: 1, Input: links, Err: fmt.Errorf("bad link %s", links)}}, nil
+	case f.addDup:
+		return nil, nil, nil
+	}
+	t := singbox.TunnelInfo{Tag: "new-proxy", Protocol: "vless", Server: "n.example.net", Port: 443}
+	f.tunnels = append(f.tunnels, t)
+	return []singbox.TunnelInfo{t}, nil, nil
+}
+
+func (f *fakeSingboxOp) RemoveTunnel(_ context.Context, tag string) error {
+	f.removed = append(f.removed, tag)
+	return nil
 }
 
 func (f *fakeSingboxOp) GetStatus(context.Context) singbox.Status {
-	return singbox.Status{Installed: true, Running: true, TunnelCount: len(f.tunnels)}
+	return singbox.Status{Installed: !f.notInstalled, Running: true, TunnelCount: len(f.tunnels)}
 }
 func (f *fakeSingboxOp) Control(context.Context, string) error { return nil }
 func (f *fakeSingboxOp) ListTunnels(context.Context) ([]singbox.TunnelInfo, error) {
