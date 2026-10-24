@@ -2473,6 +2473,12 @@ func TestLocal_ListSingboxRulesRendersAMatchSummary(t *testing.T) {
 	if got[1].Action != "route" {
 		t.Fatalf("action = %q, want route for an omitted action", got[1].Action)
 	}
+	if got[0].System || got[1].System {
+		t.Fatal("user rules are not system rules")
+	}
+	if r := singboxRule(0, router.Rule{Action: "sniff"}); !r.System {
+		t.Fatal("the sniff rule kept on top must be marked system: protected edits point the agent at that flag")
+	}
 	if !got[2].Managed {
 		t.Error("a rule carrying awgm_managed must be marked")
 	}

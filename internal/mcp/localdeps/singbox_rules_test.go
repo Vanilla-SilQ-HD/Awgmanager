@@ -28,7 +28,7 @@ func TestLocal_SingboxRuleWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := fr.rule
-	if fr.ruleAt != len(fr.rules) || r.DomainSuffix[0] != "a.example" || r.Domain[0] != "b.example" || r.IPCIDR[0] != "10.0.0.0/8" ||
+	if fr.ruleAt != -1 || r.DomainSuffix[0] != "a.example" || r.Domain[0] != "b.example" || r.IPCIDR[0] != "10.0.0.0/8" ||
 		r.SourceIPCIDR[0] != "192.168.1.10" || r.SourceMACAddress[0] != "aa:bb:cc:dd:ee:ff" || r.Port[0] != 443 ||
 		r.RuleSet[0] != "geosite-ru" || r.Network != "tcp" || r.Protocol != "tls" || r.Action != "route" || r.Outbound != "auto" {
 		t.Fatalf("at %d: %+v", fr.ruleAt, r)
@@ -70,15 +70,21 @@ func TestLocal_SingboxRuleSetWrites(t *testing.T) {
 		t.Fatalf("remote = %+v", rs)
 	}
 
-	deleted, err := l.DeleteSingboxRuleSet(ctx, "ads", true)
+	fr.rules = append(fr.rules,
+		router.Rule{RuleSet: []string{"ads"}, Action: "reject"},
+		router.Rule{Type: "logical", Mode: "and", Rules: []router.Rule{{RuleSet: []string{"ads"}}, {Port: []int{443}}}, Outbound: "auto"})
+	deleted, affected, err := l.DeleteSingboxRuleSet(ctx, "ads", true)
 	if err != nil || fr.deletedSet != "ads" || !fr.deleteForce {
 		t.Fatalf("delete: %q force=%v, %v", fr.deletedSet, fr.deleteForce, err)
+	}
+	if len(affected) != 2 || affected[0].Index != 3 || affected[1].Index != 4 {
+		t.Fatalf("force must hand back the rules that used the set, nested ones too: %+v", affected)
 	}
 	if deleted.Host != "lists.example.net" || strings.Contains(fmt.Sprint(deleted), "TOKEN") || deleted.DownloadDetour != "auto" {
 		t.Fatalf("the deleted set comes back as list_singbox_rulesets shows it: %+v", deleted)
 	}
 	edits := fr.edits
-	if _, err := l.DeleteSingboxRuleSet(ctx, "ghost", false); !errors.Is(err, router.ErrRuleSetNotFound) || fr.edits != edits {
+	if _, _, err := l.DeleteSingboxRuleSet(ctx, "ghost", false); !errors.Is(err, router.ErrRuleSetNotFound) || fr.edits != edits {
 		t.Fatalf("an unknown set must be refused before the router is asked: %v", err)
 	}
 }
@@ -93,7 +99,7 @@ func TestLocal_RuleEditErrorsNameTheWayOut(t *testing.T) {
 		err  error
 		want string
 	}{
-		{fmt.Errorf("%w: правило 0 системное", router.ErrRuleProtected), "managed"},
+		{fmt.Errorf("%w: правило 0 системное", router.ErrRuleProtected), "system"},
 		{router.ErrRuleIndexOutOfRange, "list_singbox_rules"},
 		{fmt.Errorf("%w: unknown outbound", router.ErrRuleUnsupported), "unknown outbound"},
 	}
@@ -106,7 +112,7 @@ func TestLocal_RuleEditErrorsNameTheWayOut(t *testing.T) {
 	}
 	fr.editErr = fmt.Errorf("%w: \"ads\" referenced by route rules [3]", router.ErrRuleSetReferenced)
 	fr.ruleSets = []router.RuleSet{{Tag: "ads", Type: "remote"}}
-	if _, err := l.DeleteSingboxRuleSet(ctx, "ads", false); err == nil || !strings.Contains(err.Error(), "force") {
+	if _, _, err := l.DeleteSingboxRuleSet(ctx, "ads", false); err == nil || !strings.Contains(err.Error(), "force") {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -127,7 +133,7 @@ func TestLocal_RuleWritesRefusedInFakeIPMode(t *testing.T) {
 		"add ruleset": func() error {
 			return l.AddSingboxRuleSet(ctx, mcpsrv.SingboxRuleSetInput{Tag: "x", Type: "inline", Domain: []string{"a"}})
 		},
-		"delete ruleset": func() error { _, err := l.DeleteSingboxRuleSet(ctx, "x", false); return err },
+		"delete ruleset": func() error { _, _, err := l.DeleteSingboxRuleSet(ctx, "x", false); return err },
 	} {
 		if err := call(); err == nil || !strings.Contains(err.Error(), "fakeip-tun") {
 			t.Errorf("%s: err = %v", name, err)

@@ -64,6 +64,11 @@ func userRuleAt(c *RouterConfig, i int) error {
 func (s *ServiceImpl) InsertRule(ctx context.Context, index int, r Rule) error {
 	return s.withConfig(ctx, "rules", func(c *RouterConfig) error {
 		n := len(c.Route.Rules)
+		if index == -1 {
+			// В конец — по списку внутри этой же записи, а не по прочитанному
+			// раньше: правка из другого окна между ними сдвинула бы конец.
+			index = n
+		}
 		if index < 0 || index > n {
 			return ErrRuleIndexOutOfRange
 		}

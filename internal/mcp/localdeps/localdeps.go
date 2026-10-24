@@ -1854,7 +1854,7 @@ func singboxRule(i int, r router.Rule) mcpsrv.SingboxRule {
 	}
 	return mcpsrv.SingboxRule{
 		Index: i, Match: ruleMatchSummary(r), Action: action,
-		Outbound: r.Outbound, Managed: r.AwgmManaged != "",
+		Outbound: r.Outbound, Managed: r.AwgmManaged != "", System: router.IsSystemRule(r),
 	}
 }
 
