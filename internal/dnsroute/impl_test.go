@@ -407,6 +407,13 @@ func TestServiceImpl_UpdateKeepsExcludeSubnetsWithoutText(t *testing.T) {
 	if !slices.Equal(updated.Excludes, []string{"other.example.com"}) || len(updated.ExcludeSubnets) != 0 {
 		t.Fatalf("a full excludes list replaces both halves: %v / %v", updated.Excludes, updated.ExcludeSubnets)
 	}
+	updated, err = svc.Update(ctx, DomainList{ID: created.ID, Excludes: []string{"a.example.com"}, ExcludeSubnets: []string{"172.16.0.0/12"}})
+	if err != nil {
+		t.Fatalf("Update both: %v", err)
+	}
+	if !slices.Equal(updated.Excludes, []string{"a.example.com"}) || !slices.Equal(updated.ExcludeSubnets, []string{"172.16.0.0/12"}) {
+		t.Fatalf("excludes and subnets sent together are both kept: %v / %v", updated.Excludes, updated.ExcludeSubnets)
+	}
 }
 
 // Excludes no longer have to match an include: NDMS matches domains by

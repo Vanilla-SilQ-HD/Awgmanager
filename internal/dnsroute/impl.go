@@ -490,9 +490,10 @@ func (s *ServiceImpl) Update(ctx context.Context, list DomainList) (*DomainList,
 	// одни Excludes значило бы терять подсети всякий раз, когда их прислали
 	// отдельно или не прислали вовсе, а текста исключений нет (список
 	// создан через API или MCP). Только Excludes без ExcludeSubnets —
-	// это полный новый список вызывающего, подсети в нём и есть все.
+	// это полный новый список вызывающего, подсети в нём и есть все (текст
+	// исключений applyExcludesText уже разложил в одни Excludes).
 	excludes := slices.Concat(list.Excludes, list.ExcludeSubnets)
-	if excludesProvided && !excludeSubnetsProvided && !excludesTextProvided {
+	if excludesProvided && !excludeSubnetsProvided {
 		excludes = list.Excludes
 	}
 	list.Excludes, list.ExcludeSubnets = splitDomainsAndSubnets(deduplicateDomains(excludes))
