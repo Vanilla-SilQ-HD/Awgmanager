@@ -1039,6 +1039,9 @@ type HydraRouteStatus struct {
 	IpsetUsage   map[string]int    `json:"ipsetUsage,omitempty" jsonschema:"entries per target interface now"`
 	DisabledTags []HydraRouteTag   `json:"disabledTags,omitempty" jsonschema:"geoip tags HydraRoute could not use (\"impossible to use\") — too large for the ipset"`
 	Settings     HydraRouteSetting `json:"settings"`
+	// SettingsError keeps a failed read from passing for real values:
+	// every field of an unread Settings is zero.
+	SettingsError string `json:"settingsError,omitempty" jsonschema:"set when hrneo.conf could not be read; settings is then empty, not the daemon's values"`
 }
 
 // HydraRouteTag is one disabled geoip tag.

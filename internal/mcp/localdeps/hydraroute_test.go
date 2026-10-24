@@ -22,6 +22,7 @@ type fakeHydra struct {
 	syncErr    error
 	removeErr  error
 	removed    string
+	readErr    error
 }
 
 func (f *fakeHydra) RefreshStatus() hydraroute.Status { return f.st }
@@ -30,6 +31,9 @@ func (f *fakeHydra) Control(action string) error {
 	return nil
 }
 func (f *fakeHydra) ReadConfig() (*hydraroute.Config, error) {
+	if f.readErr != nil {
+		return nil, f.readErr
+	}
 	c := f.cfg
 	return &c, nil
 }
@@ -97,9 +101,14 @@ func TestLocal_HydraRouteStatusAndSettings(t *testing.T) {
 	bus := &recBus{}
 	l := New(Config{Hydra: h, Bus: bus})
 	st, err := l.HydraRouteStatus(context.Background())
-	if err != nil || st.State != "running" || st.Version != "2.3.1" || st.IpsetUsage["nwg0"] != 12 || len(st.DisabledTags) != 1 || st.DisabledTags[0].Count != 90000 || !st.Settings.GlobalRouting {
+	if err != nil || st.State != "running" || st.Version != "2.3.1" || st.IpsetUsage["nwg0"] != 12 || len(st.DisabledTags) != 1 || st.DisabledTags[0].Count != 90000 || !st.Settings.GlobalRouting || st.SettingsError != "" {
 		t.Fatalf("status = %+v, %v", st, err)
 	}
+	h.readErr = errors.New("hrneo.conf: permission denied")
+	if st, err = l.HydraRouteStatus(context.Background()); err != nil || st.SettingsError == "" || st.State != "running" {
+		t.Fatalf("an unread config is said so, the rest still comes: %+v, %v", st, err)
+	}
+	h.readErr = nil
 	maxElem, off := 262144, false
 	st, err = l.UpdateHydraRouteSettings(context.Background(), mcpsrv.HydraRouteSettingsPatch{IpsetMaxElem: &maxElem, AutoStart: &off})
 	w := h.written
@@ -150,6 +159,15 @@ func TestLocal_HydraRouteGeo(t *testing.T) {
 	if _, _, err := l.UpdateHydraRouteGeoFiles(context.Background(), ""); err == nil {
 		t.Fatal("nothing updated must be an error")
 	}
+	g.allErr = errors.New("update errors: /opt/geo/geoip.dat: re-download https://user:secret@github.com/x/geoip.dat?token=abc: timeout")
+	if _, _, err := l.UpdateHydraRouteGeoFiles(context.Background(), ""); err == nil || strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), "token") || !strings.Contains(err.Error(), "github.com") {
+		t.Fatalf("the source URL is cut to its host: %v", err)
+	}
+	g.oneErr = g.allErr
+	if _, _, err := l.UpdateHydraRouteGeoFiles(context.Background(), "/opt/geo/geoip.dat"); err == nil || strings.Contains(err.Error(), "secret") {
+		t.Fatalf("one file: the source URL is cut to its host: %v", err)
+	}
+	g.oneErr = nil
 	g.allErr, g.allN, h.syncErr = nil, 3, errors.New("conf busy")
 	if _, partial, err := l.UpdateHydraRouteGeoFiles(context.Background(), ""); err != nil || !partial {
 		t.Fatalf("sync failure must make it partial: %v %v", partial, err)

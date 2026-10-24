@@ -10,6 +10,7 @@ import (
 	"github.com/hoaxisr/awg-manager/internal/downloader"
 	"github.com/hoaxisr/awg-manager/internal/events"
 	"github.com/hoaxisr/awg-manager/internal/hydraroute"
+	"github.com/hoaxisr/awg-manager/internal/logging"
 	mcpsrv "github.com/hoaxisr/awg-manager/internal/mcp"
 )
 
@@ -53,7 +54,9 @@ func (l *Local) HydraRouteStatus(ctx context.Context) (mcpsrv.HydraRouteStatus, 
 	if !st.Installed {
 		return out, nil
 	}
-	if cfg, err := l.c.Hydra.ReadConfig(); err == nil && cfg != nil {
+	if cfg, err := l.c.Hydra.ReadConfig(); err != nil || cfg == nil {
+		out.SettingsError = "hrneo.conf could not be read; set_hydraroute_settings refuses until it can be"
+	} else {
 		out.Settings = hydraSetting(cfg)
 	}
 	if u, err := l.c.Hydra.CalculateIpsetUsage(); err == nil && u != nil {
@@ -176,13 +179,13 @@ func (l *Local) UpdateHydraRouteGeoFiles(ctx context.Context, path string) (int,
 		if err != nil {
 			if n == 0 {
 				l.dnsLog.Warn("hydraroute-geo", "", "Geo update failed (MCP): "+err.Error())
-				return 0, false, fmt.Errorf("the geo files could not be updated via %s: %v", label, err)
+				return 0, false, fmt.Errorf("the geo files could not be updated via %s: %s", label, geoError(err))
 			}
 			partial = true
 		}
 	} else {
 		if _, err := l.c.HydraGeo.UpdateWithClientVia(ctx, path, lease.Client, label); err != nil {
-			return 0, false, fmt.Errorf("the geo file could not be updated via %s: %v", label, err)
+			return 0, false, fmt.Errorf("the geo file could not be updated via %s: %s", label, geoError(err))
 		}
 		updated = 1
 	}
@@ -193,6 +196,13 @@ func (l *Local) UpdateHydraRouteGeoFiles(ctx context.Context, path string) (int,
 	l.dnsLog.Info("hydraroute-geo", path, fmt.Sprintf("%d geo files updated (MCP)", updated))
 	l.publish(events.ResourceRoutingHydrarouteStatus, "mcp-geo-update")
 	return updated, partial, nil
+}
+
+// geoError is the store's error for the agent: it quotes the source URL
+// whole («re-download <url>: …»), and a custom source may carry a token
+// or a login — list_hydraroute_geo_files names the host only.
+func geoError(err error) string {
+	return sanitizeText(logging.RedactURLs(err.Error()), maxMessageRunes)
 }
 
 func (l *Local) RemoveHydraRouteDisabledTag(_ context.Context, name string) error {
