@@ -357,6 +357,27 @@ type SingboxAggregateGroupInput struct {
 	SubscriptionIDs []string
 }
 
+// TunnelSettingsInput edits individual settings of a tunnel; a nil field
+// keeps its value.
+type TunnelSettingsInput struct {
+	TunnelID            string
+	MTU                 *int
+	DNS                 *string // comma-separated, as the .conf writes it
+	PersistentKeepalive *string // seconds, or a min-max range on AmneziaWG 2/3
+	ISPInterface        *string // auto, wan:<name> or tunnel:<id>
+	ConnectivityCheck   *string // http, ping, handshake or disabled
+	PingTarget          string  // for ping
+	AWG                 *AWGParamsInput
+}
+
+// AWGParamsInput is the AmneziaWG obfuscation an agent may change; a nil
+// field keeps its value. The rest (I1–I5, AWG 3 headers) stays with the
+// web interface.
+type AWGParamsInput struct {
+	Jc, Jmin, Jmax, S1, S2, S3, S4 *int
+	H1, H2, H3, H4                 *string
+}
+
 // SingboxSubscriptionInput is a new subscription: fetched from URL, or
 // made of pasted share links (Links, one per line).
 type SingboxSubscriptionInput struct {

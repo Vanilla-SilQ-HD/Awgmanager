@@ -31,6 +31,8 @@ type Fake struct {
 	// ExtraTargets are routing targets besides the tunnels: NDMS
 	// interfaces and WAN, as routing.Catalog lists them.
 	ExtraTargets []mcpsrv.RoutingTarget
+	// TunnelEdits holds the last update_tunnel_settings input per tunnel.
+	TunnelEdits  map[string]mcpsrv.TunnelSettingsInput
 	ClientRoutes []mcpsrv.ClientRoute
 	Policies     []mcpsrv.AccessPolicy
 	Devices      []mcpsrv.Device
@@ -2293,6 +2295,26 @@ func (f *Fake) DeleteSingboxTunnel(_ context.Context, tag string) (mcpsrv.Singbo
 	t := f.SingboxTunnels[i]
 	f.SingboxTunnels = slices.Delete(f.SingboxTunnels, i, i+1)
 	return t, nil
+}
+
+// UpdateTunnelSettings records the last edit per tunnel in TunnelEdits
+// and applies the MTU-less parts the fake models; a locked or unknown
+// tunnel is refused as the card refuses it.
+func (f *Fake) UpdateTunnelSettings(_ context.Context, in mcpsrv.TunnelSettingsInput) (mcpsrv.TunnelDetail, []string, error) {
+	if f.Err != nil {
+		return mcpsrv.TunnelDetail{}, nil, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	t, err := f.findTunnel(in.TunnelID)
+	if err != nil {
+		return mcpsrv.TunnelDetail{}, nil, err
+	}
+	if f.TunnelEdits == nil {
+		f.TunnelEdits = map[string]mcpsrv.TunnelSettingsInput{}
+	}
+	f.TunnelEdits[in.TunnelID] = in
+	return *t, nil, nil
 }
 
 func (f *Fake) OpenAPISpec() []byte { return f.Spec }

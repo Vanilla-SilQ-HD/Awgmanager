@@ -23,6 +23,11 @@ type Deps interface {
 	// a failed restart and any address conflicts the new config introduces.
 	ReplaceTunnelConfig(ctx context.Context, id, config, newName string) (warnings []string, err error)
 	ExportTunnelConfig(ctx context.Context, id string) (string, error)
+	// UpdateTunnelSettings changes individual settings the way the web
+	// interface's tunnel card does — same checks, a running tunnel applied
+	// live or restarted when the WAN connection changes — and returns the
+	// tunnel afterwards with any address conflicts the edit introduced.
+	UpdateTunnelSettings(ctx context.Context, in TunnelSettingsInput) (TunnelDetail, []string, error)
 
 	ListDNSRoutes(ctx context.Context) ([]DNSRoute, error)
 	// GetDNSRoute returns one list in full — Domains uncapped, plus the
