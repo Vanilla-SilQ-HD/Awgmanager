@@ -83,7 +83,12 @@ type Fake struct {
 	// RoutingMode is the sing-box router's routing mode; "fakeip-tun"
 	// makes the router edits refused, as localdeps does.
 	RoutingMode string
-	Servers     []mcpsrv.ManagedServer
+	// DNSRules, DNSRewrites and RouterStatus back the router reads;
+	// RouterStatus.RoutingMode is taken from RoutingMode.
+	DNSRules     mcpsrv.SingboxDNSRules
+	DNSRewrites  []mcpsrv.SingboxDNSRewrite
+	RouterStatus mcpsrv.SingboxRouterStatus
+	Servers      []mcpsrv.ManagedServer
 	// Peers maps a server id to its clients; ServerAddresses maps it to
 	// the server's own tunnel address, which the allocator counts from.
 	Peers           map[string][]mcpsrv.ServerPeer
@@ -149,6 +154,22 @@ func New() *Fake {
 			{Tag: "dns-remote", Type: "https", Server: "dns.google"},
 			{Tag: "dns-local", Type: "local"},
 		},
+		DNSRules: mcpsrv.SingboxDNSRules{
+			Rules: []mcpsrv.SingboxDNSRule{
+				{Index: 0, Match: "rule_set geosite-ru", Action: "route", Server: "dns-direct"},
+				{Index: 1, Match: "(domain_suffix youtube.com OR domain_keyword google)", Action: "route", Server: "dns-remote"},
+			},
+			Final: "dns-remote", Strategy: "prefer_ipv4",
+		},
+		DNSRewrites: []mcpsrv.SingboxDNSRewrite{
+			{Pattern: "nas.home", IPs: []string{"192.168.1.5"}},
+			{Pattern: "*.keenetic.link", IPs: []string{"192.168.1.1"}, Managed: true},
+		},
+		RouterStatus: mcpsrv.SingboxRouterStatus{
+			Enabled: true, Active: true, DeviceMode: "policy", PolicyName: "VPN", PolicyExists: true, DeviceCount: 3,
+			Sniffer: true, Final: "direct", UDPTimeout: "5m",
+			QoSClasses: []mcpsrv.SingboxQoSClass{{Name: "games", DSCP: 46, Outbound: "direct", Enabled: true}},
+		},
 		RuleSets: []mcpsrv.SingboxRuleSet{
 			{Tag: "geosite-ru", Type: "remote", Format: "binary", Host: "raw.githubusercontent.com"},
 			{Tag: "geoip-ru", Type: "remote", Format: "binary", Host: "raw.githubusercontent.com", DownloadDetour: "vless-nl"},
@@ -160,7 +181,7 @@ func New() *Fake {
 			{Index: 2, Match: "protocol dns", Action: "hijack-dns", Managed: true},
 		},
 		RouterOutbounds: []mcpsrv.SingboxOutbound{
-			{Tag: "auto", Type: "urltest", Source: "router"},
+			{Tag: "auto", Type: "urltest", Source: "router", ProbeURL: "https://www.gstatic.com/generate_204", ProbeInterval: "3m", ToleranceMs: 50},
 			{Tag: "manual", Type: "selector", Source: "router"},
 			{Tag: "sub-706dcf33", Type: "urltest", Source: "subscription", SubscriptionID: "706dcf33aabbccddeeff0011"},
 			{Tag: "sub-1a00ae3b", Type: "selector", Source: "subscription", SubscriptionID: "1a00ae3b0011223344556677"},
@@ -1356,6 +1377,9 @@ func (f *Fake) SetSingboxRuleOutbound(_ context.Context, index int, outbound str
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.RoutingMode == "fakeip-tun" {
+		return fmt.Errorf("the sing-box router runs in fakeip-tun mode, which routes by a configuration of its own that MCP does not edit; make this change in the web interface")
+	}
 	rules := f.routerRules()
 	if index < 0 || index >= len(rules) {
 		return fmt.Errorf("rule index %d is out of range (%d rules)", index, len(rules))
@@ -1419,6 +1443,41 @@ func (f *Fake) ListSingboxDNSServers(context.Context) ([]mcpsrv.SingboxDNSServer
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]mcpsrv.SingboxDNSServer(nil), f.DNSServers...), f.Draft != nil, nil
+}
+
+func (f *Fake) SingboxRouterStatus(context.Context) (mcpsrv.SingboxRouterStatus, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxRouterStatus{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	st := f.RouterStatus
+	st.RoutingMode = f.RoutingMode
+	if st.RoutingMode == "" {
+		st.RoutingMode = "tproxy"
+	}
+	return st, nil
+}
+
+func (f *Fake) ListSingboxDNSRules(context.Context) (mcpsrv.SingboxDNSRules, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxDNSRules{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := f.DNSRules
+	out.Rules = append([]mcpsrv.SingboxDNSRule(nil), f.DNSRules.Rules...)
+	out.HasDraft = f.Draft != nil
+	return out, nil
+}
+
+func (f *Fake) ListSingboxDNSRewrites(context.Context) ([]mcpsrv.SingboxDNSRewrite, error) {
+	if f.Err != nil {
+		return nil, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]mcpsrv.SingboxDNSRewrite(nil), f.DNSRewrites...), nil
 }
 
 func (f *Fake) ListSingboxRuleSets(context.Context) ([]mcpsrv.SingboxRuleSet, bool, error) {
