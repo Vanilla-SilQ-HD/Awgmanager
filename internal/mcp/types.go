@@ -240,6 +240,14 @@ type SingboxDNSRule struct {
 	MatchResponse string `json:"matchResponse,omitempty" jsonschema:"set: the rule is checked against an evaluate response obtained above — last means the nearest evaluate without a tag, anything else is that evaluate's tag — and matches nothing while there is none. Empty: checked against the query alone"`
 }
 
+// SingboxRuleSetDeletion is what delete_singbox_ruleset removed: the set,
+// and with force the routing and DNS rules that used it, as they were.
+type SingboxRuleSetDeletion struct {
+	Deleted  SingboxRuleSet
+	Rules    []SingboxRule
+	DNSRules []SingboxDNSRule
+}
+
 // SingboxDNSRules is the router's DNS rule list with the settings that
 // decide what an unmatched query does.
 type SingboxDNSRules struct {

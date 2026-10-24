@@ -505,48 +505,62 @@ func (l *Local) AddSingboxRuleSet(ctx context.Context, in mcpsrv.SingboxRuleSetI
 }
 
 // DeleteSingboxRuleSet reads the set and the rules first, to hand back
-// the set once it is gone and, with force, the rules that used it: each
-// lost the condition, and one left with none was deleted with it — after
-// apply nothing else records them. The reads and the deletion are separate
+// the set once it is gone and, with force, the routing and DNS rules that
+// used it (RouterConfig.DeleteRuleSet strips both): each lost the
+// condition, and one left with none was deleted with it — after apply
+// nothing else records them. The reads and the deletion are separate
 // calls, so a change in between is not reflected.
-func (l *Local) DeleteSingboxRuleSet(ctx context.Context, tag string, force bool) (mcpsrv.SingboxRuleSet, []mcpsrv.SingboxRule, error) {
+func (l *Local) DeleteSingboxRuleSet(ctx context.Context, tag string, force bool) (mcpsrv.SingboxRuleSetDeletion, error) {
 	if l.c.Router == nil {
-		return mcpsrv.SingboxRuleSet{}, nil, errUnavailable("sing-box router")
+		return mcpsrv.SingboxRuleSetDeletion{}, errUnavailable("sing-box router")
 	}
 	if err := l.requireTProxyRouter(ctx); err != nil {
-		return mcpsrv.SingboxRuleSet{}, nil, err
+		return mcpsrv.SingboxRuleSetDeletion{}, err
 	}
 	sets, err := l.c.Router.ListRuleSets(ctx)
 	if err != nil {
-		return mcpsrv.SingboxRuleSet{}, nil, err
+		return mcpsrv.SingboxRuleSetDeletion{}, err
 	}
 	i := slices.IndexFunc(sets, func(rs router.RuleSet) bool { return rs.Tag == tag })
 	if i < 0 {
-		return mcpsrv.SingboxRuleSet{}, nil, fmt.Errorf("%w: %q (use list_singbox_rulesets)", router.ErrRuleSetNotFound, tag)
+		return mcpsrv.SingboxRuleSetDeletion{}, fmt.Errorf("%w: %q (use list_singbox_rulesets)", router.ErrRuleSetNotFound, tag)
 	}
-	var affected []mcpsrv.SingboxRule
+	var out mcpsrv.SingboxRuleSetDeletion
 	if force {
 		rules, err := l.c.Router.ListRules(ctx)
 		if err != nil {
-			return mcpsrv.SingboxRuleSet{}, nil, err
+			return mcpsrv.SingboxRuleSetDeletion{}, err
 		}
 		for j, r := range rules {
 			if ruleUsesSet(r, tag) {
-				affected = append(affected, singboxRule(j, r))
+				out.Rules = append(out.Rules, singboxRule(j, r))
+			}
+		}
+		dnsRules, err := l.c.Router.ListDNSRules(ctx)
+		if err != nil {
+			return mcpsrv.SingboxRuleSetDeletion{}, err
+		}
+		for j, r := range dnsRules {
+			if slices.Contains(r.RuleSet, tag) {
+				out.DNSRules = append(out.DNSRules, singboxDNSRule(j, r))
 			}
 		}
 	}
 	if err := l.c.Router.DeleteRuleSet(ctx, tag, force); err != nil {
 		l.singboxLog.Warn("ruleset-delete", tag, "Failed to delete sing-box rule set (MCP): "+err.Error())
-		return mcpsrv.SingboxRuleSet{}, nil, ruleEditError(err)
+		return mcpsrv.SingboxRuleSetDeletion{}, ruleEditError(err)
 	}
 	msg := "Sing-box rule set deleted (MCP, staged)"
-	for _, r := range affected {
+	for _, r := range out.Rules {
 		msg += fmt.Sprintf("; rule %d used it: %s", r.Index, r.Match)
+	}
+	for _, r := range out.DNSRules {
+		msg += fmt.Sprintf("; DNS rule %d used it: %s", r.Index, r.Match)
 	}
 	l.singboxLog.Info("ruleset-delete", tag, msg)
 	rs := sets[i]
-	return mcpsrv.SingboxRuleSet{Tag: rs.Tag, Type: token(rs.Type), Format: token(rs.Format), Host: hostOf(rs.URL), DownloadDetour: rs.DownloadDetour}, affected, nil
+	out.Deleted = mcpsrv.SingboxRuleSet{Tag: rs.Tag, Type: token(rs.Type), Format: token(rs.Format), Host: hostOf(rs.URL), DownloadDetour: rs.DownloadDetour}
+	return out, nil
 }
 
 // ruleUsesSet reports a rule, or one nested in a logical rule, that names
@@ -566,7 +580,7 @@ func ruleEditError(err error) error {
 	case errors.Is(err, router.ErrRuleIndexOutOfRange):
 		return fmt.Errorf("%w (positions come from list_singbox_rules)", err)
 	case errors.Is(err, router.ErrRuleSetReferenced):
-		return fmt.Errorf("%w (retarget or delete those rules first, or pass force)", err)
+		return fmt.Errorf("%w (edit or delete those rules first — DNS rules only in the web interface — or pass force)", err)
 	case errors.Is(err, router.ErrRuleSetNotFound):
 		return fmt.Errorf("%w (rule sets come from list_singbox_rulesets; add_singbox_ruleset adds one)", err)
 	case errors.Is(err, router.ErrRuleSetTagConflict):

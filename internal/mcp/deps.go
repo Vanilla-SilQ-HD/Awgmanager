@@ -183,7 +183,7 @@ type Deps interface {
 	// set rules still use is refused unless force; with force the
 	// references go, and a rule left without any matcher goes with them —
 	// affected are those rules as they were.
-	DeleteSingboxRuleSet(ctx context.Context, tag string, force bool) (deleted SingboxRuleSet, affected []SingboxRule, err error)
+	DeleteSingboxRuleSet(ctx context.Context, tag string, force bool) (SingboxRuleSetDeletion, error)
 
 	ApplySingboxStaging(ctx context.Context) error
 	DiscardSingboxStaging(ctx context.Context) error
