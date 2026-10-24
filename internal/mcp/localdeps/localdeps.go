@@ -73,6 +73,18 @@ type (
 		AddPeer(ctx context.Context, id string, req managed.AddPeerRequest) (*storage.ManagedPeer, error)
 		TogglePeer(ctx context.Context, id, pubkey string, enabled bool) error
 		GenerateConf(ctx context.Context, id, pubkey, endpointHost string) (string, error)
+		Create(ctx context.Context, req managed.CreateServerRequest) (*storage.ManagedServer, error)
+		Update(ctx context.Context, id string, req managed.UpdateServerRequest) error
+		SetEnabled(ctx context.Context, id string, enabled bool) error
+		SetNATMode(ctx context.Context, id, mode string) error
+		SetLANSegments(ctx context.Context, id string, segments []string) error
+		ListLANSegments(ctx context.Context) ([]managed.LANSegmentDTO, error)
+		SetPolicy(ctx context.Context, id, policy string) error
+		ListPolicies(ctx context.Context) ([]managed.PolicyOption, error)
+		SuggestAddress(ctx context.Context) (string, string, error)
+		GetASCParams(ctx context.Context, id string) (json.RawMessage, error)
+		SetASCParams(ctx context.Context, id string, params json.RawMessage) error
+		InvalidateCache(id string)
 	}
 	// ConnectionLister is the subset of *connections.Service MCP uses.
 	ConnectionLister interface {

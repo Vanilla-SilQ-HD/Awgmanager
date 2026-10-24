@@ -40,11 +40,15 @@ type Fake struct {
 	// UserConfig and UserConfigDraft are the 90-user.json slot.
 	UserConfig      string
 	UserConfigDraft string
-	ClientRoutes    []mcpsrv.ClientRoute
-	Policies        []mcpsrv.AccessPolicy
-	Devices         []mcpsrv.Device
-	Logs            []mcpsrv.LogEntry
-	Singbox         mcpsrv.SingboxStatus
+	// WGServers are the managed servers the server tools edit (the peer
+	// tools use Servers and Peers); WGObfuscation the last ASC write.
+	WGServers     []mcpsrv.WireguardServer
+	WGObfuscation map[string]any
+	ClientRoutes  []mcpsrv.ClientRoute
+	Policies      []mcpsrv.AccessPolicy
+	Devices       []mcpsrv.Device
+	Logs          []mcpsrv.LogEntry
+	Singbox       mcpsrv.SingboxStatus
 	// SingboxTunnels are the proxies inside sing-box; Delays maps a tag to
 	// the latency a probe answers with (0 = the proxy stayed silent).
 	SingboxTunnels []mcpsrv.SingboxTunnel
@@ -248,6 +252,7 @@ func New() *Fake {
 			},
 		},
 		ServerAddresses: map[string]string{"Wireguard0": "10.0.0.1/24"},
+		WGServers:       []mcpsrv.WireguardServer{{ID: "Wireguard0", Description: "Home", Address: "10.0.0.1", Mask: "24", ListenPort: 51820, NATMode: "full", PeerCount: 2}},
 		Conns: []mcpsrv.Connection{
 			{Protocol: "tcp", Src: "192.168.1.10", SrcPort: 51234, Dst: "142.250.1.1", DstPort: 443, State: "ESTABLISHED", Interface: "nwg0", TunnelID: "tn-1", TunnelName: "Amsterdam", ClientName: "laptop"},
 			{Protocol: "udp", Src: "192.168.1.20", SrcPort: 5353, Dst: "8.8.8.8", DstPort: 53, Interface: "opkgtun1", TunnelID: "tn-2", TunnelName: "Frankfurt", ClientName: "tv"},
@@ -2612,6 +2617,119 @@ func (f *Fake) DiscardSingboxUserConfig(context.Context) error {
 	defer f.mu.Unlock()
 	f.UserConfigDraft = ""
 	return nil
+}
+
+func (f *Fake) ListWireguardServerOptions(context.Context) (mcpsrv.WireguardServerOptions, error) {
+	if f.Err != nil {
+		return mcpsrv.WireguardServerOptions{}, f.Err
+	}
+	return mcpsrv.WireguardServerOptions{
+		LANSegments: []mcpsrv.LANSegment{{Name: "Bridge0", Label: "Home", Subnet: "192.168.1.0/24"}},
+		Policies:    []string{"Policy0"}, SuggestedAddress: "10.9.0.1", SuggestedMask: "24",
+	}, nil
+}
+
+func (f *Fake) wgServer(id string) (int, error) {
+	i := slices.IndexFunc(f.WGServers, func(s mcpsrv.WireguardServer) bool { return s.ID == id })
+	if i < 0 {
+		return -1, fmt.Errorf("server %q is not a server awg-manager manages (use list_managed_servers)", id)
+	}
+	return i, nil
+}
+
+func (f *Fake) CreateWireguardServer(_ context.Context, in mcpsrv.WireguardServerInput) (mcpsrv.WireguardServer, []string, error) {
+	if f.Err != nil {
+		return mcpsrv.WireguardServer{}, nil, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, s := range f.WGServers {
+		if s.ListenPort == in.ListenPort {
+			return mcpsrv.WireguardServer{}, nil, fmt.Errorf("listen port %d is already in use", in.ListenPort)
+		}
+	}
+	sv := mcpsrv.WireguardServer{ID: fmt.Sprintf("Wireguard%d", 3+len(f.WGServers)), Description: in.Description, Address: cmp.Or(in.Address, "10.9.0.1"), Mask: cmp.Or(in.Mask, "24"),
+		ListenPort: in.ListenPort, Endpoint: in.Endpoint, DNS: in.DNS, MTU: in.MTU, NATMode: "full"}
+	f.WGServers = append(f.WGServers, sv)
+	return sv, nil, nil
+}
+
+func (f *Fake) UpdateWireguardServer(_ context.Context, p mcpsrv.WireguardServerPatch) (mcpsrv.WireguardServer, error) {
+	if f.Err != nil {
+		return mcpsrv.WireguardServer{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	i, err := f.wgServer(p.ID)
+	if err != nil {
+		return mcpsrv.WireguardServer{}, err
+	}
+	s := &f.WGServers[i]
+	if p.Description != nil {
+		s.Description = *p.Description
+	}
+	if p.ListenPort != nil {
+		s.ListenPort = *p.ListenPort
+	}
+	if p.MTU != nil {
+		s.MTU = *p.MTU
+	}
+	return *s, nil
+}
+
+func (f *Fake) SetWireguardServerAccess(_ context.Context, a mcpsrv.WireguardServerAccess) (mcpsrv.WireguardServer, error) {
+	if f.Err != nil {
+		return mcpsrv.WireguardServer{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	i, err := f.wgServer(a.ID)
+	if err != nil {
+		return mcpsrv.WireguardServer{}, err
+	}
+	s := &f.WGServers[i]
+	if a.NATMode != nil {
+		s.NATMode = *a.NATMode
+	}
+	if a.LANSegments != nil {
+		for _, name := range *a.LANSegments {
+			if name != "Bridge0" {
+				return mcpsrv.WireguardServer{}, fmt.Errorf("%q is not a LAN segment", name)
+			}
+		}
+		s.LANSegments = *a.LANSegments
+	}
+	if a.Policy != nil {
+		s.Policy = *a.Policy
+	}
+	return *s, nil
+}
+
+func (f *Fake) SetWireguardServerEnabled(_ context.Context, id string, _ bool) (mcpsrv.WireguardServer, error) {
+	if f.Err != nil {
+		return mcpsrv.WireguardServer{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	i, err := f.wgServer(id)
+	if err != nil {
+		return mcpsrv.WireguardServer{}, err
+	}
+	return f.WGServers[i], nil
+}
+
+func (f *Fake) SetWireguardServerObfuscation(_ context.Context, id string, params map[string]any) (mcpsrv.WireguardServer, error) {
+	if f.Err != nil {
+		return mcpsrv.WireguardServer{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	i, err := f.wgServer(id)
+	if err != nil {
+		return mcpsrv.WireguardServer{}, err
+	}
+	f.WGObfuscation = params
+	return f.WGServers[i], nil
 }
 
 func (f *Fake) OpenAPISpec() []byte { return f.Spec }

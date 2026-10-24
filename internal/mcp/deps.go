@@ -150,6 +150,19 @@ type Deps interface {
 	// to the caller.
 	AddServerPeer(ctx context.Context, in AddPeerInput) (ServerPeer, error)
 	SetServerPeerEnabled(ctx context.Context, serverID, publicKey string, enabled bool) (ServerPeer, error)
+	// The WireGuard server writes below apply at once in NDMS. Deleting a
+	// server is not exposed.
+	ListWireguardServerOptions(ctx context.Context) (WireguardServerOptions, error)
+	// CreateWireguardServer creates and starts a server with NAT on. The
+	// server can exist even when the call reports a problem with its
+	// obfuscation: warnings say so.
+	CreateWireguardServer(ctx context.Context, in WireguardServerInput) (created WireguardServer, warnings []string, err error)
+	UpdateWireguardServer(ctx context.Context, p WireguardServerPatch) (WireguardServer, error)
+	SetWireguardServerAccess(ctx context.Context, a WireguardServerAccess) (WireguardServer, error)
+	SetWireguardServerEnabled(ctx context.Context, id string, enabled bool) (WireguardServer, error)
+	// SetWireguardServerObfuscation lays the given AmneziaWG parameters over
+	// the server's current ones; clients need the new values too.
+	SetWireguardServerObfuscation(ctx context.Context, id string, params map[string]any) (WireguardServer, error)
 	// ServerPeerConfig renders the client .conf, private key included.
 	ServerPeerConfig(ctx context.Context, serverID, publicKey string) (string, error)
 	ControlSingbox(ctx context.Context, action string) (SingboxStatus, error)
