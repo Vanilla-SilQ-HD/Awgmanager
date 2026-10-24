@@ -127,17 +127,15 @@ func (l *Local) UpdateWireguardServer(ctx context.Context, p mcpsrv.WireguardSer
 	return l.readServer(ctx, p.ID)
 }
 
+// SetWireguardServerAccess checks the segments before any write; the three
+// writes are separate router calls, so one failing after another succeeded
+// still drops the cache and publishes, and says what was applied.
 func (l *Local) SetWireguardServerAccess(ctx context.Context, a mcpsrv.WireguardServerAccess) (mcpsrv.WireguardServer, error) {
 	if l.c.Managed == nil {
 		return mcpsrv.WireguardServer{}, errUnavailable("managed servers")
 	}
 	if _, err := l.managedServer(ctx, a.ID); err != nil {
 		return mcpsrv.WireguardServer{}, err
-	}
-	if a.NATMode != nil {
-		if err := l.c.Managed.SetNATMode(ctx, a.ID, *a.NATMode); err != nil {
-			return mcpsrv.WireguardServer{}, err
-		}
 	}
 	if a.LANSegments != nil {
 		segs, err := l.c.Managed.ListLANSegments(ctx)
@@ -153,13 +151,30 @@ func (l *Local) SetWireguardServerAccess(ctx context.Context, a mcpsrv.Wireguard
 				return mcpsrv.WireguardServer{}, fmt.Errorf("%q is not a LAN segment (use list_wireguard_server_options)", name)
 			}
 		}
-		if err := l.c.Managed.SetLANSegments(ctx, a.ID, append([]string{}, *a.LANSegments...)); err != nil {
+	}
+	var applied []string
+	fail := func(what string, err error) (mcpsrv.WireguardServer, error) {
+		if len(applied) == 0 {
 			return mcpsrv.WireguardServer{}, err
 		}
+		l.serverChanged(a.ID, "mcp-access")
+		return mcpsrv.WireguardServer{}, fmt.Errorf("%s was changed, but %s was not: %w", strings.Join(applied, " and "), what, err)
+	}
+	if a.NATMode != nil {
+		if err := l.c.Managed.SetNATMode(ctx, a.ID, *a.NATMode); err != nil {
+			return fail("NAT", err)
+		}
+		applied = append(applied, "NAT")
+	}
+	if a.LANSegments != nil {
+		if err := l.c.Managed.SetLANSegments(ctx, a.ID, append([]string{}, *a.LANSegments...)); err != nil {
+			return fail("the LAN segments", err)
+		}
+		applied = append(applied, "the LAN segments")
 	}
 	if a.Policy != nil {
 		if err := l.c.Managed.SetPolicy(ctx, a.ID, strings.TrimSpace(*a.Policy)); err != nil {
-			return mcpsrv.WireguardServer{}, err
+			return fail("the policy", err)
 		}
 	}
 	l.serverLog.Info("access", a.ID, "WireGuard server access changed (MCP)")
@@ -189,7 +204,8 @@ var headerKeys = map[string]bool{"h1": true, "h2": true, "h3": true, "h4": true}
 // SetWireguardServerObfuscation lays the parameters over the server's
 // current ones and writes them whole. A successful write is not followed by
 // InvalidateCache, as in the REST handler (F600): the service read the
-// result back already.
+// result back already. Both refusals after the router took the write drop
+// the cache and publish, as REST does: part may have applied (F601, R44).
 func (l *Local) SetWireguardServerObfuscation(ctx context.Context, id string, params map[string]any) (mcpsrv.WireguardServer, error) {
 	if l.c.Managed == nil {
 		return mcpsrv.WireguardServer{}, errUnavailable("managed servers")
@@ -235,11 +251,11 @@ func (l *Local) SetWireguardServerObfuscation(ctx context.Context, id string, pa
 	err = l.c.Managed.SetASCParams(ctx, id, merged)
 	switch {
 	case errors.Is(err, managed.ErrASCUnverified):
-		l.publish(events.ResourceServers, "mcp-asc")
+		l.serverChanged(id, "mcp-asc")
 		return mcpsrv.WireguardServer{}, fmt.Errorf("the router took the parameters but they could not be read back to confirm; check the server in the web interface")
 	case errors.Is(err, managed.ErrASCNotApplied):
-		l.publish(events.ResourceServers, "mcp-asc")
-		return mcpsrv.WireguardServer{}, fmt.Errorf("the router did not apply the parameters; nothing changed")
+		l.serverChanged(id, "mcp-asc")
+		return mcpsrv.WireguardServer{}, fmt.Errorf("the router did not apply the parameters as sent — some may have applied; read the server again (list_managed_servers) before retrying")
 	case err != nil:
 		return mcpsrv.WireguardServer{}, err
 	}

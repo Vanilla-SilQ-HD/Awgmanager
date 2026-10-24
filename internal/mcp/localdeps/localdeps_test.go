@@ -1927,6 +1927,7 @@ type fakeManaged struct {
 	ascSet      json.RawMessage
 	ascErr      error
 	invalidated []string
+	policyErr   error
 	servers     []storage.ManagedServer
 	added       managed.AddPeerRequest
 	addedTo     string

@@ -3,6 +3,7 @@ package localdeps
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -40,6 +41,9 @@ func (f *fakeManaged) ListLANSegments(context.Context) ([]managed.LANSegmentDTO,
 	return []managed.LANSegmentDTO{{Name: "Bridge0", Label: "Home", Subnet: "192.168.1.0/24"}}, nil
 }
 func (f *fakeManaged) SetPolicy(_ context.Context, id, policy string) error {
+	if f.policyErr != nil {
+		return f.policyErr
+	}
 	f.calls = append(f.calls, "policy "+policy)
 	return nil
 }
@@ -110,8 +114,14 @@ func TestLocal_SetWireguardServerAccess(t *testing.T) {
 		t.Fatalf("calls = %v", m.calls)
 	}
 	bad := []string{"Guest9"}
-	if _, err := l.SetWireguardServerAccess(context.Background(), mcpsrv.WireguardServerAccess{ID: "Wireguard3", LANSegments: &bad}); err == nil {
-		t.Fatal("an unknown LAN segment must be refused")
+	m.calls, m.invalidated = nil, nil
+	if _, err := l.SetWireguardServerAccess(context.Background(), mcpsrv.WireguardServerAccess{ID: "Wireguard3", NATMode: ptr("none"), LANSegments: &bad}); err == nil || len(m.calls) != 0 {
+		t.Fatalf("an unknown LAN segment must be refused before any write: %v, %v", err, m.calls)
+	}
+	m.policyErr = errors.New("rci: busy")
+	if _, err := l.SetWireguardServerAccess(context.Background(), mcpsrv.WireguardServerAccess{ID: "Wireguard3", NATMode: ptr("none"), Policy: ptr("Policy0")}); err == nil ||
+		!strings.Contains(err.Error(), "NAT was changed") || len(m.invalidated) != 1 {
+		t.Fatalf("a write that failed after another succeeded must say so and drop the cache: %v, %v", err, m.invalidated)
 	}
 }
 
@@ -131,8 +141,14 @@ func TestLocal_SetWireguardServerObfuscationMerges(t *testing.T) {
 	if got["jc"] != float64(6) || got["jmin"] != float64(40) || got["h1"] != "5" || got["h2"] != "2" || got["s1"] != float64(20) {
 		t.Fatalf("asc = %v", got)
 	}
+	for _, ascErr := range []error{managed.ErrASCNotApplied, managed.ErrASCUnverified} {
+		m.ascErr, m.invalidated = ascErr, nil
+		if _, err := l.SetWireguardServerObfuscation(context.Background(), "Wireguard3", map[string]any{"jc": float64(7)}); err == nil || len(m.invalidated) != 1 {
+			t.Fatalf("%v: part may have applied, so the cache is dropped as REST does: %v, %v", ascErr, err, m.invalidated)
+		}
+	}
 	m.ascErr = managed.ErrASCNotApplied
-	if _, err := l.SetWireguardServerObfuscation(context.Background(), "Wireguard3", map[string]any{"jc": float64(7)}); err == nil || !strings.Contains(err.Error(), "did not apply") {
+	if _, err := l.SetWireguardServerObfuscation(context.Background(), "Wireguard3", map[string]any{"jc": float64(7)}); err == nil || !strings.Contains(err.Error(), "some may have applied") {
 		t.Fatalf("err = %v", err)
 	}
 }
