@@ -8,6 +8,7 @@ import (
 
 	mcpsrv "github.com/hoaxisr/awg-manager/internal/mcp"
 	singboxorch "github.com/hoaxisr/awg-manager/internal/singbox/orchestrator"
+	"github.com/hoaxisr/awg-manager/internal/singbox/router"
 )
 
 // maxUserConfigOut caps the expert slot returned to the model; the web
@@ -103,6 +104,18 @@ func configCheck(res singboxorch.ValidationResult) mcpsrv.SingboxConfigCheck {
 	return out
 }
 
+// userConfigAdvisories mirrors the editor's addressOrWarnings: a rule
+// mixing a rule_set with its own addresses, which sing-box ANDs (#699).
+// The generated slots are rewritten; the expert slot is the user's text,
+// so it is only flagged.
+func userConfigAdvisories(raw []byte) []string {
+	var out []string
+	for _, idx := range router.FlatAddressOrRuleIndexes(raw) {
+		out = append(out, fmt.Sprintf("route.rules[%d] mixes a rule_set with its own domain/ip_cidr: sing-box requires both at once unless the set holds exactly one address rule, so it matches almost nothing — split it into two rules or write logical(or)", idx))
+	}
+	return out
+}
+
 // SaveSingboxUserConfig writes the draft, then checks the merged
 // configuration with it, as the editor's save and check do. sing-box's own
 // refusal (a check error) is reported as a failed check, not a failed call:
@@ -118,9 +131,11 @@ func (l *Local) SaveSingboxUserConfig(_ context.Context, content []byte) (mcpsrv
 	l.singboxLog.Info("user-config-save", "90-user.json", "User config draft saved (MCP)")
 	res, err := l.c.UserConfig.CheckMerged(singboxorch.SlotUser, content)
 	if err != nil {
-		return mcpsrv.SingboxConfigCheck{Ok: false, Errors: []string{sanitizeText(err.Error(), maxMessageRunes)}}, nil
+		return mcpsrv.SingboxConfigCheck{Ok: false, Errors: []string{sanitizeText(err.Error(), maxMessageRunes)}, Warnings: userConfigAdvisories(content)}, nil
 	}
-	return configCheck(res), nil
+	out := configCheck(res)
+	out.Warnings = append(out.Warnings, userConfigAdvisories(content)...)
+	return out, nil
 }
 
 // ApplySingboxUserConfig applies, then enables the slot — the editor's
@@ -132,6 +147,10 @@ func (l *Local) ApplySingboxUserConfig(context.Context) (mcpsrv.SingboxConfigChe
 	if !l.c.UserConfig.HasDraft(singboxorch.SlotUser) {
 		return mcpsrv.SingboxConfigCheck{}, fmt.Errorf("there is no draft to apply; save one with save_singbox_user_config")
 	}
+	// Read before applying, as the editor does: the commit removes the
+	// draft, and its advisories go back with the result. With a draft,
+	// LoadEffective returns it.
+	draft, _ := l.c.UserConfig.LoadEffective(singboxorch.SlotUser)
 	res, err := l.c.UserConfig.ApplyDraft(singboxorch.SlotUser)
 	if errors.Is(err, singboxorch.ErrNoDraft) {
 		return mcpsrv.SingboxConfigCheck{}, fmt.Errorf("there is no draft to apply")
@@ -148,7 +167,9 @@ func (l *Local) ApplySingboxUserConfig(context.Context) (mcpsrv.SingboxConfigChe
 		return mcpsrv.SingboxConfigCheck{}, fmt.Errorf("the configuration is applied, but the slot could not be enabled: %w", err)
 	}
 	l.singboxLog.Info("user-config-apply", "90-user.json", "User config draft applied (MCP)")
-	return configCheck(res), nil
+	out := configCheck(res)
+	out.Warnings = append(out.Warnings, userConfigAdvisories(draft)...)
+	return out, nil
 }
 
 func (l *Local) DiscardSingboxUserConfig(context.Context) error {
