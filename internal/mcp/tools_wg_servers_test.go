@@ -42,6 +42,7 @@ func TestTools_WireguardServers(t *testing.T) {
 		"empty policy":     {"set_wireguard_server_access", map[string]any{"serverId": id, "policy": " "}},
 		"i1 is the peer's": {"set_wireguard_server_obfuscation", map[string]any{"serverId": id, "params": map[string]any{"i1": "x"}}},
 		"negative junk":    {"set_wireguard_server_obfuscation", map[string]any{"serverId": id, "params": map[string]any{"jc": -1}}},
+		"range for junk":   {"set_wireguard_server_obfuscation", map[string]any{"serverId": id, "params": map[string]any{"jc": "5-10"}}},
 		"no params":        {"set_wireguard_server_obfuscation", map[string]any{"serverId": id, "params": map[string]any{}}},
 		"unmanaged server": {"set_wireguard_server_enabled", map[string]any{"serverId": "Wireguard1", "enabled": true}},
 	} {
