@@ -18,7 +18,7 @@ import (
 func TestEvalRule_ThreeValued(t *testing.T) {
 	yes := true
 	q := explainQuery{
-		domain: "www.youtube.com", ips: []net.IP{net.ParseIP("142.250.1.1")}, clientIP: net.ParseIP("192.168.1.10"),
+		domain: "www.youtube.com", ips: []net.IP{net.ParseIP("142.250.1.1")}, ipsKnown: true, clientIP: net.ParseIP("192.168.1.10"),
 		sets: map[string]router.RuleSet{
 			"one":    {Tag: "one", Type: "inline", Rules: []map[string]any{{"domain_suffix": []any{"youtube.com"}}}},
 			"two":    {Tag: "two", Type: "inline", Rules: []map[string]any{{"domain": []any{"x.org"}}, {"ip_cidr": []any{"142.250.0.0/16"}}}},
@@ -42,10 +42,16 @@ func TestEvalRule_ThreeValued(t *testing.T) {
 		{"inline set", router.Rule{RuleSet: []string{"one"}}, triYes},
 		{"inline set, two rules", router.Rule{RuleSet: []string{"two"}}, triYes},
 		{"inline set miss", router.Rule{RuleSet: []string{"miss"}}, triNo},
-		// A set of one plain rule joins the destination alternatives; a
-		// bigger one is a condition of its own (configuration/route/rule).
+		// A set of one destination-only rule joins the destination
+		// alternatives; any other is a condition of its own (issue #699).
 		{"one-rule set joins the alternatives", router.Rule{DomainSuffix: []string{"youtube.com"}, RuleSet: []string{"miss"}}, triYes},
 		{"bigger set must hold too", router.Rule{DomainSuffix: []string{"youtube.com"}, RuleSet: []string{"miss2"}}, triNo},
+		{"bigger set hit, own suffix missed", router.Rule{DomainSuffix: []string{"a.com"}, RuleSet: []string{"two"}}, triNo},
+		{"one rule with a port is not merged", router.Rule{DomainSuffix: []string{"a.com"}, RuleSet: []string{"ports"}}, triNo},
+		{"remote set beside a missed suffix", router.Rule{DomainSuffix: []string{"a.com"}, RuleSet: []string{"remote"}}, triUnknown},
+		{"remote set beside a hit suffix", router.Rule{DomainSuffix: []string{"youtube.com"}, RuleSet: []string{"remote"}}, triUnknown},
+		{"dot suffix: subdomain", router.Rule{DomainSuffix: []string{".youtube.com"}}, triYes},
+		{"ipv6 cidr for a name", router.Rule{IPCIDR: []string{"2a00::/16"}}, triUnknown},
 		{"remote set", router.Rule{RuleSet: []string{"remote"}}, triUnknown},
 		{"set with a port", router.Rule{RuleSet: []string{"ports"}}, triUnknown},
 		{"device", router.Rule{SourceIPCIDR: []string{"192.168.1.0/24"}}, triYes},
@@ -59,6 +65,21 @@ func TestEvalRule_ThreeValued(t *testing.T) {
 		if got, _ := evalRule(c.rule, q); got != c.want {
 			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
 		}
+	}
+	if got := matchDomainSuffix("youtube.com", []string{".youtube.com"}); got != triNo {
+		t.Fatalf("a leading dot matches subdomains only: %v", got)
+	}
+	unresolved := q
+	unresolved.ips, unresolved.ipsKnown = nil, false
+	for _, r := range []router.Rule{{IPCIDR: []string{"1.2.3.0/24"}}, {IPIsPrivate: &yes}} {
+		if got, why := evalRule(r, unresolved); got != triUnknown || why == "" {
+			t.Fatalf("without addresses an IP condition is undecided, not unmatched: %+v → %v %q", r, got, why)
+		}
+	}
+	literal := q
+	literal.domain, literal.literal = "", true
+	if got, _ := evalRule(router.Rule{IPCIDR: []string{"2a00::/16"}}, literal); got != triNo {
+		t.Fatalf("an IPv4 address target does not fall in an IPv6 CIDR: %v", got)
 	}
 	q.clientIP = nil
 	if got, why := evalRule(router.Rule{SourceIPCIDR: []string{"192.168.1.0/24"}}, q); got != triUnknown || !strings.Contains(why, "clientIp") {
@@ -97,6 +118,12 @@ func TestLocal_ExplainSingboxRoute(t *testing.T) {
 	got, err = l.ExplainSingboxRoute(context.Background(), "example.org", nil, "")
 	if err != nil || got.Match != nil {
 		t.Fatalf("no rule matches: %+v, %v", got, err)
+	}
+	// The lookup failed: an IP rule above stays a candidate.
+	fr.rules = []router.Rule{{IPCIDR: []string{"10.0.0.0/8"}, Outbound: "direct"}, {DomainSuffix: []string{"youtube.com"}, Outbound: "vless-nl"}}
+	got, err = l.ExplainSingboxRoute(context.Background(), "www.youtube.com", nil, "")
+	if err != nil || got.Match == nil || got.Match.Index != 1 || len(got.MaybeEarlier) != 1 || got.MaybeEarlier[0].Index != 0 {
+		t.Fatalf("unresolved: %+v, %v", got, err)
 	}
 }
 

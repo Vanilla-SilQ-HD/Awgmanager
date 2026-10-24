@@ -1,6 +1,7 @@
 package mcp_test
 
 import (
+	"strings"
 	"testing"
 
 	mcpsrv "github.com/hoaxisr/awg-manager/internal/mcp"
@@ -47,5 +48,8 @@ func TestTools_ExplainRouteIncludesSingbox(t *testing.T) {
 	sb, _ := out["singbox"].(map[string]any)
 	if sb == nil || sb["match"].(map[string]any)["outbound"] != "vless-nl" {
 		t.Fatalf("out = %v", out)
+	}
+	if note, _ := out["note"].(string); strings.Contains(note, "not covered") || !strings.Contains(note, "under singbox") {
+		t.Fatalf("with the singbox part the note must point at it, not say sing-box is not covered: %q", note)
 	}
 }

@@ -87,8 +87,14 @@ const (
 
 // explainQuery is the destination being judged.
 type explainQuery struct {
-	domain   string
-	ips      []net.IP
+	domain string
+	ips    []net.IP
+	// ipsKnown: ips is the destination's address set as far as it goes —
+	// the target is an address, or the lookup answered. A failed lookup
+	// leaves IP conditions undecided, not unmatched. Only IPv4 is looked
+	// up, so for a name an IPv6 CIDR stays undecided too.
+	ipsKnown bool
+	literal  bool
 	clientIP net.IP
 	sets     map[string]router.RuleSet
 }
@@ -123,12 +129,21 @@ func allOf(vals ...tri) tri {
 	return out
 }
 
+// matchDomainSuffix follows sing-box's domain matcher: a suffix with a
+// leading dot matches subdomains only, one without matches the name itself
+// and its subdomains.
 func matchDomainSuffix(domain string, suffixes []string) tri {
 	if domain == "" {
 		return triNo
 	}
 	for _, s := range suffixes {
-		s = strings.TrimPrefix(strings.ToLower(s), ".")
+		s = strings.ToLower(s)
+		if strings.HasPrefix(s, ".") {
+			if strings.HasSuffix(domain, s) {
+				return triYes
+			}
+			continue
+		}
 		if domain == s || strings.HasSuffix(domain, "."+s) {
 			return triYes
 		}
@@ -143,6 +158,26 @@ func matchDomain(domain string, names []string) tri {
 		}
 	}
 	return triNo
+}
+
+// matchCIDRs judges a destination CIDR list. It is "no" only when the
+// addresses are known; see explainQuery.ipsKnown.
+func (q explainQuery) matchCIDRs(cidrs []string) tri {
+	got := matchCIDRs(q.ips, cidrs)
+	if got == triYes {
+		return got
+	}
+	if !q.ipsKnown {
+		return triUnknown
+	}
+	if !q.literal {
+		for _, c := range cidrs {
+			if strings.Contains(c, ":") {
+				return triUnknown
+			}
+		}
+	}
+	return got
 }
 
 func matchCIDRs(ips []net.IP, cidrs []string) tri {
@@ -194,7 +229,7 @@ func matchInlineRule(rule map[string]any, q explainQuery) tri {
 			}
 			dest = append(dest, hit)
 		case "ip_cidr":
-			dest = append(dest, matchCIDRs(q.ips, values))
+			dest = append(dest, q.matchCIDRs(values))
 		default:
 			unknown = true
 		}
@@ -249,8 +284,13 @@ func matchRuleSet(tag string, q explainQuery) (tri, string) {
 
 // evalRule judges one routing rule the way sing-box combines a default
 // rule (configuration/route/rule): destination fields are alternatives, the
-// groups and every other field must all hold. A rule set of one plain rule
-// joins the destination alternatives; others are a condition of their own.
+// groups and every other field must all hold. sing-box folds a rule set
+// into the destination alternatives only when the set holds exactly one
+// destination-only rule (mergeableRuleIn, route/rule/rule_item_rule_set.go;
+// see router.normalizeAddressOrRule and issue #699); any other set is a
+// condition of its own, AND-ed with the rest. A set whose content is not
+// read here (a downloaded one) may be either, so it decides nothing when
+// the rule has destination fields of its own.
 func evalRule(r router.Rule, q explainQuery) (tri, string) {
 	if r.Type == "logical" {
 		var vals []tri
@@ -282,10 +322,16 @@ func evalRule(r router.Rule, q explainQuery) (tri, string) {
 		dest = append(dest, matchDomain(q.domain, r.Domain))
 	}
 	if len(r.IPCIDR) > 0 {
-		dest = append(dest, matchCIDRs(q.ips, r.IPCIDR))
+		v := q.matchCIDRs(r.IPCIDR)
+		note(v, "the destination's addresses are not all known (lookup failed, or IPv6)")
+		dest = append(dest, v)
 	}
 	if r.IPIsPrivate != nil && *r.IPIsPrivate {
 		private := triNo
+		if !q.ipsKnown {
+			private = triUnknown
+			note(private, "the destination's addresses are not known (the lookup failed)")
+		}
 		for _, ip := range q.ips {
 			if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
 				private = triYes
@@ -297,9 +343,19 @@ func evalRule(r router.Rule, q explainQuery) (tri, string) {
 	for _, tag := range r.RuleSet {
 		v, w := matchRuleSet(tag, q)
 		note(v, w)
-		if rs, ok := q.sets[tag]; ok && rs.Type == "inline" && len(rs.Rules) == 1 {
+		rs, known := q.sets[tag]
+		switch {
+		case known && rs.Type == "inline" && mergeableSet(rs):
 			dest = append(dest, v)
-		} else {
+		case known && rs.Type == "inline":
+			setConds = append(setConds, v)
+		case len(dest) > 0:
+			// Merged or AND-ed, unknown which: OR would give anyOf(dest, ?),
+			// AND would give allOf(anyOf(dest), ?) — they never agree on a
+			// definite answer, so the set leaves the rule undecided.
+			dest = append(dest, triUnknown)
+			setConds = append(setConds, triUnknown)
+		default:
 			setConds = append(setConds, v)
 		}
 	}
@@ -339,6 +395,22 @@ func evalRule(r router.Rule, q explainQuery) (tri, string) {
 	return allOf(groups...), why
 }
 
+// mergeableSet reports an inline set of exactly one rule holding only
+// destination fields — the one shape sing-box folds into the rule.
+func mergeableSet(rs router.RuleSet) bool {
+	if len(rs.Rules) != 1 {
+		return false
+	}
+	for key := range rs.Rules[0] {
+		switch key {
+		case "domain", "domain_suffix", "domain_keyword", "domain_regex", "ip_cidr":
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 // maxMaybeRules caps the undecided rules reported before the match.
 const maxMaybeRules = 10
 
@@ -371,6 +443,10 @@ func (l *Local) ExplainSingboxRoute(ctx context.Context, domain string, ips []st
 			q.ips = append(q.ips, ip)
 		}
 	}
+	// explain_route passes no domain for an address target; for a name,
+	// no addresses means the lookup failed.
+	q.literal = q.domain == ""
+	q.ipsKnown = len(q.ips) > 0
 	if clientIP != "" {
 		q.clientIP = net.ParseIP(clientIP)
 	}
