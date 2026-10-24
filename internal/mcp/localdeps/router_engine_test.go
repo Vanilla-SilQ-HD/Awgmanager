@@ -21,6 +21,7 @@ type fakeSlots struct {
 	checkErr  error
 	applyRes  singboxorch.ValidationResult
 	applyErr  error
+	enableErr error
 	enabledTo []bool
 }
 
@@ -47,7 +48,7 @@ func (f *fakeSlots) ApplyDraft(singboxorch.Slot) (singboxorch.ValidationResult, 
 func (f *fakeSlots) DiscardDraft(singboxorch.Slot) error { f.draft = nil; return nil }
 func (f *fakeSlots) SetEnabled(_ singboxorch.Slot, on bool) error {
 	f.enabledTo = append(f.enabledTo, on)
-	return nil
+	return f.enableErr
 }
 
 // TestLocal_UpdateSingboxRouterSettingsKeepsTheRest — UpdateSettings берёт
@@ -64,6 +65,15 @@ func TestLocal_UpdateSingboxRouterSettingsKeepsTheRest(t *testing.T) {
 	s := fr.settings
 	if !s.SnifferEnabled || s.BypassExtraPorts != "5060" || s.PolicyName != "Policy1" || s.UDPTimeout != "5m" || s.RoutingMode != "tproxy" || len(s.BypassGeoIPTags) != 1 || s.FakeIPPool6 != "fd00::/8" {
 		t.Fatalf("settings = %+v", s)
+	}
+	if _, err := l.UpdateSingboxRouterSettings(context.Background(), mcpsrv.SingboxRouterSettingsPatch{
+		UDPTimeout: ptr(" 10m "), BypassSubnets: ptr(" 10.0.0.0/8 "), PolicyName: ptr(" Policy2 "), DeviceMode: ptr(" all "),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s = fr.settings
+	if s.UDPTimeout != "10m" || s.BypassExtraSubnets != "10.0.0.0/8" || s.PolicyName != "Policy2" || s.DeviceMode != "all" || !s.SnifferEnabled || s.BypassExtraPorts != "5060" {
+		t.Fatalf("every field of the patch lands, trimmed, and the rest stays: %+v", s)
 	}
 }
 
@@ -125,6 +135,19 @@ func TestLocal_SingboxUserConfig(t *testing.T) {
 	if check, err = l.ApplySingboxUserConfig(ctx); err != nil || len(check.Warnings) != 1 {
 		t.Fatalf("apply must flag the rule of the draft it applied: %+v, %v", check, err)
 	}
+	fs.enableErr = errors.New("slot busy")
+	if _, err = l.ApplySingboxUserConfig(ctx); err == nil || !strings.Contains(err.Error(), "could not be enabled") {
+		t.Fatalf("applied but not enabled must say so: %v", err)
+	}
+	fs.enableErr, fs.applyErr = nil, singboxorch.ErrNoDraft
+	if _, err = l.ApplySingboxUserConfig(ctx); err == nil || !strings.Contains(err.Error(), "no draft") {
+		t.Fatalf("a draft gone before the commit is no draft, not a failed check: %v", err)
+	}
+	fs.applyErr, fs.checkErr = nil, errors.New("merge: bad json")
+	if check, err = l.SaveSingboxUserConfig(ctx, []byte(`{}`)); err != nil || check.Ok || len(check.Errors) != 1 || !strings.Contains(check.Errors[0], "bad json") {
+		t.Fatalf("a check that could not run is a failed check: %+v, %v", check, err)
+	}
+	fs.checkErr = nil
 	if err := l.DiscardSingboxUserConfig(ctx); err != nil || fs.draft != nil {
 		t.Fatal("discard must drop the draft")
 	}

@@ -172,11 +172,11 @@ the agent can undo on its own, and "ask the user to discard a draft that may
 hold their other edits" is not that. Two agents given this case chose
 differently; settle it this way.
 
-A tool that changes nothing but returns private keys (`export_tunnel_config`,
-`get_server_peer_config`) is annotated read-only AND listed in
-`credentialTools`, so a read-only key is still refused. The UI promises that
-key "cannot change anything"; walking away with VPN credentials is not that.
-For the same reason `get_logs` refuses `raw=true` on a read-only key: the
+A tool that changes nothing but returns credentials (`export_tunnel_config`,
+`get_server_peer_config`, `get_singbox_user_config`) is annotated read-only
+AND listed in `credentialTools`, so a read-only key is still refused. The UI
+promises that key "cannot change anything"; walking away with VPN credentials
+is not that. For the same reason `get_logs` refuses `raw=true` on a read-only key: the
 masked journal is the read-only view.
 
 ## Secrets stay behind the boundary
