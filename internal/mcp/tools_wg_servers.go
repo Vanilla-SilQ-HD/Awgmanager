@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -221,7 +222,12 @@ func registerWireguardServerTools(s *mcp.Server, d Deps) {
 					return nil, WireguardServer{}, fmt.Errorf("%s must be a whole number, not negative", key)
 				}
 			case string:
-				if !headerShape.MatchString(strings.TrimSpace(val)) {
+				// Only the headers (h1–h4) take a min-max range.
+				if !strings.HasPrefix(key, "h") {
+					if _, err := strconv.ParseUint(strings.TrimSpace(val), 10, 32); err != nil {
+						return nil, WireguardServer{}, fmt.Errorf("%s must be a whole number, not negative", key)
+					}
+				} else if !headerShape.MatchString(strings.TrimSpace(val)) {
 					return nil, WireguardServer{}, fmt.Errorf("%s must be a number or a min-max range", key)
 				}
 			default:
