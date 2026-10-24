@@ -3064,6 +3064,15 @@ func TestLocal_RunTunnelDiagnostics(t *testing.T) {
 	if _, err := l.RunTunnelDiagnostics(context.Background(), "tn-1"); err == nil || fd.runs != runs {
 		t.Fatalf("a running sweep must be refused, not joined: %v", err)
 	}
+	fd.status = diagnostics.RunStatus{}
+	fd.events = []diagnostics.DiagEvent{{Type: "phase", Phase: "tunnels"}, {Type: "done"}}
+	if _, err := l.RunTunnelDiagnostics(context.Background(), "tn-9"); err == nil || !strings.Contains(err.Error(), "no such tunnel") {
+		t.Fatalf("an id the runner skipped is not a clean result: %v", err)
+	}
+	fd.events = []diagnostics.DiagEvent{{Type: "error", Message: "ndms\nis down"}}
+	if _, err := l.RunTunnelDiagnostics(context.Background(), "tn-1"); err == nil || !strings.Contains(err.Error(), "ndms is down") {
+		t.Fatalf("a failed run is an error with its cause, on one line: %v", err)
+	}
 }
 
 func TestLocal_DiagnosticsResultIncludePassed(t *testing.T) {
@@ -3077,5 +3086,13 @@ func TestLocal_DiagnosticsResultIncludePassed(t *testing.T) {
 	got, _ = l.DiagnosticsResult(context.Background(), false)
 	if got.Checks != nil {
 		t.Fatal("checks are listed only when asked for")
+	}
+	var tests []string
+	for range mcpsrv.MaxDiagnosticsChecks + 1 {
+		tests = append(tests, `{"name":"A","status":"pass"}`)
+	}
+	l = New(Config{Diagnostics: &fakeDiag{status: diagnostics.RunStatus{Status: "done"}, report: []byte(`{"generatedAt":"x","tests":[` + strings.Join(tests, ",") + `]}`)}})
+	if got, err := l.DiagnosticsResult(context.Background(), true); err != nil || len(got.Checks) != mcpsrv.MaxDiagnosticsChecks || !got.ChecksTruncated {
+		t.Fatalf("the check list is capped and says so: %d, %v, %v", len(got.Checks), got.ChecksTruncated, err)
 	}
 }
