@@ -2226,24 +2226,24 @@ func (f *Fake) RestoreSingboxSubscriptionServers(_ context.Context, id string, t
 	return *sub, nil
 }
 
-func (f *Fake) AddSingboxTunnel(_ context.Context, shareLink string) (mcpsrv.SingboxTunnel, error) {
+func (f *Fake) AddSingboxTunnel(_ context.Context, shareLink string) (mcpsrv.SingboxTunnel, []string, error) {
 	if f.Err != nil {
-		return mcpsrv.SingboxTunnel{}, f.Err
+		return mcpsrv.SingboxTunnel{}, nil, f.Err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	scheme, rest, ok := strings.Cut(shareLink, "://")
 	if !ok || (scheme != "vless" && scheme != "hysteria2" && scheme != "trojan" && scheme != "ss") {
-		return mcpsrv.SingboxTunnel{}, fmt.Errorf("the proxy was not added: sing-box cannot use this link")
+		return mcpsrv.SingboxTunnel{}, nil, fmt.Errorf("the proxy was not added: sing-box cannot use this link")
 	}
 	_, tag, _ := strings.Cut(rest, "#")
 	tag = cmp.Or(tag, fmt.Sprintf("%s-%d", scheme, len(f.SingboxTunnels)+1))
 	if slices.ContainsFunc(f.SingboxTunnels, func(t mcpsrv.SingboxTunnel) bool { return t.Tag == tag }) {
-		return mcpsrv.SingboxTunnel{}, fmt.Errorf("this proxy is already configured (list_singbox_tunnels); nothing was added")
+		return mcpsrv.SingboxTunnel{}, nil, fmt.Errorf("this proxy is already configured (list_singbox_tunnels); nothing was added")
 	}
 	t := mcpsrv.SingboxTunnel{Tag: tag, Protocol: scheme, Running: true}
 	f.SingboxTunnels = append(f.SingboxTunnels, t)
-	return t, nil
+	return t, nil, nil
 }
 
 func (f *Fake) DeleteSingboxTunnel(_ context.Context, tag string) (mcpsrv.SingboxTunnel, error) {

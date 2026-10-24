@@ -265,7 +265,7 @@ type Deps interface {
 	// AddSingboxTunnel adds one hand-configured proxy from a share link and
 	// returns it. The link carries credentials and is handled as
 	// AddSingboxSubscriptionServer handles one.
-	AddSingboxTunnel(ctx context.Context, shareLink string) (SingboxTunnel, error)
+	AddSingboxTunnel(ctx context.Context, shareLink string) (SingboxTunnel, []string, error)
 	// DeleteSingboxTunnel removes a proxy and returns it as it was; one
 	// that routing rules, groups or the device proxy still use is refused.
 	DeleteSingboxTunnel(ctx context.Context, tag string) (SingboxTunnel, error)
