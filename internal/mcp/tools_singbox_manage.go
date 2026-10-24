@@ -14,7 +14,7 @@ type createSubscriptionIn struct {
 	Label         string `json:"label" jsonschema:"the subscription's name, shown in the web interface"`
 	URL           string `json:"url,omitempty" jsonschema:"http or https address of the provider's server list; give this or links. It usually carries the provider's token: take it only from the user"`
 	Links         string `json:"links,omitempty" jsonschema:"share links (vless://, hysteria2://, …), one per line, for a pasted subscription; give this or url"`
-	RefreshHours  int    `json:"refreshHours,omitempty" jsonschema:"how often a URL subscription is fetched again, in hours; 0 means only by hand"`
+	RefreshHours  *int   `json:"refreshHours,omitempty" jsonschema:"how often a URL subscription is fetched again, in hours; omitted means 24, as in the web form; 0 means only by hand"`
 	Mode          string `json:"mode,omitempty" jsonschema:"selector (default: one server chosen by the user), urltest (the fastest) or fallback (the first live one)"`
 	FilterInclude string `json:"filterInclude,omitempty" jsonschema:"regular expression: keep only servers whose name matches"`
 	FilterExclude string `json:"filterExclude,omitempty" jsonschema:"regular expression: drop servers whose name matches"`
@@ -89,7 +89,11 @@ func registerSubscriptionManageTools(s *mcp.Server, d Deps) {
 		if label == "" || len([]rune(label)) > MaxSingboxLabelRunes || strings.ContainsAny(label, "\r\n") {
 			return nil, SingboxSubscription{}, fmt.Errorf("label is required: one line, up to %d characters", MaxSingboxLabelRunes)
 		}
-		sub := SingboxSubscriptionInput{Label: label, URL: strings.TrimSpace(in.URL), Links: strings.TrimSpace(in.Links), RefreshHours: in.RefreshHours,
+		hours := 24
+		if in.RefreshHours != nil {
+			hours = *in.RefreshHours
+		}
+		sub := SingboxSubscriptionInput{Label: label, URL: strings.TrimSpace(in.URL), Links: strings.TrimSpace(in.Links), RefreshHours: hours,
 			Mode: strings.ToLower(strings.TrimSpace(in.Mode)), FilterInclude: in.FilterInclude, FilterExclude: in.FilterExclude}
 		switch {
 		case (sub.URL == "") == (sub.Links == ""):
@@ -102,7 +106,7 @@ func registerSubscriptionManageTools(s *mcp.Server, d Deps) {
 		case len(sub.Links) > maxLinksLen:
 			return nil, SingboxSubscription{}, fmt.Errorf("links is longer than %d bytes", maxLinksLen)
 		}
-		if in.RefreshHours < 0 || in.RefreshHours > 24*30 {
+		if hours < 0 || hours > 24*30 {
 			return nil, SingboxSubscription{}, fmt.Errorf("refreshHours must be between 0 and %d", 24*30)
 		}
 		for name, f := range map[string]string{"filterInclude": in.FilterInclude, "filterExclude": in.FilterExclude} {

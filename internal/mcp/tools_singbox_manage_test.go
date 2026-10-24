@@ -21,6 +21,15 @@ func TestTools_SingboxSubscriptionLifecycle(t *testing.T) {
 	}
 	id := out["id"].(string)
 	group := out["groupTag"].(string)
+	if out["refreshHours"] != float64(6) {
+		t.Fatalf("refreshHours given is kept: %v", out["refreshHours"])
+	}
+	if _, out := callTool(t, s, "create_singbox_subscription", map[string]any{"label": "Default", "url": "https://sub.example.net/u/2"}); out["refreshHours"] != float64(24) {
+		t.Fatalf("refreshHours omitted is 24, as in the web form: %v", out)
+	}
+	if _, out := callTool(t, s, "create_singbox_subscription", map[string]any{"label": "Manual", "url": "https://sub.example.net/u/3", "refreshHours": 0}); out["refreshHours"] != float64(0) {
+		t.Fatalf("refreshHours 0 is only by hand: %v", out)
+	}
 
 	if res, out := callTool(t, s, "refresh_singbox_subscription", map[string]any{"subscriptionId": id}); res.IsError || out["subscriptionId"] != id {
 		t.Fatalf("refresh: %s / %v", toolText(res), out)
@@ -70,6 +79,7 @@ func TestTools_SingboxSubscriptionRefusals(t *testing.T) {
 		"no label":           {"create_singbox_subscription", map[string]any{"label": " ", "url": "https://a.example/l"}},
 		"ftp url":            {"create_singbox_subscription", map[string]any{"label": "x", "url": "ftp://a.example/l"}},
 		"negative hours":     {"create_singbox_subscription", map[string]any{"label": "x", "url": "https://a.example/l", "refreshHours": -1}},
+		"over a month":       {"create_singbox_subscription", map[string]any{"label": "x", "url": "https://a.example/l", "refreshHours": 721}},
 		"multiline filter":   {"create_singbox_subscription", map[string]any{"label": "x", "url": "https://a.example/l", "filterInclude": "a\nb"}},
 		"fetch fails":        {"create_singbox_subscription", map[string]any{"label": "x", "url": "https://fail.example/l"}},
 		"nothing to change":  {"set_singbox_subscription_settings", map[string]any{"subscriptionId": id}},
