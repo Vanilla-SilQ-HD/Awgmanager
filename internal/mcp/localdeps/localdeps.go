@@ -1901,6 +1901,11 @@ func (l *Local) RunTunnelDiagnostics(ctx context.Context, tunnelID string) ([]mc
 			return out, fmt.Errorf("the tunnel check did not finish in time; %d checks were done", len(out))
 		case ev, ok := <-events:
 			if !ok {
+				// The runner skips an id it does not know without a word;
+				// an empty answer would read as "nothing wrong".
+				if len(out) == 0 {
+					return out, fmt.Errorf("no checks ran for %q: there is no such tunnel (list_tunnels) or sing-box proxy (list_singbox_tunnels), or sing-box is not running", tunnelID)
+				}
 				return out, nil
 			}
 			switch ev.Type {
