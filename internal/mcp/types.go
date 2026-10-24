@@ -187,6 +187,36 @@ type SingboxDNSServer struct {
 	Managed bool `json:"managed" jsonschema:"true means awg-manager owns this server and it always goes directly — it takes no detour"`
 }
 
+// SingboxRuleInput is a routing rule an agent writes: matchers, and either
+// a route to an outbound or reject. Values within one field are
+// alternatives; fields combine as list_singbox_rules spells them out.
+type SingboxRuleInput struct {
+	DomainSuffix []string
+	Domain       []string
+	IPCIDR       []string
+	SourceIPCIDR []string
+	SourceMAC    []string
+	Port         []int
+	RuleSet      []string
+	Network      string // tcp, udp or ""
+	Protocol     string // a sniffed protocol (tls, http, quic, …) or ""
+	Action       string // route or reject, trimmed and lowercased
+	Outbound     string // for route
+}
+
+// SingboxRuleSetInput is a new rule set: remote (URL) or inline (the
+// listed domains and addresses).
+type SingboxRuleSetInput struct {
+	Tag            string
+	Type           string // remote or inline
+	URL            string // remote
+	Format         string // remote: binary or source; "" is binary
+	UpdateInterval string // remote: "" is 24h
+	DomainSuffix   []string
+	Domain         []string
+	IPCIDR         []string
+}
+
 // SingboxDNSRule is one DNS rule of the sing-box router, in evaluation
 // order; Match is rendered as SingboxRule's is.
 type SingboxDNSRule struct {
