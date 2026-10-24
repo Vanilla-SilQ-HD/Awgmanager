@@ -802,6 +802,52 @@ type Connection struct {
 	ClientName string `json:"clientName,omitempty" jsonschema:"LAN device the flow came from, when known"`
 }
 
+// SingboxConnection is one connection sing-box is carrying, as its Clash
+// API reports it: which outbound carries it and which rule chose it.
+type SingboxConnection struct {
+	Network  string   `json:"network" jsonschema:"tcp or udp"`
+	Src      string   `json:"src" jsonschema:"source address — the LAN device"`
+	SrcPort  string   `json:"srcPort,omitempty"`
+	Host     string   `json:"host,omitempty" jsonschema:"destination name, when sing-box knows it (DNS or sniffing)"`
+	Dst      string   `json:"dst,omitempty" jsonschema:"destination address"`
+	DstPort  string   `json:"dstPort,omitempty"`
+	Outbound string   `json:"outbound" jsonschema:"the outbound actually carrying the connection — a server, a proxy, an AWG tunnel or direct"`
+	Chain    []string `json:"chain" jsonschema:"from the outbound the rule chose (a group) down to the one carrying the connection"`
+	Rule     string   `json:"rule" jsonschema:"the rule that matched, as sing-box names it (rule_set=…, domain_suffix=…, final for no rule)"`
+	Upload   int64    `json:"upload" jsonschema:"bytes sent"`
+	Download int64    `json:"download" jsonschema:"bytes received"`
+}
+
+// SingboxConnectionsQuery filters sing-box's connections. Limit is already
+// clamped by the tool.
+type SingboxConnectionsQuery struct {
+	ClientIP string
+	Host     string // substring of the destination name
+	Outbound string // matches any outbound of the chain
+	Limit    int
+}
+
+// SingboxRouteExplanation is how the sing-box router would treat a
+// destination, judged from its rules in order. Conditions MCP cannot
+// decide — a port, a sniffed protocol, a remote rule set — make a rule
+// "maybe": it is listed, and the walk goes on to the first rule that
+// certainly matches.
+type SingboxRouteExplanation struct {
+	RoutingMode  string             `json:"routingMode,omitempty"`
+	Match        *SingboxRuleMatch  `json:"match,omitempty" jsonschema:"the first rule that certainly matches; absent means none does and the traffic falls through to route.final (get_singbox_router_status shows it)"`
+	MaybeEarlier []SingboxRuleMatch `json:"maybeEarlier,omitempty" jsonschema:"rules before match that may also match — sing-box takes the first, so one of these may win; reason says what could not be decided"`
+	HasDraft     bool               `json:"hasDraft" jsonschema:"true means the rules judged include NOT YET APPLIED edits"`
+}
+
+// SingboxRuleMatch is one rule in a SingboxRouteExplanation.
+type SingboxRuleMatch struct {
+	Index    int    `json:"index"`
+	Match    string `json:"match"`
+	Action   string `json:"action"`
+	Outbound string `json:"outbound,omitempty"`
+	Reason   string `json:"reason,omitempty" jsonschema:"for a maybe: the condition that could not be decided"`
+}
+
 // ConnectionsQuery filters the flow table. Limit is already clamped by
 // the tool.
 type ConnectionsQuery struct {

@@ -88,6 +88,14 @@ type Deps interface {
 	// ListConnections returns one page of open flows and the total that
 	// matched, so a short page cannot be read as a quiet network.
 	ListConnections(ctx context.Context, q ConnectionsQuery) (page []Connection, total int, err error)
+	// ListSingboxConnections returns one page of the connections sing-box
+	// carries, read once from its Clash API, and the total that matched. An
+	// engine that does not answer is an error, not an empty list.
+	ListSingboxConnections(ctx context.Context, q SingboxConnectionsQuery) (page []SingboxConnection, total int, err error)
+	// ExplainSingboxRoute judges a destination against the router's rules
+	// (domain "" for a literal address; ips are its IPv4 addresses).
+	// clientIP may be empty.
+	ExplainSingboxRoute(ctx context.Context, domain string, ips []string, clientIP string) (SingboxRouteExplanation, error)
 	// PingCheckLogs returns the health-check journal, newest first.
 	PingCheckLogs(ctx context.Context, tunnelID string, limit int) ([]PingCheckLogEntry, error)
 	// RunDiagnostics starts a sweep without waiting for it.

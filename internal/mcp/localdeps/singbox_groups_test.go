@@ -408,9 +408,12 @@ func TestLocal_ListSingboxSubscriptionsSanitisesTheLabel(t *testing.T) {
 
 type fakeClash struct {
 	proxies map[string]singbox.ClashProxy
+	conns   []singbox.ClashConnection
 	err     error
 	calls   int
 }
+
+func (f *fakeClash) GetConnections() ([]singbox.ClashConnection, error) { return f.conns, f.err }
 
 func (f *fakeClash) GetProxies() (map[string]singbox.ClashProxy, error) {
 	f.calls++

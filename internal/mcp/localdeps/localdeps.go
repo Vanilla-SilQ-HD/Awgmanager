@@ -153,6 +153,7 @@ type (
 	// *singbox.ClashClient, whose HTTP client times out after 5 s.
 	ClashState interface {
 		GetProxies() (map[string]singbox.ClashProxy, error)
+		GetConnections() ([]singbox.ClashConnection, error)
 	}
 	MonitoringSnapshotter interface {
 		Snapshot() monitoring.Snapshot

@@ -32,12 +32,16 @@ type Fake struct {
 	// interfaces and WAN, as routing.Catalog lists them.
 	ExtraTargets []mcpsrv.RoutingTarget
 	// TunnelEdits holds the last update_tunnel_settings input per tunnel.
-	TunnelEdits  map[string]mcpsrv.TunnelSettingsInput
-	ClientRoutes []mcpsrv.ClientRoute
-	Policies     []mcpsrv.AccessPolicy
-	Devices      []mcpsrv.Device
-	Logs         []mcpsrv.LogEntry
-	Singbox      mcpsrv.SingboxStatus
+	TunnelEdits map[string]mcpsrv.TunnelSettingsInput
+	// SingboxConnections back list_singbox_connections; SingboxExplain is
+	// what ExplainSingboxRoute answers (nil: no sing-box router).
+	SingboxConnections []mcpsrv.SingboxConnection
+	SingboxExplain     *mcpsrv.SingboxRouteExplanation
+	ClientRoutes       []mcpsrv.ClientRoute
+	Policies           []mcpsrv.AccessPolicy
+	Devices            []mcpsrv.Device
+	Logs               []mcpsrv.LogEntry
+	Singbox            mcpsrv.SingboxStatus
 	// SingboxTunnels are the proxies inside sing-box; Delays maps a tag to
 	// the latency a probe answers with (0 = the proxy stayed silent).
 	SingboxTunnels []mcpsrv.SingboxTunnel
@@ -2315,6 +2319,43 @@ func (f *Fake) UpdateTunnelSettings(_ context.Context, in mcpsrv.TunnelSettingsI
 	}
 	f.TunnelEdits[in.TunnelID] = in
 	return *t, nil, nil
+}
+
+func (f *Fake) ListSingboxConnections(_ context.Context, q mcpsrv.SingboxConnectionsQuery) ([]mcpsrv.SingboxConnection, int, error) {
+	if f.Err != nil {
+		return nil, 0, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.ClashDown {
+		return nil, 0, fmt.Errorf("sing-box did not answer, so its connections are unknown")
+	}
+	var out []mcpsrv.SingboxConnection
+	total := 0
+	for _, c := range f.SingboxConnections {
+		if (q.ClientIP != "" && c.Src != q.ClientIP) || (q.Host != "" && !strings.Contains(c.Host, q.Host)) || (q.Outbound != "" && !slices.Contains(c.Chain, q.Outbound)) {
+			continue
+		}
+		total++
+		if len(out) < q.Limit {
+			out = append(out, c)
+		}
+	}
+	return out, total, nil
+}
+
+// ExplainSingboxRoute answers SingboxExplain as set; a nil one means the
+// router has no sing-box side, as localdeps reports when it is not wired.
+func (f *Fake) ExplainSingboxRoute(context.Context, string, []string, string) (mcpsrv.SingboxRouteExplanation, error) {
+	if f.Err != nil {
+		return mcpsrv.SingboxRouteExplanation{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.SingboxExplain == nil {
+		return mcpsrv.SingboxRouteExplanation{}, fmt.Errorf("sing-box router is not available on this router")
+	}
+	return *f.SingboxExplain, nil
 }
 
 func (f *Fake) OpenAPISpec() []byte { return f.Spec }

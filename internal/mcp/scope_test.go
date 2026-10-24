@@ -363,3 +363,10 @@ func TestScope_ReadOnlyKeyAndTunnelSettings(t *testing.T) {
 		t.Errorf("update_tunnel_settings: a read-only key must be refused: %q", toolText(res))
 	}
 }
+
+func TestScope_ReadOnlyKeyReadsSingboxConnections(t *testing.T) {
+	s := scopedSession(t, true)
+	if res, _ := callTool(t, s, "list_singbox_connections", nil); res.IsError {
+		t.Errorf("list_singbox_connections must be allowed on a read-only key: %s", toolText(res))
+	}
+}
