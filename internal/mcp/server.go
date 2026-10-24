@@ -43,6 +43,7 @@ func NewServer(deps Deps, version string) *mcp.Server {
 	registerExplainTools(s, deps)
 	registerSingboxTools(s, deps)
 	registerRouterTools(s, deps)
+	registerRouterEngineTools(s, deps)
 	registerRuleTools(s, deps)
 	registerSubscriptionTools(s, deps)
 	registerSubscriptionManageTools(s, deps)
