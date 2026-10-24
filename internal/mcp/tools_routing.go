@@ -168,7 +168,10 @@ func subscriptionURLs(urls []string) ([]string, error) {
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || strings.ContainsAny(raw, " \t\r\n") {
 			return nil, fmt.Errorf("subscription URL must be an http or https address")
 		}
-		out = append(out, raw)
+		// The same URL twice would be fetched twice on every refresh.
+		if !slices.Contains(out, raw) {
+			out = append(out, raw)
+		}
 	}
 	return out, nil
 }
@@ -267,7 +270,9 @@ func registerRoutingTools(s *mcp.Server, d Deps) {
 			"Omitted fields are left untouched and the backend always survives, which is why this is the way to change a list, " +
 			"not remove_dns_route followed by add_dns_route. manualDomains and excludes each replace EVERY entry of their kind — read them from get_dns_route first. " +
 			"HydraRoute lists take one target and no excludes, subscriptions or kill switch. Check the returned warnings.",
-		Annotations: safeWrite("Update DNS route", true),
+		// Not idempotent: removeSubscriptions is by position, so a retried
+		// call removes the next subscription.
+		Annotations: safeWrite("Update DNS route", false),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in DNSRouteUpdate) (*mcp.CallToolResult, updateDNSOut, error) {
 		if in.RouteID == "" {
 			return nil, updateDNSOut{}, fmt.Errorf("routeId is required")

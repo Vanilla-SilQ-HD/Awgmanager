@@ -143,7 +143,7 @@ func TestServer_ListsToolsWithAnnotations(t *testing.T) {
 			t.Errorf("%s must be a non-destructive write", n)
 		}
 	}
-	for _, n := range []string{"create_singbox_outbound_group", "create_singbox_subscription_group", "add_singbox_subscription_server"} {
+	for _, n := range []string{"create_singbox_outbound_group", "create_singbox_subscription_group", "add_singbox_subscription_server", "update_dns_route"} {
 		if byName[n].Annotations.IdempotentHint {
 			t.Errorf("%s must not claim to be idempotent", n)
 		}

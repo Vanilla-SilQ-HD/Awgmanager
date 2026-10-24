@@ -28,7 +28,7 @@ func TestTools_AddDNSRouteWithFailover(t *testing.T) {
 
 	res, out := callTool(t, s, "add_dns_route", map[string]any{
 		"name": "video", "targets": []any{"tn-1", " system:Proxy0 "}, "killSwitch": true,
-		"excludes": []any{"music.youtube.com"}, "subscriptionUrls": []any{"https://lists.example.net/u/TOKEN/v.txt"},
+		"excludes": []any{"music.youtube.com"}, "subscriptionUrls": []any{"https://lists.example.net/u/TOKEN/v.txt", " https://lists.example.net/u/TOKEN/v.txt"},
 	})
 	if res.IsError {
 		t.Fatal(toolText(res))
