@@ -952,7 +952,7 @@ func (f *Fake) RunDiagnostics(_ context.Context, includeRestart bool) (mcpsrv.Di
 	return mcpsrv.DiagnosticsRun{Started: true, Status: "running"}, nil
 }
 
-func (f *Fake) DiagnosticsResult(context.Context) (mcpsrv.DiagnosticsResult, error) {
+func (f *Fake) DiagnosticsResult(_ context.Context, includePassed bool) (mcpsrv.DiagnosticsResult, error) {
 	if f.Err != nil {
 		return mcpsrv.DiagnosticsResult{}, f.Err
 	}
@@ -964,7 +964,14 @@ func (f *Fake) DiagnosticsResult(context.Context) (mcpsrv.DiagnosticsResult, err
 	if f.Diagnostics == nil {
 		return mcpsrv.DiagnosticsResult{}, mcpsrv.ErrNoDiagnostics
 	}
-	return *f.Diagnostics, nil
+	out := *f.Diagnostics
+	if includePassed {
+		out.Checks = []mcpsrv.DiagnosticsCheck{{Name: "Interface", Status: "pass"}, {Name: "Routes", Status: "pass"}}
+		for _, p := range out.Problems {
+			out.Checks = append(out.Checks, mcpsrv.DiagnosticsCheck{Name: p.Name, Status: p.Status, Detail: p.Detail, TunnelID: p.TunnelID, TunnelName: p.TunnelName})
+		}
+	}
+	return out, nil
 }
 
 // MonitoringMatrix mirrors the scheduler (monitoring/scheduler.go): AWG
@@ -2360,6 +2367,23 @@ func (f *Fake) ExplainSingboxRoute(context.Context, string, []string, string) (m
 		return mcpsrv.SingboxRouteExplanation{}, fmt.Errorf("sing-box router is not available on this router")
 	}
 	return *f.SingboxExplain, nil
+}
+
+// RunTunnelDiagnostics answers TunnelChecks for a known tunnel; a sweep in
+// progress refuses, as localdeps does.
+func (f *Fake) RunTunnelDiagnostics(_ context.Context, tunnelID string) ([]mcpsrv.DiagnosticsCheck, error) {
+	if f.Err != nil {
+		return nil, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.DiagnosticsRunning {
+		return nil, fmt.Errorf("a diagnostic sweep is running; check the tunnel once it is done")
+	}
+	if _, err := f.findTunnel(tunnelID); err != nil && !strings.HasPrefix(tunnelID, "singbox:") {
+		return nil, err
+	}
+	return []mcpsrv.DiagnosticsCheck{{Name: "interface", Status: "pass", TunnelID: tunnelID}, {Name: "handshake", Status: "warn", Detail: "stale", TunnelID: tunnelID}}, nil
 }
 
 func (f *Fake) OpenAPISpec() []byte { return f.Spec }

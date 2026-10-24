@@ -890,6 +890,18 @@ type DiagnosticsProblem struct {
 	TunnelName string `json:"tunnelName,omitempty"`
 }
 
+// DiagnosticsCheck is one check of a sweep, whatever its outcome.
+type DiagnosticsCheck struct {
+	Name       string `json:"name"`
+	Status     string `json:"status" jsonschema:"pass|fail|warn|skip|error"`
+	Detail     string `json:"detail,omitempty"`
+	TunnelID   string `json:"tunnelId,omitempty"`
+	TunnelName string `json:"tunnelName,omitempty"`
+}
+
+// MaxDiagnosticsChecks caps the full check list of get_diagnostics.
+const MaxDiagnosticsChecks = 300
+
 // DiagnosticsResult is the sweep's outcome. The counts describe every
 // check; Problems lists only the ones that did not pass, worst first, so
 // a short list never means a clean run on its own.
@@ -901,6 +913,9 @@ type DiagnosticsResult struct {
 	Warnings    int                  `json:"warnings"`
 	Skipped     int                  `json:"skipped"`
 	Problems    []DiagnosticsProblem `json:"problems" jsonschema:"checks that did not pass, failures before warnings"`
+	// Checks is every check in report order, when asked for.
+	Checks          []DiagnosticsCheck `json:"checks,omitempty" jsonschema:"every check of the sweep in report order, passed ones included (includePassed)"`
+	ChecksTruncated bool               `json:"checksTruncated,omitempty" jsonschema:"true when the sweep had more checks than listed"`
 }
 
 // ManagedServer is a WireGuard server hosted on this router. Two kinds

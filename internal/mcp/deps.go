@@ -102,9 +102,15 @@ type Deps interface {
 	// adds the restart test, which stops and starts every running kernel
 	// tunnel; without it the sweep changes nothing.
 	RunDiagnostics(ctx context.Context, includeRestart bool) (DiagnosticsRun, error)
-	// DiagnosticsResult summarises the last completed sweep. With none, it
+	// RunTunnelDiagnostics checks one tunnel (an AWG tunnel id, or
+	// singbox:<tag> for a proxy) and waits for the result: a single-tunnel
+	// run keeps no report for get_diagnostics. Refused while another sweep
+	// runs.
+	RunTunnelDiagnostics(ctx context.Context, tunnelID string) ([]DiagnosticsCheck, error)
+	// DiagnosticsResult summarises the last completed sweep; includePassed
+	// adds every check. With none, it
 	// returns ErrNoDiagnostics rather than an empty, reassuring report.
-	DiagnosticsResult(ctx context.Context) (DiagnosticsResult, error)
+	DiagnosticsResult(ctx context.Context, includePassed bool) (DiagnosticsResult, error)
 	// RunPingCheck starts a check of every monitored tunnel without
 	// waiting for it and returns the last completed statuses.
 	RunPingCheck(ctx context.Context) (PingCheckRun, error)
