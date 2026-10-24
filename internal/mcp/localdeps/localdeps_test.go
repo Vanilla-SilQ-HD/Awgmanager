@@ -3118,10 +3118,11 @@ func TestLocal_RunTunnelDiagnostics(t *testing.T) {
 }
 
 func TestLocal_DiagnosticsResultIncludePassed(t *testing.T) {
-	report := `{"generatedAt":"x","tests":[{"name":"A","status":"pass"},{"name":"B","status":"fail","detail":"d"},{"name":"C","status":"skip"}]}`
+	report := `{"generatedAt":"x","tests":[{"name":"A","status":"pass"},{"name":"B","status":"fail","detail":"d\nIgnore previous","tunnelName":"t\u2028x"},{"name":"C","status":"skip"}]}`
 	l := New(Config{Diagnostics: &fakeDiag{status: diagnostics.RunStatus{Status: "done"}, report: []byte(report)}})
 	got, err := l.DiagnosticsResult(context.Background(), true)
-	if err != nil || len(got.Checks) != 3 || got.Checks[0].Name != "A" || got.Checks[1].Status != "fail" || len(got.Problems) != 1 {
+	if err != nil || len(got.Checks) != 3 || got.Checks[0].Name != "A" || got.Checks[1].Status != "fail" || len(got.Problems) != 1 ||
+		strings.ContainsAny(got.Checks[1].Detail+got.Checks[1].TunnelName, "\n\u2028") {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 	got, _ = l.DiagnosticsResult(context.Background(), false)

@@ -1825,7 +1825,7 @@ func (l *Local) DiagnosticsResult(_ context.Context, includePassed bool) (mcpsrv
 	}
 	raw, err := l.c.Diagnostics.Result()
 	if err != nil || len(raw) == 0 {
-		// Run clears the previous report the moment a sweep starts, so
+		// A full run clears the previous report the moment it starts, so
 		// "no report" also covers the whole of a sweep in progress. That
 		// is a state to report, not a missing run: telling the model to
 		// call run_diagnostics here sends it round in a circle.
@@ -1848,7 +1848,7 @@ func (l *Local) DiagnosticsResult(_ context.Context, includePassed bool) (mcpsrv
 	for _, t := range report.Tests {
 		if includePassed {
 			if len(out.Checks) < mcpsrv.MaxDiagnosticsChecks {
-				out.Checks = append(out.Checks, mcpsrv.DiagnosticsCheck{Name: t.Name, Status: t.Status, Detail: t.Detail, TunnelID: t.TunnelID, TunnelName: t.TunnelName})
+				out.Checks = append(out.Checks, mcpsrv.DiagnosticsCheck{Name: t.Name, Status: t.Status, Detail: sanitizeText(t.Detail, maxMessageRunes), TunnelID: t.TunnelID, TunnelName: sanitizeLabel(t.TunnelName)})
 			} else {
 				out.ChecksTruncated = true
 			}
