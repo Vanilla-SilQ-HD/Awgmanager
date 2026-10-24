@@ -50,6 +50,8 @@ func TestEvalRule_ThreeValued(t *testing.T) {
 		{"one rule with a port is not merged", router.Rule{DomainSuffix: []string{"a.com"}, RuleSet: []string{"ports"}}, triNo},
 		{"remote set beside a missed suffix", router.Rule{DomainSuffix: []string{"a.com"}, RuleSet: []string{"remote"}}, triUnknown},
 		{"remote set beside a hit suffix", router.Rule{DomainSuffix: []string{"youtube.com"}, RuleSet: []string{"remote"}}, triUnknown},
+		{"remote set before a merged one", router.Rule{RuleSet: []string{"remote", "miss"}}, triUnknown},
+		{"remote set after a merged one", router.Rule{RuleSet: []string{"miss", "remote"}}, triUnknown},
 		{"dot suffix: subdomain", router.Rule{DomainSuffix: []string{".youtube.com"}}, triYes},
 		{"ipv6 cidr for a name", router.Rule{IPCIDR: []string{"2a00::/16"}}, triUnknown},
 		{"remote set", router.Rule{RuleSet: []string{"remote"}}, triUnknown},
@@ -74,6 +76,15 @@ func TestEvalRule_ThreeValued(t *testing.T) {
 	for _, r := range []router.Rule{{IPCIDR: []string{"1.2.3.0/24"}}, {IPIsPrivate: &yes}} {
 		if got, why := evalRule(r, unresolved); got != triUnknown || why == "" {
 			t.Fatalf("without addresses an IP condition is undecided, not unmatched: %+v → %v %q", r, got, why)
+		}
+	}
+	// ip_is_private is sing's !N.IsPublicAddr: multicast and unspecified
+	// count too, CGNAT does not.
+	for addr, want := range map[string]tri{"224.0.0.251": triYes, "0.0.0.0": triYes, "127.0.0.1": triYes, "169.254.1.1": triYes, "10.1.2.3": triYes, "100.64.0.1": triNo} {
+		target := q
+		target.domain, target.literal, target.ips = "", true, []net.IP{net.ParseIP(addr)}
+		if got, _ := evalRule(router.Rule{IPIsPrivate: &yes}, target); got != want {
+			t.Errorf("ip_is_private %s: got %v, want %v", addr, got, want)
 		}
 	}
 	literal := q
@@ -124,6 +135,14 @@ func TestLocal_ExplainSingboxRoute(t *testing.T) {
 	got, err = l.ExplainSingboxRoute(context.Background(), "www.youtube.com", nil, "")
 	if err != nil || got.Match == nil || got.Match.Index != 1 || len(got.MaybeEarlier) != 1 || got.MaybeEarlier[0].Index != 0 {
 		t.Fatalf("unresolved: %+v, %v", got, err)
+	}
+	// Undecided rules before the match are capped.
+	fr.rules = nil
+	for range maxMaybeRules + 2 {
+		fr.rules = append(fr.rules, router.Rule{DomainSuffix: []string{"youtube.com"}, Port: []int{443}, Outbound: "auto"})
+	}
+	if got, err = l.ExplainSingboxRoute(context.Background(), "www.youtube.com", []string{"142.250.1.1"}, ""); err != nil || len(got.MaybeEarlier) != maxMaybeRules {
+		t.Fatalf("maybe = %d, %v", len(got.MaybeEarlier), err)
 	}
 }
 
