@@ -103,6 +103,7 @@ func TestServer_ListsToolsWithAnnotations(t *testing.T) {
 		"list_routing_targets", "update_static_route",
 		"create_singbox_subscription", "delete_singbox_subscription", "refresh_singbox_subscription", "set_singbox_subscription_settings",
 		"exclude_singbox_subscription_servers", "restore_singbox_subscription_servers", "add_singbox_tunnel", "delete_singbox_tunnel",
+		"update_tunnel_settings",
 	}
 	for _, n := range want {
 		if byName[n] == nil {

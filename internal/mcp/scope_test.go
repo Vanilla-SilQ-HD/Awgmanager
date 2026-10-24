@@ -355,3 +355,11 @@ func TestScope_ReadOnlyKeyAndSingboxManagement(t *testing.T) {
 		}
 	}
 }
+
+func TestScope_ReadOnlyKeyAndTunnelSettings(t *testing.T) {
+	s := scopedSession(t, true)
+	res, _ := callTool(t, s, "update_tunnel_settings", map[string]any{"tunnelId": "tn-1", "mtu": 1400})
+	if !res.IsError || !strings.Contains(strings.ToLower(toolText(res)), "read-only") {
+		t.Errorf("update_tunnel_settings: a read-only key must be refused: %q", toolText(res))
+	}
+}
