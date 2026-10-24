@@ -486,7 +486,16 @@ func (s *ServiceImpl) Update(ctx context.Context, list DomainList) (*DomainList,
 		}
 	}
 
-	list.Excludes, list.ExcludeSubnets = splitDomainsAndSubnets(deduplicateDomains(list.Excludes))
+	// Подсети исключений лежат в ExcludeSubnets, а не в Excludes: делить
+	// одни Excludes значило бы терять подсети всякий раз, когда их прислали
+	// отдельно или не прислали вовсе, а текста исключений нет (список
+	// создан через API или MCP). Только Excludes без ExcludeSubnets —
+	// это полный новый список вызывающего, подсети в нём и есть все.
+	excludes := slices.Concat(list.Excludes, list.ExcludeSubnets)
+	if excludesProvided && !excludeSubnetsProvided && !excludesTextProvided {
+		excludes = list.Excludes
+	}
+	list.Excludes, list.ExcludeSubnets = splitDomainsAndSubnets(deduplicateDomains(excludes))
 
 	// Resolve tunnel IDs to NDMS interface names for RCI commands.
 	if err := s.resolveRouteInterfaces(ctx, list.Routes); err != nil {

@@ -543,7 +543,7 @@ type DNSRouteInput struct {
 	// the first available one and fails over down the list.
 	Targets          []string `json:"targets,omitempty" jsonschema:"target ids from list_routing_targets in priority order — tunnels, NDMS interfaces (Proxy0…), WAN: traffic uses the first available one and fails over to the next; give this or tunnelId"`
 	KillSwitch       bool     `json:"killSwitch,omitempty" jsonschema:"when every target is down, block the traffic instead of letting it go out through the provider"`
-	Excludes         []string `json:"excludes,omitempty" jsonschema:"domains carved out of the list: they are NOT routed even when they match"`
+	Excludes         []string `json:"excludes,omitempty" jsonschema:"domains and subnets carved out of the list: they are NOT routed even when they match"`
 	SubscriptionURLs []string `json:"subscriptionUrls,omitempty" jsonschema:"URLs of domain lists to download into the list; each is fetched now and the list is not created if one fails or is empty"`
 }
 
@@ -566,7 +566,7 @@ type DNSRouteUpdate struct {
 	// same rule as ManualDomains: omitted leaves them as they are.
 	Targets             []string `json:"targets,omitempty" jsonschema:"replaces ALL targets with these ids from list_routing_targets, in priority order (failover down the list); omit to keep them"`
 	KillSwitch          *bool    `json:"killSwitch,omitempty" jsonschema:"true blocks the traffic when every target is down, false lets it out through the provider; omit to keep the current setting"`
-	Excludes            []string `json:"excludes,omitempty" jsonschema:"replaces ALL excluded domains — read them from get_dns_route's excludes and pass back the ones to keep; [] clears them; omit to keep them"`
+	Excludes            []string `json:"excludes,omitempty" jsonschema:"replaces ALL exclusions, domains and subnets alike — read get_dns_route's excludes AND excludeSubnets and pass back every one to keep; [] clears them; omit to keep them"`
 	AddSubscriptionURLs []string `json:"addSubscriptionUrls,omitempty" jsonschema:"domain list URLs to add; each is fetched now and the edit fails if one fails or is empty"`
 	RemoveSubscriptions []int    `json:"removeSubscriptions,omitempty" jsonschema:"positions (from 0) in get_dns_route's subscriptions to remove — positions, because only the host of each URL is shown"`
 }

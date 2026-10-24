@@ -138,6 +138,12 @@ func TestLocal_UpdateDNSRouteTargetsAndSubscriptions(t *testing.T) {
 	if s := fd.updated.Subscriptions; len(s) != 2 || s[0].URL != "https://b.example/u/T2" || s[1].URL != "https://c.example/l" {
 		t.Fatalf("subscriptions = %+v", s)
 	}
+	if _, _, err := l.UpdateDNSRoute(ctx, mcpsrv.DNSRouteUpdate{RouteID: "dl-1", AddSubscriptionURLs: []string{"https://b.example/u/T2"}}); err != nil {
+		t.Fatal(err)
+	}
+	if s := fd.updated.Subscriptions; len(s) != 2 {
+		t.Fatalf("a URL the list has must not be added twice: %+v", s)
+	}
 	if fd.updated.Routes != nil || fd.updated.Excludes != nil {
 		t.Fatalf("fields not named must stay out of the sparse patch: %+v", fd.updated)
 	}

@@ -1158,7 +1158,11 @@ func editSubscriptions(existing []dnsroute.Subscription, add []string, remove []
 		}
 	}
 	for _, u := range add {
-		out = append(out, dnsroute.Subscription{URL: u})
+		// A URL the list already has is not added twice: dnsroute.Update
+		// dedups only the new subscriptions against each other.
+		if !slices.ContainsFunc(out, func(s dnsroute.Subscription) bool { return s.URL == u }) {
+			out = append(out, dnsroute.Subscription{URL: u})
+		}
 	}
 	return out, nil
 }
