@@ -1894,14 +1894,23 @@ func TestLocal_SingboxToolsWithoutTheEngineSaySo(t *testing.T) {
 
 // fakeManaged implements the managed-server surface MCP needs.
 type fakeManaged struct {
-	servers  []storage.ManagedServer
-	added    managed.AddPeerRequest
-	addedTo  string
-	toggled  []string
-	confFor  string
-	confErr  error
-	addErr   error
-	confText string
+	// Server writes (wg_servers_test.go).
+	createReq   *managed.CreateServerRequest
+	createErr   error
+	updateReq   *managed.UpdateServerRequest
+	calls       []string
+	asc         json.RawMessage
+	ascSet      json.RawMessage
+	ascErr      error
+	invalidated []string
+	servers     []storage.ManagedServer
+	added       managed.AddPeerRequest
+	addedTo     string
+	toggled     []string
+	confFor     string
+	confErr     error
+	addErr      error
+	confText    string
 }
 
 func (f *fakeManaged) List() []storage.ManagedServer { return f.servers }
