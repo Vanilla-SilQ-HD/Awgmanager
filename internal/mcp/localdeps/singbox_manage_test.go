@@ -46,6 +46,10 @@ func TestLocal_CreateSingboxSubscription(t *testing.T) {
 	if _, err := l.CreateSingboxSubscription(ctx, mcpsrv.SingboxSubscriptionInput{Label: "x", URL: "https://a.example/l", FilterInclude: "(a"}); err == nil || !strings.Contains(err.Error(), "missing closing") {
 		t.Fatalf("a bad filter is the agent's own text and is passed on: %v", err)
 	}
+	subs.mgmtErr = fmt.Errorf("apply: %w", subscription.ErrAllMembersFiltered)
+	if _, err := l.CreateSingboxSubscription(ctx, mcpsrv.SingboxSubscriptionInput{Label: "x", URL: "https://a.example/l", FilterExclude: "."}); err == nil || !strings.Contains(err.Error(), "filter hides every server") {
+		t.Fatalf("a filter hiding every server is the agent's to loosen: %v", err)
+	}
 	if _, err := l.CreateSingboxSubscription(ctx, mcpsrv.SingboxSubscriptionInput{Label: "x", URL: "https://a.example/l", Mode: "loadbalance"}); err == nil {
 		t.Fatal("an unknown mode must be refused")
 	}
@@ -147,23 +151,27 @@ func TestLocal_AddSingboxTunnel(t *testing.T) {
 	ctx := context.Background()
 	const link = "vless://11111111-2222-3333-4444-555555555555@n.example.net:443?security=tls&sni=n.example.net&type=tcp#SECRETNAME"
 
-	got, err := l.AddSingboxTunnel(ctx, link)
+	got, warnings, err := l.AddSingboxTunnel(ctx, link)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Tag != "new-proxy" || len(op.addedLinks) != 1 || op.addedLinks[0] != link {
-		t.Fatalf("got %+v, links %v", got, op.addedLinks)
+	if got.Tag != "new-proxy" || len(op.addedLinks) != 1 || op.addedLinks[0] != link || len(warnings) != 0 {
+		t.Fatalf("got %+v, links %v, warnings %v", got, op.addedLinks, warnings)
 	}
-	op.addErrs = true
-	if _, err := l.AddSingboxTunnel(ctx, link); err == nil || strings.Contains(err.Error(), "SECRET") || strings.Contains(strings.Join(journal.lines, "\n"), "SECRET") {
+	op.addProxyErr = true
+	if got, warnings, err = l.AddSingboxTunnel(ctx, link); err != nil || got.Tag != "new-proxy" || len(warnings) != 1 {
+		t.Fatalf("a proxy added with its ProxyN setup failed is added, with a warning: %+v, %v, %v", got, warnings, err)
+	}
+	op.addProxyErr, op.addErrs = false, true
+	if _, _, err := l.AddSingboxTunnel(ctx, link); err == nil || strings.Contains(err.Error(), "SECRET") || strings.Contains(strings.Join(journal.lines, "\n"), "SECRET") {
 		t.Fatalf("the link must not leak: %v / %v", err, journal.lines)
 	}
 	op.addErrs, op.addDup = false, true
-	if _, err := l.AddSingboxTunnel(ctx, link); err == nil || !strings.Contains(err.Error(), "already") {
+	if _, _, err := l.AddSingboxTunnel(ctx, link); err == nil || !strings.Contains(err.Error(), "already") {
 		t.Fatalf("err = %v", err)
 	}
 	calls := len(op.addedLinks)
-	if _, err := l.AddSingboxTunnel(ctx, "not a link at all"); err == nil || len(op.addedLinks) != calls {
+	if _, _, err := l.AddSingboxTunnel(ctx, "not a link at all"); err == nil || len(op.addedLinks) != calls {
 		t.Fatalf("an unparsable link must be refused before the operator: %v", err)
 	}
 }

@@ -1744,10 +1744,12 @@ type fakeSingboxOp struct {
 	err     error
 	listed  int // ListTunnels calls
 	// AddTunnels and RemoveTunnel record what they got; addErrs makes the
-	// operator report the link as unusable, addDup as a known duplicate.
+	// operator report the link as unusable, addDup as a known duplicate,
+	// addProxyErr as added with its NDMS proxy setup failed.
 	addedLinks   []string
 	addErrs      bool
 	addDup       bool
+	addProxyErr  bool
 	removed      []string
 	notInstalled bool
 }
@@ -1758,10 +1760,13 @@ func (f *fakeSingboxOp) AddTunnels(_ context.Context, links string) ([]singbox.T
 	case f.addErrs:
 		return nil, []singbox.BatchError{{Line: 1, Input: links, Err: fmt.Errorf("bad link %s", links)}}, nil
 	case f.addDup:
-		return nil, nil, nil
+		return nil, []singbox.BatchError{{Input: "new-proxy", Err: fmt.Errorf("duplicate of existing tunnel %q", "new-proxy")}}, nil
 	}
 	t := singbox.TunnelInfo{Tag: "new-proxy", Protocol: "vless", Server: "n.example.net", Port: 443}
 	f.tunnels = append(f.tunnels, t)
+	if f.addProxyErr {
+		return []singbox.TunnelInfo{t}, []singbox.BatchError{{Input: t.Tag, Err: fmt.Errorf("ndms proxy setup for %s: rci timeout", t.Tag)}}, nil
+	}
 	return []singbox.TunnelInfo{t}, nil, nil
 }
 

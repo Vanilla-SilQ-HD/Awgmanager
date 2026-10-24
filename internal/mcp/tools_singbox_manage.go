@@ -70,6 +70,13 @@ func checkRegex(name string, s string) error {
 	return nil
 }
 
+// addedTunnelOut is the added proxy, as list_singbox_tunnels shows it, and
+// what went wrong around it.
+type addedTunnelOut struct {
+	SingboxTunnel
+	Warnings []string `json:"warnings,omitempty" jsonschema:"the proxy is added, but something around it needs a look"`
+}
+
 func registerSubscriptionManageTools(s *mcp.Server, d Deps) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "create_singbox_subscription",
@@ -219,18 +226,21 @@ func registerSubscriptionManageTools(s *mcp.Server, d Deps) {
 			"The link carries working credentials: use only a link the user gave you for this, and do not repeat it. Applied at once; when NDMS proxy mode is on, a Keenetic ProxyN interface is created for it. " +
 			"Configuration files (JSON, TOML) are imported in the web interface.",
 		Annotations: safeWrite("Add sing-box proxy", false),
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in addTunnelIn) (*mcp.CallToolResult, SingboxTunnel, error) {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in addTunnelIn) (*mcp.CallToolResult, addedTunnelOut, error) {
 		link := strings.TrimSpace(in.ShareLink)
 		switch {
 		case link == "":
-			return nil, SingboxTunnel{}, fmt.Errorf("shareLink is required")
+			return nil, addedTunnelOut{}, fmt.Errorf("shareLink is required")
 		case len(link) > maxShareLinkLen:
-			return nil, SingboxTunnel{}, fmt.Errorf("shareLink is longer than %d bytes", maxShareLinkLen)
+			return nil, addedTunnelOut{}, fmt.Errorf("shareLink is longer than %d bytes", maxShareLinkLen)
 		case !shareLinkShape.MatchString(link):
-			return nil, SingboxTunnel{}, fmt.Errorf("shareLink must be one share link (scheme://…); add proxies one call at a time")
+			return nil, addedTunnelOut{}, fmt.Errorf("shareLink must be one share link (scheme://…); add proxies one call at a time")
 		}
-		out, err := d.AddSingboxTunnel(ctx, link)
-		return nil, out, err
+		out, warnings, err := d.AddSingboxTunnel(ctx, link)
+		if err != nil {
+			return nil, addedTunnelOut{}, err
+		}
+		return nil, addedTunnelOut{SingboxTunnel: out, Warnings: warnings}, nil
 	})
 
 	mcp.AddTool(s, &mcp.Tool{

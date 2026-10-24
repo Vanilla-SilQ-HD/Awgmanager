@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/hoaxisr/awg-manager/internal/events"
 	mcpsrv "github.com/hoaxisr/awg-manager/internal/mcp"
@@ -60,6 +61,9 @@ func (l *Local) CreateSingboxSubscription(ctx context.Context, in mcpsrv.Singbox
 		var filterErr *subscription.FilterError
 		if errors.As(err, &filterErr) {
 			return mcpsrv.SingboxSubscription{}, fmt.Errorf("the filter is not a valid regular expression: %s", sanitizeText(filterErr.Msg, maxMessageRunes))
+		}
+		if errors.Is(err, subscription.ErrAllMembersFiltered) {
+			return mcpsrv.SingboxSubscription{}, fmt.Errorf("the subscription was not created: the filter hides every server it lists — loosen filterInclude or filterExclude")
 		}
 		l.subLog.Warn("subscription-create", label, "Failed to create subscription (MCP); the cause is not journalled here because it can quote the address or the links")
 		return mcpsrv.SingboxSubscription{}, fmt.Errorf("the subscription was not created and nothing was left behind: the list could not be fetched or held no server sing-box can use. Adding it in the web interface shows why")
@@ -230,13 +234,18 @@ func (l *Local) editMembers(ctx context.Context, id string, tags []string, verb 
 // bind_interface (validated against NDMS there) and a multi-address
 // TrustTunnel config (a group, not a proxy). A share link carries neither
 // as a rule; they come from configuration files, which the tool refuses.
-func (l *Local) AddSingboxTunnel(ctx context.Context, shareLink string) (mcpsrv.SingboxTunnel, error) {
+//
+// The operator's errors are judged as the REST handler does, by what was
+// added: a proxy whose NDMS ProxyN setup failed stays in the configuration
+// and comes back in added with a BatchError beside it — it is added, with
+// a warning. A duplicate comes back as a BatchError and nothing added.
+func (l *Local) AddSingboxTunnel(ctx context.Context, shareLink string) (mcpsrv.SingboxTunnel, []string, error) {
 	if l.c.Singbox == nil {
-		return mcpsrv.SingboxTunnel{}, errUnavailable("sing-box")
+		return mcpsrv.SingboxTunnel{}, nil, errUnavailable("sing-box")
 	}
 	parsed := singbox.ParseTunnelLinksInput(shareLink)
 	if len(parsed.Outbounds) != 1 {
-		return mcpsrv.SingboxTunnel{}, fmt.Errorf("shareLink is not one proxy share link sing-box can use; nothing was added")
+		return mcpsrv.SingboxTunnel{}, nil, fmt.Errorf("shareLink is not one proxy share link sing-box can use; nothing was added")
 	}
 	p := parsed.Outbounds[0]
 	var peek struct {
@@ -244,20 +253,27 @@ func (l *Local) AddSingboxTunnel(ctx context.Context, shareLink string) (mcpsrv.
 	}
 	_ = json.Unmarshal(p.Outbound, &peek)
 	if p.MultiAddress || peek.BindInterface != "" {
-		return mcpsrv.SingboxTunnel{}, fmt.Errorf("this link needs settings MCP does not check (an interface binding or several addresses); add it in the web interface")
+		return mcpsrv.SingboxTunnel{}, nil, fmt.Errorf("this link needs settings MCP does not check (an interface binding or several addresses); add it in the web interface")
 	}
 	added, errs, err := l.c.Singbox.AddTunnels(ctx, shareLink)
-	switch {
-	case err != nil || len(errs) > 0:
-		l.singboxLog.Warn("single-add", "", "Failed to add a proxy (MCP); the cause is not journalled here because it can quote the link")
-		return mcpsrv.SingboxTunnel{}, fmt.Errorf("the proxy was not added: sing-box cannot use this link (an unsupported protocol, or a setting this build lacks)")
-	case len(added) == 0:
-		return mcpsrv.SingboxTunnel{}, fmt.Errorf("this proxy is already configured (list_singbox_tunnels); nothing was added")
+	if len(added) > 0 {
+		t := added[0]
+		var warnings []string
+		if err != nil || len(errs) > 0 {
+			l.singboxLog.Warn("single-add", t.Tag, "Proxy added, but part of its setup failed (MCP); the operator journalled the cause")
+			warnings = append(warnings, "the proxy was added, but part of its setup failed (most likely its Keenetic ProxyN interface): check it in the web interface")
+		}
+		l.singboxLog.Info("single-add", t.Tag, "Proxy added (MCP)")
+		l.publish(events.ResourceSingboxTunnels, "mcp-tunnel-added")
+		return singboxTunnel(t), warnings, nil
 	}
-	t := added[0]
-	l.singboxLog.Info("single-add", t.Tag, "Proxy added (MCP)")
-	l.publish(events.ResourceSingboxTunnels, "mcp-tunnel-added")
-	return singboxTunnel(t), nil
+	if err == nil && slices.ContainsFunc(errs, func(e singbox.BatchError) bool {
+		return e.Err != nil && strings.HasPrefix(e.Err.Error(), "duplicate of existing tunnel")
+	}) {
+		return mcpsrv.SingboxTunnel{}, nil, fmt.Errorf("this proxy is already configured (list_singbox_tunnels); nothing was added")
+	}
+	l.singboxLog.Warn("single-add", "", "Failed to add a proxy (MCP); the cause is not journalled here because it can quote the link")
+	return mcpsrv.SingboxTunnel{}, nil, fmt.Errorf("the proxy was not added: sing-box cannot use this link (an unsupported protocol, or a setting this build lacks)")
 }
 
 func (l *Local) DeleteSingboxTunnel(ctx context.Context, tag string) (mcpsrv.SingboxTunnel, error) {
