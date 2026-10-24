@@ -67,6 +67,12 @@ func TestInsertRule(t *testing.T) {
 	if got := ruleSuffixes(t, svc); got[len(got)-1] != "last.example" {
 		t.Fatalf("index = len must append: %v", got)
 	}
+	if err := svc.InsertRule(ctx, -1, Rule{DomainSuffix: []string{"end.example"}, Outbound: "vpn"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := ruleSuffixes(t, svc); got[len(got)-1] != "end.example" {
+		t.Fatalf("-1 must append to the list as the write sees it: %v", got)
+	}
 	if !svc.StagingStatus(ctx).HasDraft {
 		t.Fatal("the edit must land in the draft")
 	}
@@ -87,7 +93,7 @@ func TestInsertRule(t *testing.T) {
 		"no matcher":          {2, Rule{Outbound: "vpn"}, ErrInvalidMatchers},
 		"unknown rule set":    {2, Rule{RuleSet: []string{"ghost"}, Outbound: "vpn"}, ErrRuleSetNotFound},
 		"past the end":        {99, Rule{DomainSuffix: []string{"x"}, Outbound: "vpn"}, ErrRuleIndexOutOfRange},
-		"negative":            {-1, Rule{DomainSuffix: []string{"x"}, Outbound: "vpn"}, ErrRuleIndexOutOfRange},
+		"negative":            {-2, Rule{DomainSuffix: []string{"x"}, Outbound: "vpn"}, ErrRuleIndexOutOfRange},
 	} {
 		if err := svc.InsertRule(ctx, c.index, c.rule); !errors.Is(err, c.want) {
 			t.Errorf("%s: err = %v, want %v", name, err, c.want)

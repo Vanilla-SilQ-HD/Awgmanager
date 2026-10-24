@@ -390,8 +390,8 @@ func singboxRuleFrom(in mcpsrv.SingboxRuleInput) router.Rule {
 }
 
 // AddSingboxRule inserts through InsertRule, which checks the outbound and
-// keeps system rules on top in the same write. -1 is read as the end of
-// the list as it stands now.
+// keeps system rules on top in the same write. -1 is the end of the list,
+// which InsertRule reads inside that write.
 func (l *Local) AddSingboxRule(ctx context.Context, position int, in mcpsrv.SingboxRuleInput) error {
 	if l.c.Router == nil {
 		return errUnavailable("sing-box router")
@@ -400,11 +400,7 @@ func (l *Local) AddSingboxRule(ctx context.Context, position int, in mcpsrv.Sing
 		return err
 	}
 	if position < 0 {
-		rules, err := l.c.Router.ListRules(ctx)
-		if err != nil {
-			return err
-		}
-		position = len(rules)
+		position = -1
 	}
 	if err := l.c.Router.InsertRule(ctx, position, singboxRuleFrom(in)); err != nil {
 		l.singboxLog.Warn("rule-add", strconv.Itoa(position), "Failed to add sing-box rule (MCP): "+err.Error())
@@ -508,38 +504,65 @@ func (l *Local) AddSingboxRuleSet(ctx context.Context, in mcpsrv.SingboxRuleSetI
 	return nil
 }
 
-// DeleteSingboxRuleSet reads the set first, to hand it back once it is
-// gone; the read and the deletion are two calls, so a set changed in
-// between comes back as it was before that change.
-func (l *Local) DeleteSingboxRuleSet(ctx context.Context, tag string, force bool) (mcpsrv.SingboxRuleSet, error) {
+// DeleteSingboxRuleSet reads the set and the rules first, to hand back
+// the set once it is gone and, with force, the rules that used it: each
+// lost the condition, and one left with none was deleted with it — after
+// apply nothing else records them. The reads and the deletion are separate
+// calls, so a change in between is not reflected.
+func (l *Local) DeleteSingboxRuleSet(ctx context.Context, tag string, force bool) (mcpsrv.SingboxRuleSet, []mcpsrv.SingboxRule, error) {
 	if l.c.Router == nil {
-		return mcpsrv.SingboxRuleSet{}, errUnavailable("sing-box router")
+		return mcpsrv.SingboxRuleSet{}, nil, errUnavailable("sing-box router")
 	}
 	if err := l.requireTProxyRouter(ctx); err != nil {
-		return mcpsrv.SingboxRuleSet{}, err
+		return mcpsrv.SingboxRuleSet{}, nil, err
 	}
 	sets, err := l.c.Router.ListRuleSets(ctx)
 	if err != nil {
-		return mcpsrv.SingboxRuleSet{}, err
+		return mcpsrv.SingboxRuleSet{}, nil, err
 	}
 	i := slices.IndexFunc(sets, func(rs router.RuleSet) bool { return rs.Tag == tag })
 	if i < 0 {
-		return mcpsrv.SingboxRuleSet{}, fmt.Errorf("%w: %q (use list_singbox_rulesets)", router.ErrRuleSetNotFound, tag)
+		return mcpsrv.SingboxRuleSet{}, nil, fmt.Errorf("%w: %q (use list_singbox_rulesets)", router.ErrRuleSetNotFound, tag)
+	}
+	var affected []mcpsrv.SingboxRule
+	if force {
+		rules, err := l.c.Router.ListRules(ctx)
+		if err != nil {
+			return mcpsrv.SingboxRuleSet{}, nil, err
+		}
+		for j, r := range rules {
+			if ruleUsesSet(r, tag) {
+				affected = append(affected, singboxRule(j, r))
+			}
+		}
 	}
 	if err := l.c.Router.DeleteRuleSet(ctx, tag, force); err != nil {
 		l.singboxLog.Warn("ruleset-delete", tag, "Failed to delete sing-box rule set (MCP): "+err.Error())
-		return mcpsrv.SingboxRuleSet{}, ruleEditError(err)
+		return mcpsrv.SingboxRuleSet{}, nil, ruleEditError(err)
 	}
-	l.singboxLog.Info("ruleset-delete", tag, "Sing-box rule set deleted (MCP, staged)")
+	msg := "Sing-box rule set deleted (MCP, staged)"
+	for _, r := range affected {
+		msg += fmt.Sprintf("; rule %d used it: %s", r.Index, r.Match)
+	}
+	l.singboxLog.Info("ruleset-delete", tag, msg)
 	rs := sets[i]
-	return mcpsrv.SingboxRuleSet{Tag: rs.Tag, Type: token(rs.Type), Format: token(rs.Format), Host: hostOf(rs.URL), DownloadDetour: rs.DownloadDetour}, nil
+	return mcpsrv.SingboxRuleSet{Tag: rs.Tag, Type: token(rs.Type), Format: token(rs.Format), Host: hostOf(rs.URL), DownloadDetour: rs.DownloadDetour}, affected, nil
+}
+
+// ruleUsesSet reports a rule, or one nested in a logical rule, that names
+// the set.
+func ruleUsesSet(r router.Rule, tag string) bool {
+	if slices.Contains(r.RuleSet, tag) {
+		return true
+	}
+	return slices.ContainsFunc(r.Rules, func(sub router.Rule) bool { return ruleUsesSet(sub, tag) })
 }
 
 // ruleEditError adds to a refused rule edit the step that resolves it.
 func ruleEditError(err error) error {
 	switch {
 	case errors.Is(err, router.ErrRuleProtected):
-		return fmt.Errorf("%w (system rules and rules awg-manager manages stay as they are; list_singbox_rules marks them managed)", err)
+		return fmt.Errorf("%w (system rules and rules awg-manager manages stay as they are; list_singbox_rules marks them system or managed)", err)
 	case errors.Is(err, router.ErrRuleIndexOutOfRange):
 		return fmt.Errorf("%w (positions come from list_singbox_rules)", err)
 	case errors.Is(err, router.ErrRuleSetReferenced):

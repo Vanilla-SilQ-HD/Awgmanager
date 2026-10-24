@@ -181,8 +181,9 @@ type Deps interface {
 	AddSingboxRuleSet(ctx context.Context, in SingboxRuleSetInput) error
 	// DeleteSingboxRuleSet removes a rule set and returns it as it was. A
 	// set rules still use is refused unless force; with force the
-	// references go, and a rule left without any matcher goes with them.
-	DeleteSingboxRuleSet(ctx context.Context, tag string, force bool) (SingboxRuleSet, error)
+	// references go, and a rule left without any matcher goes with them —
+	// affected are those rules as they were.
+	DeleteSingboxRuleSet(ctx context.Context, tag string, force bool) (deleted SingboxRuleSet, affected []SingboxRule, err error)
 
 	ApplySingboxStaging(ctx context.Context) error
 	DiscardSingboxStaging(ctx context.Context) error

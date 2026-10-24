@@ -28,7 +28,7 @@ type ruleIn struct {
 
 type addRuleIn struct {
 	ruleIn
-	Position *int `json:"position,omitempty" jsonschema:"index in list_singbox_rules the new rule takes — the rule there and below move down; omit to append. sing-box uses the FIRST rule that matches, so a rule placed after a broader one never fires. Nothing goes above a system rule"`
+	Position *int `json:"position,omitempty" jsonschema:"index in list_singbox_rules the new rule takes — the rule there and below move down; omit to append. sing-box uses the FIRST rule that matches, so a rule placed after a broader one never fires. Nothing goes above a system rule (list_singbox_rules marks them system)"`
 }
 
 type updateRuleIn struct {
@@ -73,6 +73,8 @@ type deletedRuleOut struct {
 type deletedRuleSetOut struct {
 	Staged  bool           `json:"staged" jsonschema:"always true: the deletion is in the draft and does NOT affect traffic until apply_singbox_staging"`
 	Deleted SingboxRuleSet `json:"deleted" jsonschema:"the rule set as it was"`
+	// Affected are the rules force took the set out of.
+	Affected []SingboxRule `json:"affectedRules,omitempty" jsonschema:"with force: the rules that used the set, as they were. Each lost this condition; one left with no condition was deleted, and the rules below it moved up"`
 }
 
 type stagedRuleOut struct {
@@ -322,10 +324,10 @@ func registerRuleTools(s *mcp.Server, d Deps) {
 		if err != nil {
 			return nil, deletedRuleSetOut{}, err
 		}
-		deleted, err := d.DeleteSingboxRuleSet(ctx, tag, in.Force)
+		deleted, affected, err := d.DeleteSingboxRuleSet(ctx, tag, in.Force)
 		if err != nil {
 			return nil, deletedRuleSetOut{}, err
 		}
-		return stagedResult(), deletedRuleSetOut{Staged: true, Deleted: deleted}, nil
+		return stagedResult(), deletedRuleSetOut{Staged: true, Deleted: deleted, Affected: affected}, nil
 	})
 }
