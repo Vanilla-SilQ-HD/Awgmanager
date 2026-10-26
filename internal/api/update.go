@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -141,6 +142,7 @@ func (h *UpdateHandler) Check(w http.ResponseWriter, r *http.Request) {
 //	@Security		CookieAuth
 //	@Success		200	{object}	UpdateApplyResponse
 //	@Failure		400	{object}	APIErrorEnvelope
+//	@Failure		409	{object}	APIErrorEnvelope	"UPGRADE_IN_PROGRESS — an update is being installed; RESTORE_IN_PROGRESS — a restore is running"
 //	@Failure		500	{object}	APIErrorEnvelope
 //	@Router			/system/update/apply [post]
 func (h *UpdateHandler) Apply(w http.ResponseWriter, r *http.Request) {
@@ -152,8 +154,8 @@ func (h *UpdateHandler) Apply(w http.ResponseWriter, r *http.Request) {
 	h.log.Info("update", "", "Starting update from GitHub release")
 
 	if err := h.updater.ApplyUpgrade(r.Context()); err != nil {
-		if err == updater.ErrUpgradeInProgress {
-			response.ErrorWithStatus(w, http.StatusConflict, "Upgrade already in progress", "UPGRADE_IN_PROGRESS")
+		if message, code, ok := applyConflict(err); ok {
+			response.ErrorWithStatus(w, http.StatusConflict, message, code)
 			return
 		}
 		response.InternalError(w, "Failed to start upgrade: "+err.Error())
@@ -165,6 +167,19 @@ func (h *UpdateHandler) Apply(w http.ResponseWriter, r *http.Request) {
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
+}
+
+// applyConflict maps ApplyUpgrade's refusals to a 409: an update already
+// being installed or a restore in progress is a state to wait out and
+// retry, not a server fault.
+func applyConflict(err error) (message, code string, ok bool) {
+	switch {
+	case errors.Is(err, updater.ErrUpgradeInProgress):
+		return "Upgrade already in progress", "UPGRADE_IN_PROGRESS", true
+	case errors.Is(err, updater.ErrRestoreInProgress):
+		return err.Error(), "RESTORE_IN_PROGRESS", true
+	}
+	return "", "", false
 }
 
 // Changelog returns changelog entries. Two modes:

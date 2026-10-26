@@ -401,6 +401,30 @@ func TestRunAutoInstallSlot_ManagerBusy_SkipsWithoutStamp(t *testing.T) {
 	}
 }
 
+// TestRunAutoInstallSlot_RestoreRunning_SkipsWithoutStamp — во время
+// восстановления ApplyUpgrade отказывает (ErrRestoreInProgress); метка,
+// поставленная до вызова, отложила бы обновление на весь интервал и
+// записала бы попытку, которой не было.
+func TestRunAutoInstallSlot_RestoreRunning_SkipsWithoutStamp(t *testing.T) {
+	dl := managerUpdateDownloader(t, "9.9.9", nil)
+	svc := &Service{
+		version:    "2.12.0",
+		dataDir:    t.TempDir(),
+		downloader: dl,
+		changelog:  newChangelogFetcher(changelogURLForChannel(channelStable), 10*time.Minute, dl),
+		restoring:  func() bool { return true },
+	}
+
+	svc.runAutoInstallSlotForced()
+
+	if marker := svc.readAutoInstallMarker(); marker != nil {
+		t.Fatalf("expected no marker while a restore runs, got %+v", marker)
+	}
+	if err := svc.ApplyUpgrade(context.Background()); !errors.Is(err, ErrRestoreInProgress) {
+		t.Fatalf("ApplyUpgrade during a restore: err = %v, want ErrRestoreInProgress", err)
+	}
+}
+
 func TestAutoInstallStartupCatchUp_UpdatesOnceOnMismatch(t *testing.T) {
 	su := &fakeSingboxUpdater{
 		installed:          true,

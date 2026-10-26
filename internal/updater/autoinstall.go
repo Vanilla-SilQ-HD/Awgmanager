@@ -180,9 +180,11 @@ func (s *Service) runAutoInstallActions(ctx context.Context) {
 	// 1. awg-manager self-update.
 	info := s.CheckNow(ctx)
 	if info != nil && info.Available && info.LatestVersion != "" {
-		if s.isUpgrading() {
-			// A manual apply is already running — retry next tick, do not
-			// stamp the marker (no attempt was actually made).
+		if s.isUpgrading() || s.isRestoring() {
+			// A manual apply or a restore is running — ApplyUpgrade would
+			// refuse. Retry next tick, do not stamp the marker: no attempt
+			// was made, and a stamp would put the update off by a whole
+			// interval and log an attempt that never happened.
 			return
 		}
 		s.appLog.Info("auto-install", "", fmt.Sprintf("автообновление: awg-manager %s→%s", s.version, info.LatestVersion))

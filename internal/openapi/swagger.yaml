@@ -21119,6 +21119,11 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/api.APIErrorEnvelope'
+        "409":
+          description: UPGRADE_IN_PROGRESS — an update is being installed; RESTORE_IN_PROGRESS
+            — a restore is running
+          schema:
+            $ref: '#/definitions/api.APIErrorEnvelope'
         "500":
           description: Internal Server Error
           schema:

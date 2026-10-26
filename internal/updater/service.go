@@ -46,6 +46,17 @@ type Service struct {
 	// bus — SSE-шина: список снимков меняется без участия страницы
 	// (автообновление, срок жизни). nil в тестах.
 	bus *events.Bus
+	// restoring сообщает, идёт ли восстановление; nil — backup.Restoring.
+	// В тестах подменяется.
+	restoring func() bool
+}
+
+// isRestoring — идёт восстановление из резервной копии или снимка.
+func (s *Service) isRestoring() bool {
+	if s.restoring != nil {
+		return s.restoring()
+	}
+	return backup.Restoring()
 }
 
 // New creates a new updater service. dataDir is used for the auto-install
@@ -219,7 +230,7 @@ func (s *Service) CheckNow(ctx context.Context) *UpdateInfo {
 // Returns error if upgrade is already in progress or no download URL cached.
 func (s *Service) ApplyUpgrade(ctx context.Context) error {
 	// Восстановление и opkg с его postinst боролись бы за одни и те же данные.
-	if backup.Restoring() {
+	if s.isRestoring() {
 		return ErrRestoreInProgress
 	}
 	s.mu.Lock()

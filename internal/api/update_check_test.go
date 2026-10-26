@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -135,5 +136,24 @@ func TestUpdateHandler_Check_ForceBranch_NotWipedByCheckNow(t *testing.T) {
 	}
 	if last, ok := data["lastAutoInstallAt"]; !ok || last == "" {
 		t.Errorf("expected non-empty lastAutoInstallAt after CheckNow (marker was pre-stamped), got %+v", data)
+	}
+}
+
+// TestApplyConflict — отказы ApplyUpgrade «уже обновляется» и «идёт
+// восстановление» — состояние, которое надо переждать (409 с кодом), а не
+// сбой сервера (500).
+func TestApplyConflict(t *testing.T) {
+	for _, c := range []struct {
+		err  error
+		code string
+		ok   bool
+	}{
+		{updater.ErrUpgradeInProgress, "UPGRADE_IN_PROGRESS", true},
+		{fmt.Errorf("apply: %w", updater.ErrRestoreInProgress), "RESTORE_IN_PROGRESS", true},
+		{errors.New("no download URL"), "", false},
+	} {
+		if _, code, ok := applyConflict(c.err); code != c.code || ok != c.ok {
+			t.Errorf("%v: code %q ok %v, want %q %v", c.err, code, ok, c.code, c.ok)
+		}
 	}
 }
