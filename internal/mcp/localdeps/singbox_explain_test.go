@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"net"
+	"slices"
 	"strings"
 	"testing"
 
 	mcpsrv "github.com/hoaxisr/awg-manager/internal/mcp"
 	"github.com/hoaxisr/awg-manager/internal/singbox"
 	"github.com/hoaxisr/awg-manager/internal/singbox/router"
+	"github.com/hoaxisr/awg-manager/internal/storage"
 )
 
 // TestEvalRule_ThreeValued — поле назначения, которого нет, — «нет»;
@@ -19,6 +21,7 @@ func TestEvalRule_ThreeValued(t *testing.T) {
 	yes := true
 	q := explainQuery{
 		domain: "www.youtube.com", ips: []net.IP{net.ParseIP("142.250.1.1")}, ipsKnown: true, clientIP: net.ParseIP("192.168.1.10"),
+		name: triYes, addrs: triYes,
 		sets: map[string]router.RuleSet{
 			"one":    {Tag: "one", Type: "inline", Rules: []map[string]any{{"domain_suffix": []any{"youtube.com"}}}},
 			"two":    {Tag: "two", Type: "inline", Rules: []map[string]any{{"domain": []any{"x.org"}}, {"ip_cidr": []any{"142.250.0.0/16"}}}},
@@ -131,18 +134,88 @@ func TestLocal_ExplainSingboxRoute(t *testing.T) {
 		t.Fatalf("no rule matches: %+v, %v", got, err)
 	}
 	// The lookup failed: an IP rule above stays a candidate.
-	fr.rules = []router.Rule{{IPCIDR: []string{"10.0.0.0/8"}, Outbound: "direct"}, {DomainSuffix: []string{"youtube.com"}, Outbound: "vless-nl"}}
+	fr.rules = []router.Rule{{Action: "sniff"}, {IPCIDR: []string{"10.0.0.0/8"}, Outbound: "direct"}, {DomainSuffix: []string{"youtube.com"}, Outbound: "vless-nl"}}
 	got, err = l.ExplainSingboxRoute(context.Background(), "www.youtube.com", nil, "")
-	if err != nil || got.Match == nil || got.Match.Index != 1 || len(got.MaybeEarlier) != 1 || got.MaybeEarlier[0].Index != 0 {
+	if err != nil || got.Match == nil || got.Match.Index != 2 || len(got.MaybeEarlier) != 1 || got.MaybeEarlier[0].Index != 1 {
 		t.Fatalf("unresolved: %+v, %v", got, err)
 	}
 	// Undecided rules before the match are capped.
-	fr.rules = nil
+	fr.rules = []router.Rule{{Action: "sniff"}}
 	for range maxMaybeRules + 2 {
 		fr.rules = append(fr.rules, router.Rule{DomainSuffix: []string{"youtube.com"}, Port: []int{443}, Outbound: "auto"})
 	}
 	if got, err = l.ExplainSingboxRoute(context.Background(), "www.youtube.com", []string{"142.250.1.1"}, ""); err != nil || len(got.MaybeEarlier) != maxMaybeRules {
 		t.Fatalf("maybe = %d, %v", len(got.MaybeEarlier), err)
+	}
+}
+
+// explainFakeIP is a fakeip-tun configuration with the given rules.
+type explainFakeIP struct {
+	fakeFakeIP
+	rules []router.Rule
+}
+
+func (f explainFakeIP) FakeIPListRules(context.Context) ([]router.Rule, error) { return f.rules, nil }
+func (explainFakeIP) FakeIPListRuleSets(context.Context) ([]router.RuleSet, error) {
+	return nil, nil
+}
+
+// TestLocal_ExplainSingboxRouteFollowsWhatSingBoxKnows — в tproxy
+// соединение приходит адресом, и имя sing-box узнаёт только правилом
+// sniff: правило по домену выше sniff совпасть не может наверняка. В
+// fakeip-tun соединение приходит именем (route.go), и ip_cidr не совпадает
+// до правила resolve (rule_item_cidr.go) — иначе «точно» назвали бы
+// правило, которого движок не выполнит.
+func TestLocal_ExplainSingboxRouteFollowsWhatSingBoxKnows(t *testing.T) {
+	ctx := context.Background()
+	fr := routerHarness()
+	fr.rules = []router.Rule{
+		{DomainSuffix: []string{"youtube.com"}, Outbound: "auto"},
+		{Action: "sniff"},
+		{DomainSuffix: []string{"youtube.com"}, Outbound: "vless-nl"},
+	}
+	l := New(Config{Router: fr})
+	got, err := l.ExplainSingboxRoute(ctx, "www.youtube.com", []string{"142.250.1.1"}, "")
+	if err != nil || got.Match == nil || got.Match.Index != 2 || len(got.MaybeEarlier) != 1 || !strings.Contains(got.MaybeEarlier[0].Reason, "sniff") {
+		t.Fatalf("a name rule above sniff is a maybe, the one below matches: %+v, %v", got, err)
+	}
+	if !slices.ContainsFunc(got.Notes, func(n string) bool { return strings.Contains(n, "sniffing") }) {
+		t.Fatalf("the verdict must say it assumes a sniffable protocol: %v", got.Notes)
+	}
+	// An address target needs no name: the IP rule decides before sniff.
+	fr.rules = []router.Rule{{IPCIDR: []string{"142.250.0.0/16"}, Outbound: "direct"}, {Action: "sniff"}}
+	if got, err = l.ExplainSingboxRoute(ctx, "", []string{"142.250.1.1"}, ""); err != nil || got.Match == nil || got.Match.Index != 0 {
+		t.Fatalf("address target: %+v, %v", got, err)
+	}
+
+	fr.settings = storage.SingboxRouterSettings{RoutingMode: routingModeFakeIP}
+	fake := explainFakeIP{rules: []router.Rule{
+		{IPCIDR: []string{"142.250.0.0/16"}, Outbound: "direct"},
+		{IPIsPrivate: ptr(true), Outbound: "direct"},
+		{DomainSuffix: []string{"youtube.com"}, Outbound: "vless-nl"},
+	}}
+	l = New(Config{Router: fr, FakeIP: fake})
+	got, err = l.ExplainSingboxRoute(ctx, "www.youtube.com", []string{"142.250.1.1"}, "")
+	if err != nil || got.Match == nil || got.Match.Index != 2 || len(got.MaybeEarlier) != 0 {
+		t.Fatalf("fakeip-tun: no address condition matches a name before resolve: %+v, %v", got, err)
+	}
+	if !slices.ContainsFunc(got.Notes, func(n string) bool { return strings.Contains(n, "resolve") }) {
+		t.Fatalf("notes = %v", got.Notes)
+	}
+	// A name that resolves to a private address: ip_is_private does not see
+	// it either.
+	if got, err = l.ExplainSingboxRoute(ctx, "nas.youtube.com", []string{"10.0.0.5"}, ""); err != nil || got.Match == nil || got.Match.Index != 2 {
+		t.Fatalf("fakeip-tun, private address: %+v, %v", got, err)
+	}
+	fake.rules = append([]router.Rule{{Action: "resolve"}}, fake.rules...)
+	l = New(Config{Router: fr, FakeIP: fake})
+	if got, err = l.ExplainSingboxRoute(ctx, "www.youtube.com", []string{"142.250.1.1"}, ""); err != nil || got.Match == nil || got.Match.Index != 1 {
+		t.Fatalf("after resolve the addresses count: %+v, %v", got, err)
+	}
+	fake.rules[0] = router.Rule{Action: "resolve", Port: []int{443}}
+	l = New(Config{Router: fr, FakeIP: fake})
+	if got, err = l.ExplainSingboxRoute(ctx, "www.youtube.com", []string{"142.250.1.1"}, ""); err != nil || got.Match == nil || got.Match.Index != 3 || len(got.MaybeEarlier) != 1 || got.MaybeEarlier[0].Index != 1 {
+		t.Fatalf("a resolve that may not apply leaves the IP rule a maybe: %+v, %v", got, err)
 	}
 }
 

@@ -89,7 +89,27 @@ type explainQuery struct {
 	literal  bool
 	clientIP net.IP
 	sets     map[string]router.RuleSet
+	// name and addrs are what sing-box itself knows of the destination at
+	// this point of the walk (route/route.go). In fakeip-tun a connection
+	// arrives as the name, and its addresses are known only after a
+	// resolve rule: an IP condition never matches a name destination
+	// before that (rule_item_cidr.go). In the other modes it arrives as an
+	// address, and the name is learned by a sniff rule.
+	name  tri
+	addrs tri
 }
+
+// named turns a match on the name into what sing-box matches: nothing
+// while it does not know the name.
+func (q explainQuery) named(v tri) tri {
+	if v != triYes || q.domain == "" {
+		return v
+	}
+	return q.name
+}
+
+// nameReason is why a name condition is undecided.
+const nameReason = "sing-box learns the name only from a sniff rule above (TLS, HTTP, QUIC) or DNS reverse mapping"
 
 // anyOf is OR over three values: one yes is yes, otherwise one unknown is
 // unknown.
@@ -153,9 +173,15 @@ func matchDomain(domain string, names []string) tri {
 }
 
 // matchCIDRs judges a destination CIDR list. It is "no" only when the
-// addresses are known; see explainQuery.ipsKnown.
+// addresses are known; see explainQuery.ipsKnown and addrs.
 func (q explainQuery) matchCIDRs(cidrs []string) tri {
+	if q.addrs == triNo {
+		return triNo
+	}
 	got := matchCIDRs(q.ips, cidrs)
+	if got == triYes && q.addrs == triUnknown {
+		return triUnknown
+	}
 	if got == triYes {
 		return got
 	}
@@ -201,9 +227,9 @@ func matchInlineRule(rule map[string]any, q explainQuery) tri {
 		values := stringsOf(raw)
 		switch key {
 		case "domain_suffix":
-			dest = append(dest, matchDomainSuffix(q.domain, values))
+			dest = append(dest, q.named(matchDomainSuffix(q.domain, values)))
 		case "domain":
-			dest = append(dest, matchDomain(q.domain, values))
+			dest = append(dest, q.named(matchDomain(q.domain, values)))
 		case "domain_keyword":
 			hit := triNo
 			for _, k := range values {
@@ -211,7 +237,7 @@ func matchInlineRule(rule map[string]any, q explainQuery) tri {
 					hit = triYes
 				}
 			}
-			dest = append(dest, hit)
+			dest = append(dest, q.named(hit))
 		case "domain_regex":
 			hit := triNo
 			for _, rx := range values {
@@ -219,7 +245,7 @@ func matchInlineRule(rule map[string]any, q explainQuery) tri {
 					hit = triYes
 				}
 			}
-			dest = append(dest, hit)
+			dest = append(dest, q.named(hit))
 		case "ip_cidr":
 			dest = append(dest, q.matchCIDRs(values))
 		default:
@@ -308,14 +334,18 @@ func evalRule(r router.Rule, q explainQuery) (tri, string) {
 	}
 	dest := []tri{}
 	if len(r.DomainSuffix) > 0 {
-		dest = append(dest, matchDomainSuffix(q.domain, r.DomainSuffix))
+		v := q.named(matchDomainSuffix(q.domain, r.DomainSuffix))
+		note(v, nameReason)
+		dest = append(dest, v)
 	}
 	if len(r.Domain) > 0 {
-		dest = append(dest, matchDomain(q.domain, r.Domain))
+		v := q.named(matchDomain(q.domain, r.Domain))
+		note(v, nameReason)
+		dest = append(dest, v)
 	}
 	if len(r.IPCIDR) > 0 {
 		v := q.matchCIDRs(r.IPCIDR)
-		note(v, "the destination's addresses are not all known (lookup failed, or IPv6)")
+		note(v, "the destination's addresses are not all known (lookup failed, IPv6, or a resolve rule above may not apply)")
 		dest = append(dest, v)
 	}
 	if r.IPIsPrivate != nil && *r.IPIsPrivate {
@@ -328,6 +358,13 @@ func evalRule(r router.Rule, q explainQuery) (tri, string) {
 			if router.IsPrivateAddr(ip) {
 				private = triYes
 			}
+		}
+		switch {
+		case q.addrs == triNo:
+			private = triNo
+		case q.addrs == triUnknown && private == triYes:
+			private = triUnknown
+			note(private, "a resolve rule above may not apply")
 		}
 		dest = append(dest, private)
 	}
@@ -417,7 +454,9 @@ const maxMaybeRules = 10
 
 // ExplainSingboxRoute walks the rules in order. Only rules that end the
 // walk for a connection count: route (the default action) and reject;
-// sniff, DNS hijacking and route options do not decide where traffic goes.
+// sniff, DNS hijacking, resolve and route options do not decide where
+// traffic goes. sniff and resolve still change what sing-box knows of the
+// destination for the rules below (explainQuery.name, addrs).
 func (l *Local) ExplainSingboxRoute(ctx context.Context, domain string, ips []string, clientIP string) (mcpsrv.SingboxRouteExplanation, error) {
 	if l.c.Router == nil {
 		return mcpsrv.SingboxRouteExplanation{}, errUnavailable("sing-box router")
@@ -454,8 +493,31 @@ func (l *Local) ExplainSingboxRoute(ctx context.Context, domain string, ips []st
 	for _, rs := range sets {
 		q.sets[rs.Tag] = rs
 	}
+	// A connection reaches sing-box as an address, except a fakeip-tun one,
+	// which reaches it as the name (route.go: the fake address is swapped
+	// for the name it was handed out for).
+	q.name, q.addrs = triUnknown, triYes
+	if rr.fakeIP && !q.literal {
+		q.name, q.addrs = triYes, triNo
+	}
 	out := mcpsrv.SingboxRouteExplanation{RoutingMode: token(settings.RoutingMode), HasDraft: l.hasDraft(ctx, rr.fakeIP)}
+	sniffed := false
 	for i, r := range rules {
+		switch r.Action {
+		case "sniff":
+			if v, _ := evalRule(r, q); v == triYes && q.name != triYes {
+				q.name, sniffed = triYes, true
+			}
+			continue
+		case "resolve":
+			switch v, _ := evalRule(r, q); {
+			case v == triYes:
+				q.addrs = triYes
+			case v == triUnknown && q.addrs == triNo:
+				q.addrs = triUnknown
+			}
+			continue
+		}
 		if r.Action != "" && r.Action != "route" && r.Action != "reject" {
 			continue
 		}
@@ -473,6 +535,16 @@ func (l *Local) ExplainSingboxRoute(ctx context.Context, domain string, ips []st
 			entry.Reason = why
 			out.MaybeEarlier = append(out.MaybeEarlier, entry)
 		}
+	}
+	switch {
+	case q.literal:
+	case rr.fakeIP:
+		out.Notes = append(out.Notes, "in fakeip-tun a connection reaches sing-box as the name: address conditions (ip_cidr, ip_is_private) apply only after a resolve rule")
+	case sniffed:
+		out.Notes = append(out.Notes, "name conditions assume sing-box learned the name by sniffing, which works for TLS, HTTP and QUIC; other connections are matched by address alone")
+	}
+	if !q.literal && q.addrs != triNo && q.ipsKnown {
+		out.Notes = append(out.Notes, "address conditions are judged on the addresses this router's DNS returned; a device may have connected to others")
 	}
 	return out, nil
 }

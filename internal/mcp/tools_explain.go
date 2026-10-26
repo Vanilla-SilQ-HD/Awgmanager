@@ -200,7 +200,8 @@ func registerExplainTools(s *mcp.Server, d Deps) {
 		Description: "Explain which routing rules cover a domain or IP: the domain lists that match it (checked against every domain, not the truncated list view), " +
 			"the subnet lists containing its addresses, the device's own route when clientIp is given, and the default route it falls back to. " +
 			"Reports the candidates and how they relate; it does not simulate the router's rule priorities, and lists using geosite:/geoip: tags are reported as unevaluated rather than assumed not to match. " +
-			"The singbox part judges the sing-box router's rules in order: the first rule that certainly matches, and the earlier ones that may (a port, a sniffed protocol or a downloaded rule set cannot be checked here).",
+			"The singbox part judges the sing-box router's rules in order: the first route or reject rule that certainly matches, and the earlier ones that may (a port, a sniffed protocol or a downloaded rule set cannot be checked here). " +
+			"sniff, resolve, DNS hijack and route-options rules do not decide the route themselves; sniff and resolve change what sing-box knows of the destination for the rules below, as singbox.notes says.",
 		Annotations: readOnly("Explain route"),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in explainIn) (*mcp.CallToolResult, explainOut, error) {
 		target := normalizeDomain(in.Target)

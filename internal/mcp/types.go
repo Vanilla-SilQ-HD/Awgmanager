@@ -837,6 +837,9 @@ type SingboxRouteExplanation struct {
 	Match        *SingboxRuleMatch  `json:"match,omitempty" jsonschema:"the first rule that certainly matches; absent means none does and the traffic falls through to route.final (get_singbox_router_status shows it)"`
 	MaybeEarlier []SingboxRuleMatch `json:"maybeEarlier,omitempty" jsonschema:"rules before match that may also match — sing-box takes the first, so one of these may win; reason says what could not be decided"`
 	HasDraft     bool               `json:"hasDraft" jsonschema:"true means the rules judged include NOT YET APPLIED edits"`
+	// Notes are the assumptions the verdict rests on: what sing-box knows
+	// of the destination in this mode.
+	Notes []string `json:"notes,omitempty" jsonschema:"assumptions the verdict rests on — what sing-box knows of the destination in this mode; mention them when they matter"`
 }
 
 // SingboxRuleMatch is one rule in a SingboxRouteExplanation.
