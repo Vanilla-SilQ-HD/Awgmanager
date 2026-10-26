@@ -2211,7 +2211,6 @@ func TestLocal_PingCheckLogsAreNewestFirst(t *testing.T) {
 }
 
 type fakeDiag struct {
-	runErr error
 	status diagnostics.RunStatus
 	report []byte
 	repErr error
@@ -2219,16 +2218,17 @@ type fakeDiag struct {
 	opts   diagnostics.RunOptions
 }
 
-func (f *fakeDiag) RunWithStream(_ context.Context, opts diagnostics.RunOptions) (<-chan diagnostics.DiagEvent, error) {
+// Start mirrors Runner.Start: a sweep in progress is not joined.
+func (f *fakeDiag) Start(opts diagnostics.RunOptions) (<-chan diagnostics.DiagEvent, bool) {
+	if f.status.Status == "running" {
+		return nil, false
+	}
 	f.runs++
 	f.opts = opts
-	if f.runErr != nil {
-		return nil, f.runErr
-	}
 	ch := make(chan diagnostics.DiagEvent, 1)
 	ch <- diagnostics.DiagEvent{Type: "done"}
 	close(ch)
-	return ch, nil
+	return ch, true
 }
 func (f *fakeDiag) Status() diagnostics.RunStatus { return f.status }
 func (f *fakeDiag) Result() ([]byte, error)       { return f.report, f.repErr }
@@ -2281,7 +2281,7 @@ func TestLocal_DiagnosticsResultWithoutAReportIsExplicit(t *testing.T) {
 // TestLocal_RunDiagnosticsAlreadyRunningIsNotAnError — но и «запустил» в
 // этом случае говорить нельзя.
 func TestLocal_RunDiagnosticsAlreadyRunning(t *testing.T) {
-	fd := &fakeDiag{runErr: errors.New("diagnostics already running"), status: diagnostics.RunStatus{Status: "running"}}
+	fd := &fakeDiag{status: diagnostics.RunStatus{Status: "running"}}
 	l := New(Config{Diagnostics: fd})
 
 	got, err := l.RunDiagnostics(context.Background(), false)

@@ -98,17 +98,24 @@ func registerObservabilityTools(s *mcp.Server, d Deps) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "run_diagnostics",
 		Description: "Start a full diagnostic sweep of the router in the background: interfaces, routes, firewall, kernel module, per-tunnel checks. " +
-			"It takes tens of seconds; call get_diagnostics afterwards for the outcome. Changes nothing — unless includeRestart is true: " +
-			"then the sweep also stops and starts every running kernel tunnel to time the cycle, which drops their connections for a few seconds. Ask the user before passing it.",
+			"It takes tens of seconds; call get_diagnostics afterwards for the outcome. Changes nothing: the restart test, which stops and starts tunnels, is run_diagnostics_with_restart.",
 		Annotations: readOnly("Run diagnostics"),
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in runDiagnosticsIn) (*mcp.CallToolResult, DiagnosticsRun, error) {
-		// The restart test writes — it stops and starts tunnels — so a
-		// read-only key is refused it here, as get_logs refuses raw: the
-		// scope middleware does not read arguments (scope.go, MC12).
-		if key, ok := KeyFromContext(ctx); ok && key.ReadOnly && in.IncludeRestart {
-			return nil, DiagnosticsRun{}, fmt.Errorf("includeRestart stops and starts tunnels, and this MCP key is read-only. Nothing was started. Call run_diagnostics without it, or ask the user for a full-access key")
-		}
-		out, err := d.RunDiagnostics(ctx, in.IncludeRestart)
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, DiagnosticsRun, error) {
+		out, err := d.RunDiagnostics(ctx, false)
+		return nil, out, err
+	})
+
+	// The restart test is a tool of its own, not an argument: a host decides
+	// from the annotations alone whether to ask the user, and readOnlyHint
+	// cannot depend on an argument. As a write, it is closed to a read-only
+	// key by the scope middleware, like every other write.
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "run_diagnostics_with_restart",
+		Description: "The full diagnostic sweep of run_diagnostics plus the restart test: every running kernel tunnel is stopped and started to time the cycle, which drops its connections for a few seconds. " +
+			"Ask the user first. Runs in the background; call get_diagnostics afterwards for the outcome.",
+		Annotations: safeWrite("Run diagnostics with the restart test", false),
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, DiagnosticsRun, error) {
+		out, err := d.RunDiagnostics(ctx, true)
 		return nil, out, err
 	})
 
@@ -132,10 +139,6 @@ func registerObservabilityTools(s *mcp.Server, d Deps) {
 		}
 		return nil, out, nil
 	})
-}
-
-type runDiagnosticsIn struct {
-	IncludeRestart bool `json:"includeRestart,omitempty" jsonschema:"also run the restart test: every running kernel tunnel is stopped and started, dropping its connections for a few seconds. Default false"`
 }
 
 // ErrNoDiagnostics is what DiagnosticsResult reports when nothing has run

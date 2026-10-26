@@ -73,7 +73,7 @@ type (
 	}
 	// DiagnosticsRunner is the subset of *diagnostics.Runner MCP uses.
 	DiagnosticsRunner interface {
-		RunWithStream(ctx context.Context, opts diagnostics.RunOptions) (<-chan diagnostics.DiagEvent, error)
+		Start(opts diagnostics.RunOptions) (events <-chan diagnostics.DiagEvent, started bool)
 		Status() diagnostics.RunStatus
 		Result() ([]byte, error)
 	}
@@ -1473,24 +1473,20 @@ func (l *Local) PingCheckLogs(_ context.Context, tunnelID string, limit int) ([]
 	return out, nil
 }
 
-// RunDiagnostics starts a full sweep through RunWithStream, which takes the
+// RunDiagnostics starts a full sweep through Runner.Start, which takes the
 // options: Runner.Run always adds the restart test, and that stops and
 // starts every running kernel tunnel — not what a read is allowed to do.
-// The events are drained and dropped; get_diagnostics reads the report. A
-// sweep already in progress is not an error — the caller simply must not
-// report a fresh run, hence Started.
-func (l *Local) RunDiagnostics(ctx context.Context, includeRestart bool) (mcpsrv.DiagnosticsRun, error) {
+// Start refuses to join a sweep already in progress, in the same step as
+// the check: that sweep's options are not ours. That is not an error — the
+// caller simply must not report a fresh run, hence Started. The events are
+// drained and dropped; get_diagnostics reads the report.
+func (l *Local) RunDiagnostics(_ context.Context, includeRestart bool) (mcpsrv.DiagnosticsRun, error) {
 	if l.c.Diagnostics == nil {
 		return mcpsrv.DiagnosticsRun{}, errUnavailable("diagnostics")
 	}
-	// Checked first: RunWithStream joins a sweep already in progress
-	// instead of refusing, and that sweep's options are not ours.
-	if l.c.Diagnostics.Status().Status == "running" {
-		return mcpsrv.DiagnosticsRun{Started: false, Status: "running", Message: "a diagnostic sweep was already running; call get_diagnostics for its outcome"}, nil
-	}
-	events, err := l.c.Diagnostics.RunWithStream(ctx, diagnostics.RunOptions{IncludeRestart: includeRestart})
-	if err != nil {
-		return mcpsrv.DiagnosticsRun{}, err
+	events, started := l.c.Diagnostics.Start(diagnostics.RunOptions{IncludeRestart: includeRestart})
+	if !started {
+		return mcpsrv.DiagnosticsRun{Started: false, Status: "running", Message: "a diagnostic sweep was already running; call get_diagnostics for its outcome — it may or may not include the restart test"}, nil
 	}
 	go func() {
 		for range events {

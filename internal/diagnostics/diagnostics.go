@@ -572,6 +572,20 @@ func (r *Runner) closeSubscribers() {
 // RunWithStream starts a diagnostic run and returns a channel of events.
 // If a run is already in progress, it subscribes to the existing run.
 func (r *Runner) RunWithStream(ctx context.Context, opts RunOptions) (<-chan DiagEvent, error) {
+	ch, _ := r.start(opts, true)
+	return ch, nil
+}
+
+// Start starts a run with opts unless one is in progress, and says which.
+// started false: another run — with its own options — is going, and
+// nothing was subscribed. RunWithStream joins that run instead; a caller
+// whose options matter (MCP: no restart test unless asked) must not, and
+// the check and the start are one step under r.mu here.
+func (r *Runner) Start(opts RunOptions) (events <-chan DiagEvent, started bool) {
+	return r.start(opts, false)
+}
+
+func (r *Runner) start(opts RunOptions, join bool) (<-chan DiagEvent, bool) {
 	r.mu.Lock()
 	alreadyRunning := r.status.Status == "running"
 	if !alreadyRunning {
@@ -581,13 +595,16 @@ func (r *Runner) RunWithStream(ctx context.Context, opts RunOptions) (<-chan Dia
 	}
 	r.mu.Unlock()
 
+	if alreadyRunning && !join {
+		return nil, false
+	}
 	ch := r.subscribe()
 
 	if !alreadyRunning {
 		go r.executeStream(context.Background())
 	}
 
-	return ch, nil
+	return ch, !alreadyRunning
 }
 
 func (r *Runner) execute(ctx context.Context) {
