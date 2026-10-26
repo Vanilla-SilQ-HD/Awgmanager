@@ -25,16 +25,20 @@ func requirePolicyName(name string) (string, error) {
 	return name, nil
 }
 
+// policyDescriptionShape is what the router takes for a policy's
+// description (accesspolicy.validDescription).
+var policyDescriptionShape = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
 func requireDescription(s string) (string, error) {
 	s = strings.TrimSpace(s)
-	if s == "" || len([]rune(s)) > MaxSingboxLabelRunes || strings.ContainsAny(s, "\r\n") {
-		return "", fmt.Errorf("description must be one line, 1 to %d characters", MaxSingboxLabelRunes)
+	if s == "" || len(s) > MaxSingboxLabelRunes || !policyDescriptionShape.MatchString(s) {
+		return "", fmt.Errorf("description must be 1 to %d Latin letters, digits, hyphens or underscores — the router takes nothing else (Kids_room, not \"Kids room\")", MaxSingboxLabelRunes)
 	}
 	return s, nil
 }
 
 type policyDescriptionIn struct {
-	Description string `json:"description" jsonschema:"the policy's name as the web interface and the router show it"`
+	Description string `json:"description" jsonschema:"the policy's name as the web interface and the router show it: Latin letters, digits, hyphens and underscores only (Kids_room)"`
 }
 
 type policyNameIn struct {
@@ -43,15 +47,17 @@ type policyNameIn struct {
 
 type updatePolicyIn struct {
 	Policy      string  `json:"policy" jsonschema:"policy name from list_access_policies"`
-	Description *string `json:"description,omitempty" jsonschema:"new description; omit to keep it"`
+	Description *string `json:"description,omitempty" jsonschema:"new description — Latin letters, digits, hyphens and underscores only; omit to keep it"`
 	Standalone  *bool   `json:"standalone,omitempty" jsonschema:"true: devices reach only the interfaces the policy permits, never the router's default connection; omit to keep it"`
 }
 
 type policyInterfaceIn struct {
 	Policy    string `json:"policy" jsonschema:"policy name from list_access_policies"`
 	Interface string `json:"interface" jsonschema:"interface name from list_policy_interfaces"`
-	Permit    bool   `json:"permit" jsonschema:"true permits it at position order; false denies it (kept in the list, not used)"`
-	Order     int    `json:"order,omitempty" jsonschema:"position for a permitted interface, from 0; traffic uses the first permitted interface that is up"`
+	Permit    bool   `json:"permit" jsonschema:"true permits it at position order; false removes it from the policy, so devices of the policy no longer go out through it"`
+	Order     int    `json:"order,omitempty" jsonschema:"position for a permitted interface, from 0, in the policy's order as list_access_policies shows it; traffic uses the first permitted interface that is up"`
+	// ExpectOrder ties Order to the list it was counted in.
+	ExpectOrder []string `json:"expectOrder,omitempty" jsonschema:"the names in the policy's order exactly as list_access_policies showed them. Pass it with order: a position counted in a list that has changed since lands elsewhere, so a list that differs is refused and nothing changes"`
 }
 
 type assignDeviceIn struct {
@@ -134,7 +140,8 @@ func registerPolicyTools(s *mcp.Server, d Deps) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "set_access_policy_interface",
-		Description: "Permit an interface in an access policy at a given position — the order decides which permitted interface traffic uses first — or deny it. " +
+		Description: "Permit an interface in an access policy at a given position — the order decides which permitted interface traffic uses first — or remove it from the policy. " +
+			"A position is counted in the policy's order from list_access_policies, which changes with every permit and removal: pass that order as expectOrder, and read the list again before the next call. " +
 			"Applied at once in the router; devices of the policy switch path immediately.",
 		Annotations: safeWrite("Set access policy interface", true),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in policyInterfaceIn) (*mcp.CallToolResult, AccessPolicy, error) {
@@ -149,7 +156,14 @@ func registerPolicyTools(s *mcp.Server, d Deps) {
 		if in.Order < 0 || in.Order > 64 {
 			return nil, AccessPolicy{}, fmt.Errorf("order must be between 0 and 64")
 		}
-		out, err := d.SetAccessPolicyInterface(ctx, name, iface, in.Permit, in.Order)
+		var expect []string
+		if in.ExpectOrder != nil {
+			expect = make([]string, 0, len(in.ExpectOrder))
+			for _, n := range in.ExpectOrder {
+				expect = append(expect, strings.TrimSpace(n))
+			}
+		}
+		out, err := d.SetAccessPolicyInterface(ctx, name, iface, in.Permit, in.Order, expect)
 		return nil, out, err
 	})
 

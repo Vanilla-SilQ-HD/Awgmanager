@@ -12,10 +12,12 @@ import (
 )
 
 // accessPolicy maps one policy, for the list and the edit tools alike.
-// Interfaces keeps the permitted ones only: denied interfaces are "in the
-// list but not used", and an agent that saw one there could route traffic
-// over a path the policy blocks. Order is the whole list, as the edit tools
-// see it.
+// Interfaces keeps the permitted ones only: a Denied entry is one the
+// router holds switched off — in the list, not used (query/policies.go,
+// !Enabled) — and an agent that saw one there could route traffic over a
+// path the policy blocks. Removing a permit (DenyInterface) is something
+// else: the entry is gone from the list. Order is the whole list, as the
+// edit tools see it.
 func accessPolicy(p accesspolicy.Policy) mcpsrv.AccessPolicy {
 	out := mcpsrv.AccessPolicy{Name: p.Name, Description: sanitizeLabel(p.Description), DeviceCount: p.DeviceCount, IsStandard: p.IsStandard, Standalone: p.Standalone, Interfaces: []string{}}
 	for _, iface := range p.Interfaces {
@@ -88,7 +90,12 @@ func (l *Local) DeleteAccessPolicy(ctx context.Context, name string) (mcpsrv.Acc
 		return mcpsrv.AccessPolicy{}, err
 	}
 	if l.c.Router != nil {
-		if settings, err := l.c.Router.GetSettings(ctx); err == nil && settings.PolicyName == name {
+		// Fails closed: a guard that could not look is no guard.
+		settings, err := l.c.Router.GetSettings(ctx)
+		if err != nil {
+			return mcpsrv.AccessPolicy{}, fmt.Errorf("could not check whether the sing-box router routes by access policy %q, so it was not deleted: %w", name, err)
+		}
+		if settings.PolicyName == name {
 			return mcpsrv.AccessPolicy{}, fmt.Errorf("access policy %q is the one the sing-box router routes by; choose another policy for it in the web interface first", name)
 		}
 	}
@@ -130,30 +137,56 @@ func (l *Local) UpdateAccessPolicy(ctx context.Context, name string, description
 	return l.findPolicy(ctx, name)
 }
 
-func (l *Local) SetAccessPolicyInterface(ctx context.Context, name, iface string, permit bool, order int) (mcpsrv.AccessPolicy, error) {
+// SetAccessPolicyInterface permits iface at a position, or removes it.
+//
+// A position is relative to the list the agent read: expectOrder, the
+// policy's interface names in order as list_access_policies showed them, is
+// compared with the list read here, just before the write, and a list that
+// changed meanwhile (a web edit, HydraRoute, an earlier call) is refused —
+// the position would land somewhere else. NDMS offers no compare-and-set,
+// so the read and the write are still two RCI calls; the check closes the
+// gap of the agent's turn, not that one.
+//
+// Only a permit needs an interface the router offers. Removing one goes by
+// the policy's own list: an interface whose tunnel is gone is no longer
+// offered, and it must still be removable (DenyInterface handles a name
+// NDMS no longer has).
+func (l *Local) SetAccessPolicyInterface(ctx context.Context, name, iface string, permit bool, order int, expectOrder []string) (mcpsrv.AccessPolicy, error) {
 	if l.c.Policies == nil {
 		return mcpsrv.AccessPolicy{}, errUnavailable("access policies")
 	}
-	if _, err := l.findPolicy(ctx, name); err != nil {
-		return mcpsrv.AccessPolicy{}, err
-	}
-	known, err := l.c.Policies.ListGlobalInterfaces(ctx)
+	current, err := l.findPolicy(ctx, name)
 	if err != nil {
 		return mcpsrv.AccessPolicy{}, err
 	}
-	if !slices.ContainsFunc(known, func(g accesspolicy.GlobalInterface) bool { return g.Name == iface }) {
-		return mcpsrv.AccessPolicy{}, fmt.Errorf("%q is not an interface a policy can use (use list_policy_interfaces)", iface)
+	names := make([]string, 0, len(current.Order))
+	for _, o := range current.Order {
+		names = append(names, o.Name)
+	}
+	if expectOrder != nil && !slices.Equal(names, expectOrder) {
+		return mcpsrv.AccessPolicy{}, fmt.Errorf("the interfaces of %q are now [%s], not [%s] as expected — the list changed since it was read; nothing was changed: read list_access_policies again",
+			name, strings.Join(names, ", "), strings.Join(expectOrder, ", "))
 	}
 	if permit {
+		known, err := l.c.Policies.ListGlobalInterfaces(ctx)
+		if err != nil {
+			return mcpsrv.AccessPolicy{}, err
+		}
+		if !slices.ContainsFunc(known, func(g accesspolicy.GlobalInterface) bool { return g.Name == iface }) {
+			return mcpsrv.AccessPolicy{}, fmt.Errorf("%q is not an interface a policy can use (use list_policy_interfaces)", iface)
+		}
 		err = l.c.Policies.PermitInterface(ctx, name, iface, order)
 	} else {
+		if !slices.Contains(names, iface) {
+			return mcpsrv.AccessPolicy{}, fmt.Errorf("%q is not in access policy %q, so there is nothing to remove (its interfaces: %s)", iface, name, strings.Join(names, ", "))
+		}
 		err = l.c.Policies.DenyInterface(ctx, name, iface)
 	}
 	if err != nil {
 		l.policyLog.Warn("interface", name, "Failed to change policy interface (MCP): "+err.Error())
 		return mcpsrv.AccessPolicy{}, err
 	}
-	verb := "denied"
+	verb := "removed"
 	if permit {
 		verb = fmt.Sprintf("permitted at %d", order)
 	}

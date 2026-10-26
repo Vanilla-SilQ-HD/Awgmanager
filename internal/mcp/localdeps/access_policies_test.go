@@ -3,6 +3,7 @@ package localdeps
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -53,7 +54,7 @@ func (f *fakePolicies) SetStandalone(_ context.Context, name string, on bool) er
 	return nil
 }
 func (f *fakePolicies) PermitInterface(_ context.Context, name, iface string, order int) error {
-	f.calls = append(f.calls, "permit "+name+" "+iface)
+	f.calls = append(f.calls, fmt.Sprintf("permit %s %s at %d", name, iface, order))
 	return nil
 }
 func (f *fakePolicies) DenyInterface(_ context.Context, name, iface string) error {
@@ -113,13 +114,13 @@ func TestLocal_AccessPolicyWrites(t *testing.T) {
 	if err != nil || !got.Standalone || len(got.Interfaces) != 1 || len(got.Order) != 2 || !got.Order[1].Denied {
 		t.Fatalf("got %+v, %v", got, err)
 	}
-	if _, err := l.SetAccessPolicyInterface(ctx, "Policy0", "ISP", true, 0); err != nil {
+	if _, err := l.SetAccessPolicyInterface(ctx, "Policy0", "ISP", true, 1, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.SetAccessPolicyInterface(ctx, "Policy0", "Wireguard0", false, 0); err != nil {
+	if _, err := l.SetAccessPolicyInterface(ctx, "Policy0", "Wireguard0", false, 0, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.SetAccessPolicyInterface(ctx, "Policy0", "Ghost0", true, 0); err == nil {
+	if _, err := l.SetAccessPolicyInterface(ctx, "Policy0", "Ghost0", true, 0, nil); err == nil {
 		t.Fatal("an interface the router does not offer must be refused")
 	}
 	bus.pub = nil
@@ -129,7 +130,7 @@ func TestLocal_AccessPolicyWrites(t *testing.T) {
 	if _, err := l.AssignDevicePolicy(ctx, "aa:bb:cc:dd:ee:ff", ""); err != nil {
 		t.Fatal(err)
 	}
-	want := "standalone Policy0|permit Policy0 ISP|deny Policy0 Wireguard0|assign aa:bb:cc:dd:ee:ff Policy0|unassign aa:bb:cc:dd:ee:ff"
+	want := "standalone Policy0|permit Policy0 ISP at 1|deny Policy0 Wireguard0|assign aa:bb:cc:dd:ee:ff Policy0|unassign aa:bb:cc:dd:ee:ff"
 	if got := strings.Join(fp.calls, "|"); got != want {
 		t.Fatalf("calls = %s", got)
 	}
@@ -158,4 +159,48 @@ func TestLocal_DeleteAccessPolicyGuardsTheRouterPolicy(t *testing.T) {
 	if err != nil || deleted.Name != "Policy0" || fp.calls[0] != "delete Policy0" {
 		t.Fatalf("deleted = %+v, %v", deleted, err)
 	}
+}
+
+// TestLocal_SetAccessPolicyInterfaceChecksTheOrder — позиция считается в
+// списке, который агент прочитал; список, изменившийся с тех пор, — отказ
+// без записи. Снять можно и интерфейс, которого роутер больше не
+// предлагает (туннель удалён), но не тот, которого в политике нет.
+func TestLocal_SetAccessPolicyInterfaceChecksTheOrder(t *testing.T) {
+	fp := policiesHarness()
+	l := New(Config{Policies: fp})
+	ctx := context.Background()
+
+	if _, err := l.SetAccessPolicyInterface(ctx, "Policy0", "ISP", true, 0, []string{"ISP", "Wireguard0"}); err == nil || !strings.Contains(err.Error(), "list_access_policies") || len(fp.calls) != 0 {
+		t.Fatalf("a stale order must be refused before the write: %v, %v", err, fp.calls)
+	}
+	if _, err := l.SetAccessPolicyInterface(ctx, "Policy0", "ISP", true, 0, []string{"Wireguard0", "ISP"}); err != nil || fp.calls[0] != "permit Policy0 ISP at 0" {
+		t.Fatalf("the order read is the order now: %v, %v", err, fp.calls)
+	}
+
+	fp.calls = nil
+	fp.policies[0].Interfaces = append(fp.policies[0].Interfaces, accesspolicy.PermittedIface{Name: "Wireguard7", Order: 2})
+	if _, err := l.SetAccessPolicyInterface(ctx, "Policy0", "Wireguard7", false, 0, nil); err != nil || len(fp.calls) != 1 || fp.calls[0] != "deny Policy0 Wireguard7" {
+		t.Fatalf("an interface the router no longer offers must still be removable: %v, %v", err, fp.calls)
+	}
+	if _, err := l.SetAccessPolicyInterface(ctx, "Policy0", "Wireguard1", false, 0, nil); err == nil || len(fp.calls) != 1 {
+		t.Fatalf("an interface not in the policy has nothing to remove: %v, %v", err, fp.calls)
+	}
+}
+
+// TestLocal_DeleteAccessPolicyFailsClosed — проверка «по этой политике
+// работает маршрутизатор sing-box», которая не смогла прочитать настройки,
+// не пропускает удаление.
+func TestLocal_DeleteAccessPolicyFailsClosed(t *testing.T) {
+	fp := policiesHarness()
+	fr := &settingsErrRouter{fakeRouter: routerHarness()}
+	l := New(Config{Policies: fp, Router: fr})
+	if _, err := l.DeleteAccessPolicy(context.Background(), "Policy0"); err == nil || !strings.Contains(err.Error(), "not deleted") || len(fp.calls) != 0 {
+		t.Fatalf("err = %v, calls = %v", err, fp.calls)
+	}
+}
+
+type settingsErrRouter struct{ *fakeRouter }
+
+func (settingsErrRouter) GetSettings(context.Context) (storage.SingboxRouterSettings, error) {
+	return storage.SingboxRouterSettings{}, errors.New("settings unreadable")
 }

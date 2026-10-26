@@ -872,7 +872,9 @@ func (f *Fake) UpdateAccessPolicy(_ context.Context, name string, description *s
 	return f.Policies[i], nil
 }
 
-func (f *Fake) SetAccessPolicyInterface(_ context.Context, name, iface string, permit bool, order int) (mcpsrv.AccessPolicy, error) {
+// SetAccessPolicyInterface keeps the fake's policies without denied
+// entries: Interfaces is the whole order, and Order mirrors it.
+func (f *Fake) SetAccessPolicyInterface(_ context.Context, name, iface string, permit bool, order int, expectOrder []string) (mcpsrv.AccessPolicy, error) {
 	if f.Err != nil {
 		return mcpsrv.AccessPolicy{}, f.Err
 	}
@@ -882,13 +884,23 @@ func (f *Fake) SetAccessPolicyInterface(_ context.Context, name, iface string, p
 	if err != nil {
 		return mcpsrv.AccessPolicy{}, err
 	}
-	if !slices.ContainsFunc(policyInterfaces, func(g mcpsrv.PolicyInterface) bool { return g.Name == iface }) {
+	p := &f.Policies[i]
+	if expectOrder != nil && !slices.Equal(p.Interfaces, expectOrder) {
+		return mcpsrv.AccessPolicy{}, fmt.Errorf("the interfaces of %q are now %v, not %v — the list changed since it was read; nothing was changed: read list_access_policies again", name, p.Interfaces, expectOrder)
+	}
+	if permit && !slices.ContainsFunc(policyInterfaces, func(g mcpsrv.PolicyInterface) bool { return g.Name == iface }) {
 		return mcpsrv.AccessPolicy{}, fmt.Errorf("%q is not an interface a policy can use (use list_policy_interfaces)", iface)
 	}
-	p := &f.Policies[i]
+	if !permit && !slices.Contains(p.Interfaces, iface) {
+		return mcpsrv.AccessPolicy{}, fmt.Errorf("%q is not in access policy %q, so there is nothing to remove", iface, name)
+	}
 	p.Interfaces = slices.DeleteFunc(slices.Clone(p.Interfaces), func(n string) bool { return n == iface })
 	if permit {
 		p.Interfaces = slices.Insert(p.Interfaces, min(order, len(p.Interfaces)), iface)
+	}
+	p.Order = nil
+	for j, n := range p.Interfaces {
+		p.Order = append(p.Order, mcpsrv.AccessPolicyInterface{Name: n, Order: j})
 	}
 	return *p, nil
 }

@@ -36,6 +36,9 @@ func TestTools_AccessPolicyLifecycle(t *testing.T) {
 		"unknown interface": {"set_access_policy_interface", map[string]any{"policy": "Policy0", "interface": "Ghost0", "permit": true}},
 		"bad interface":     {"set_access_policy_interface", map[string]any{"policy": "Policy0", "interface": "a b", "permit": true}},
 		"negative order":    {"set_access_policy_interface", map[string]any{"policy": "Policy0", "interface": "ISP", "permit": true, "order": -1}},
+		"stale order":       {"set_access_policy_interface", map[string]any{"policy": "Policy0", "interface": "ISP", "permit": true, "order": 0, "expectOrder": []any{"Ghost0"}}},
+		"remove absent":     {"set_access_policy_interface", map[string]any{"policy": "Policy0", "interface": "Ghost0", "permit": false}},
+		"spaced name":       {"create_access_policy", map[string]any{"description": "Kids room"}},
 		"bad mac":           {"assign_device_policy", map[string]any{"mac": "not-a-mac", "policy": "Policy0"}},
 		"unknown device":    {"assign_device_policy", map[string]any{"mac": "11:22:33:44:55:66", "policy": "Policy0"}},
 	} {

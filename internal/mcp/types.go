@@ -700,7 +700,7 @@ type AccessPolicyInterface struct {
 	Name   string `json:"name"`
 	Label  string `json:"label,omitempty"`
 	Order  int    `json:"order" jsonschema:"position: traffic uses the first permitted interface that is up"`
-	Denied bool   `json:"denied,omitempty" jsonschema:"in the list but not used"`
+	Denied bool   `json:"denied,omitempty" jsonschema:"the router holds this entry switched off: it stays in the list and is not used. set_access_policy_interface with permit false removes an entry instead"`
 }
 
 // PolicyInterface is a router interface a policy can permit.
