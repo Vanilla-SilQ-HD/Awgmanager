@@ -24,7 +24,7 @@ func TestLocal_SingboxRuleWrites(t *testing.T) {
 		SourceIPCIDR: []string{"192.168.1.10"}, SourceMAC: []string{"aa:bb:cc:dd:ee:ff"}, Port: []int{443},
 		RuleSet: []string{"geosite-ru"}, Network: "tcp", Protocol: "tls", Action: "route", Outbound: "auto",
 	}
-	if err := l.AddSingboxRule(ctx, -1, in); err != nil {
+	if err := l.AddSingboxRule(ctx, -1, "", in); err != nil {
 		t.Fatal(err)
 	}
 	r := fr.rule
@@ -33,16 +33,16 @@ func TestLocal_SingboxRuleWrites(t *testing.T) {
 		r.RuleSet[0] != "geosite-ru" || r.Network != "tcp" || r.Protocol != "tls" || r.Action != "route" || r.Outbound != "auto" {
 		t.Fatalf("at %d: %+v", fr.ruleAt, r)
 	}
-	if err := l.AddSingboxRule(ctx, 1, in); err != nil || fr.ruleAt != 1 {
+	if err := l.AddSingboxRule(ctx, 1, "", in); err != nil || fr.ruleAt != 1 {
 		t.Fatalf("a given position must pass through: %d, %v", fr.ruleAt, err)
 	}
-	if err := l.UpdateSingboxRule(ctx, 0, in); err != nil || fr.ruleAt != 0 {
+	if err := l.UpdateSingboxRule(ctx, 0, "", in); err != nil || fr.ruleAt != 0 {
 		t.Fatalf("update: %d, %v", fr.ruleAt, err)
 	}
-	if err := l.MoveSingboxRule(ctx, 1, 0); err != nil || fr.ruleAt != 1 || fr.ruleTo != 0 {
+	if err := l.MoveSingboxRule(ctx, 1, 0, ""); err != nil || fr.ruleAt != 1 || fr.ruleTo != 0 {
 		t.Fatalf("move: %d → %d, %v", fr.ruleAt, fr.ruleTo, err)
 	}
-	deleted, err := l.DeleteSingboxRule(ctx, 1)
+	deleted, err := l.DeleteSingboxRule(ctx, 1, "")
 	if err != nil || !strings.Contains(deleted.Match, "geosite-ru") || deleted.Index != 1 {
 		t.Fatalf("the deleted rule must come back rendered: %+v, %v", deleted, err)
 	}
@@ -110,7 +110,7 @@ func TestLocal_RuleEditErrorsNameTheWayOut(t *testing.T) {
 	}
 	for _, c := range cases {
 		fr.editErr = c.err
-		err := l.MoveSingboxRule(ctx, 0, 1)
+		err := l.MoveSingboxRule(ctx, 0, 1, "")
 		if !errors.Is(err, c.err) || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%v → %v, want it to mention %q", c.err, err, c.want)
 		}
@@ -130,10 +130,10 @@ func TestLocal_RuleWritesRefusedInFakeIPMode(t *testing.T) {
 	in := mcpsrv.SingboxRuleInput{Domain: []string{"a.example"}, Action: "reject"}
 
 	for name, call := range map[string]func() error{
-		"add":    func() error { return l.AddSingboxRule(ctx, -1, in) },
-		"update": func() error { return l.UpdateSingboxRule(ctx, 0, in) },
-		"delete": func() error { _, err := l.DeleteSingboxRule(ctx, 0); return err },
-		"move":   func() error { return l.MoveSingboxRule(ctx, 0, 1) },
+		"add":    func() error { return l.AddSingboxRule(ctx, -1, "", in) },
+		"update": func() error { return l.UpdateSingboxRule(ctx, 0, "", in) },
+		"delete": func() error { _, err := l.DeleteSingboxRule(ctx, 0, ""); return err },
+		"move":   func() error { return l.MoveSingboxRule(ctx, 0, 1, "") },
 		"final":  func() error { return l.SetSingboxRouteFinal(ctx, "auto") },
 		"add ruleset": func() error {
 			return l.AddSingboxRuleSet(ctx, mcpsrv.SingboxRuleSetInput{Tag: "x", Type: "inline", Domain: []string{"a"}})
@@ -146,5 +146,52 @@ func TestLocal_RuleWritesRefusedInFakeIPMode(t *testing.T) {
 	}
 	if fr.edits != 0 {
 		t.Fatalf("%d edits reached the router", fr.edits)
+	}
+}
+
+// TestLocal_RuleEditsCheckExpectMatch — агент удаляет правила 0 и 1 по
+// старому списку; после первого удаления под номером 0 стоит бывшее
+// первое. expectMatch — match из list_singbox_rules — сверяется в той же
+// записи, и правка не того правила отказывает, ничего не записав.
+func TestLocal_RuleEditsCheckExpectMatch(t *testing.T) {
+	ctx := context.Background()
+	fr := routerHarness()
+	l := New(Config{Router: fr})
+	listed, _, err := l.ListSingboxRules(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	youtube, ruSet := listed[0].Match, listed[1].Match
+	in := mcpsrv.SingboxRuleInput{Domain: []string{"a.example"}, Action: "reject"}
+
+	for name, call := range map[string]func() error{
+		"add":      func() error { return l.AddSingboxRule(ctx, 1, youtube, in) },
+		"update":   func() error { return l.UpdateSingboxRule(ctx, 1, youtube, in) },
+		"delete":   func() error { _, err := l.DeleteSingboxRule(ctx, 1, youtube); return err },
+		"move":     func() error { return l.MoveSingboxRule(ctx, 1, 0, youtube) },
+		"outbound": func() error { return l.SetSingboxRuleOutbound(ctx, 1, youtube, "auto") },
+	} {
+		err := call()
+		if !errors.Is(err, errRuleChanged) || !strings.Contains(err.Error(), "list_singbox_rules") || !strings.Contains(err.Error(), ruSet) {
+			t.Errorf("%s: err = %v, want a refusal naming the rule now there", name, err)
+		}
+	}
+	if fr.edits != 0 || fr.bulkIdx != nil {
+		t.Fatalf("a failed check must write nothing: %d edits, outbound %v", fr.edits, fr.bulkIdx)
+	}
+
+	for name, call := range map[string]func() error{
+		"add":      func() error { return l.AddSingboxRule(ctx, 1, " "+ruSet+" ", in) },
+		"update":   func() error { return l.UpdateSingboxRule(ctx, 0, youtube, in) },
+		"delete":   func() error { _, err := l.DeleteSingboxRule(ctx, 1, ruSet); return err },
+		"move":     func() error { return l.MoveSingboxRule(ctx, 1, 0, ruSet) },
+		"outbound": func() error { return l.SetSingboxRuleOutbound(ctx, 0, youtube, "auto") },
+	} {
+		if err := call(); err != nil {
+			t.Errorf("%s: a matching check must let the edit through: %v", name, err)
+		}
+	}
+	if fr.checked != 10 {
+		t.Fatalf("every expectMatch must reach the router as a check: %d", fr.checked)
 	}
 }

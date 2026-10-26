@@ -29,21 +29,30 @@ type ruleIn struct {
 type addRuleIn struct {
 	ruleIn
 	Position *int `json:"position,omitempty" jsonschema:"index in list_singbox_rules the new rule takes — the rule there and below move down; omit to append. sing-box uses the FIRST rule that matches, so a rule placed after a broader one never fires. Nothing goes above a system rule (list_singbox_rules marks them system)"`
+	// ExpectMatch names the rule now at Position, which the new one goes
+	// above; with no position there is nothing to check.
+	ExpectMatch string `json:"expectMatch,omitempty" jsonschema:"with position: the match list_singbox_rules shows for the rule now at that position, which the new rule goes above. Pass it: positions shift after every add, move and delete, and with the web interface open; a rule there that no longer matches this is refused and nothing changes"`
 }
 
 type updateRuleIn struct {
 	ruleIn
-	Index int `json:"index" jsonschema:"rule position from list_singbox_rules; the rule is replaced WHOLE — matchers left out are removed"`
+	Index       int    `json:"index" jsonschema:"rule position from list_singbox_rules; the rule is replaced WHOLE — matchers left out are removed"`
+	ExpectMatch string `json:"expectMatch,omitempty" jsonschema:"the match list_singbox_rules shows for the rule at this position. Pass it: positions shift after every add, move and delete, and with the web interface open; a rule there that no longer matches this is refused and nothing changes"`
 }
 
 type ruleIndexIn struct {
-	Index int `json:"index" jsonschema:"rule position from list_singbox_rules"`
+	Index       int    `json:"index" jsonschema:"rule position from list_singbox_rules"`
+	ExpectMatch string `json:"expectMatch,omitempty" jsonschema:"the match list_singbox_rules shows for the rule at this position. Pass it: positions shift after every add, move and delete, and with the web interface open; a rule there that no longer matches this is refused and nothing changes"`
 }
 
 type moveRuleIn struct {
-	From int `json:"from" jsonschema:"position of the rule to move, from list_singbox_rules"`
-	To   int `json:"to" jsonschema:"position it takes; the rules between shift by one"`
+	From        int    `json:"from" jsonschema:"position of the rule to move, from list_singbox_rules"`
+	To          int    `json:"to" jsonschema:"position it takes; the rules between shift by one"`
+	ExpectMatch string `json:"expectMatch,omitempty" jsonschema:"the match list_singbox_rules shows for the rule at from. Pass it: positions shift after every add, move and delete, and with the web interface open; a rule there that no longer matches this is refused and nothing changes"`
 }
+
+// positionsShift is said by every tool that takes a rule position.
+const positionsShift = "Positions come from list_singbox_rules and shift after every add, move and delete: read the list again before the next edit by position, and pass the rule's match as expectMatch — a rule that no longer matches is refused and nothing changes. "
 
 type routeFinalIn struct {
 	Outbound string `json:"outbound" jsonschema:"outbound tag for traffic no rule matched, from list_singbox_outbounds or list_singbox_tunnels, or direct"`
@@ -173,6 +182,7 @@ func registerRuleTools(s *mcp.Server, d Deps) {
 		Name: "add_singbox_rule",
 		Description: "Add a routing rule to the sing-box router: traffic matching its conditions is routed through an outbound or rejected. " +
 			"Values within one condition are alternatives; the conditions combine as list_singbox_rules spells them out. Position matters — sing-box uses the FIRST rule that matches. " +
+			positionsShift +
 			"The rule goes into the router's DRAFT and changes nothing until apply_singbox_staging runs. Refused while the router runs in fakeip-tun mode.",
 		Annotations: safeWrite("Add sing-box rule", false),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in addRuleIn) (*mcp.CallToolResult, stagedRuleOut, error) {
@@ -186,8 +196,10 @@ func registerRuleTools(s *mcp.Server, d Deps) {
 				return nil, stagedRuleOut{}, fmt.Errorf("position must not be negative (omit it to append)")
 			}
 			position = *in.Position
+		} else if strings.TrimSpace(in.ExpectMatch) != "" {
+			return nil, stagedRuleOut{}, fmt.Errorf("expectMatch names the rule at position; without a position the rule is appended and there is nothing to check")
 		}
-		if err := d.AddSingboxRule(ctx, position, rule); err != nil {
+		if err := d.AddSingboxRule(ctx, position, in.ExpectMatch, rule); err != nil {
 			return nil, stagedRuleOut{}, err
 		}
 		return stagedResult(), stagedRuleOut{Staged: true}, nil
@@ -196,6 +208,7 @@ func registerRuleTools(s *mcp.Server, d Deps) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "update_singbox_rule",
 		Description: "Replace one routing rule of the sing-box router WHOLE: conditions, action and outbound — anything left out is removed. To change only the outbound, use set_singbox_rule_outbound. " +
+			positionsShift +
 			"System rules and rules generated by awg-manager cannot be edited. The edit goes into the router's DRAFT and changes nothing until apply_singbox_staging runs. Refused while the router runs in fakeip-tun mode.",
 		Annotations: safeWrite("Update sing-box rule", true),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in updateRuleIn) (*mcp.CallToolResult, stagedRuleOut, error) {
@@ -206,7 +219,7 @@ func registerRuleTools(s *mcp.Server, d Deps) {
 		if err != nil {
 			return nil, stagedRuleOut{}, err
 		}
-		if err := d.UpdateSingboxRule(ctx, in.Index, rule); err != nil {
+		if err := d.UpdateSingboxRule(ctx, in.Index, in.ExpectMatch, rule); err != nil {
 			return nil, stagedRuleOut{}, err
 		}
 		return stagedResult(), stagedRuleOut{Staged: true}, nil
@@ -215,13 +228,14 @@ func registerRuleTools(s *mcp.Server, d Deps) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "move_singbox_rule",
 		Description: "Move one routing rule of the sing-box router to another position; the rules between shift by one. Position decides the outcome: sing-box uses the FIRST rule that matches. " +
+			positionsShift +
 			"System rules and rules generated by awg-manager are not moved, and nothing is moved onto a system rule's place. The edit goes into the router's DRAFT. Refused while the router runs in fakeip-tun mode.",
 		Annotations: safeWrite("Move sing-box rule", false),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in moveRuleIn) (*mcp.CallToolResult, stagedRuleOut, error) {
 		if in.From < 0 || in.To < 0 {
 			return nil, stagedRuleOut{}, fmt.Errorf("positions must not be negative (use list_singbox_rules)")
 		}
-		if err := d.MoveSingboxRule(ctx, in.From, in.To); err != nil {
+		if err := d.MoveSingboxRule(ctx, in.From, in.To, in.ExpectMatch); err != nil {
 			return nil, stagedRuleOut{}, err
 		}
 		return stagedResult(), stagedRuleOut{Staged: true}, nil
@@ -230,13 +244,14 @@ func registerRuleTools(s *mcp.Server, d Deps) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "delete_singbox_rule",
 		Description: "Delete one routing rule of the sing-box router. System rules and rules generated by awg-manager cannot be deleted. " +
+			positionsShift +
 			"The deletion goes into the router's DRAFT and can be discarded until apply_singbox_staging runs; after that nothing in MCP restores the rule, so the result carries it as it was. Refused while the router runs in fakeip-tun mode.",
 		Annotations: destructiveWrite("Delete sing-box rule", false),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in ruleIndexIn) (*mcp.CallToolResult, deletedRuleOut, error) {
 		if in.Index < 0 {
 			return nil, deletedRuleOut{}, fmt.Errorf("index must not be negative (use list_singbox_rules)")
 		}
-		deleted, err := d.DeleteSingboxRule(ctx, in.Index)
+		deleted, err := d.DeleteSingboxRule(ctx, in.Index, in.ExpectMatch)
 		if err != nil {
 			return nil, deletedRuleOut{}, err
 		}

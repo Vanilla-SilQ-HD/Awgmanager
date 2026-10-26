@@ -144,14 +144,21 @@ func (m *mockRouterSvc) UpdateCompositeOutbound(ctx context.Context, tag string,
 func (m *mockRouterSvc) SetCompositeOutboundMembers(ctx context.Context, tag string, members []string) error {
 	return nil
 }
-func (m *mockRouterSvc) InsertRule(ctx context.Context, index int, r router.Rule) error { return nil }
-func (m *mockRouterSvc) ReplaceUserRule(ctx context.Context, index int, r router.Rule) error {
+func (m *mockRouterSvc) InsertRule(ctx context.Context, index int, r router.Rule, check router.RuleCheck) error {
 	return nil
 }
-func (m *mockRouterSvc) DeleteUserRule(ctx context.Context, index int) (router.Rule, error) {
+func (m *mockRouterSvc) ReplaceUserRule(ctx context.Context, index int, r router.Rule, check router.RuleCheck) error {
+	return nil
+}
+func (m *mockRouterSvc) DeleteUserRule(ctx context.Context, index int, check router.RuleCheck) (router.Rule, error) {
 	return router.Rule{}, nil
 }
-func (m *mockRouterSvc) MoveUserRule(ctx context.Context, from, to int) error { return nil }
+func (m *mockRouterSvc) MoveUserRule(ctx context.Context, from, to int, check router.RuleCheck) error {
+	return nil
+}
+func (m *mockRouterSvc) SetUserRuleOutbound(ctx context.Context, index int, outbound string, check router.RuleCheck) error {
+	return nil
+}
 func (m *mockRouterSvc) DeleteCompositeOutbound(ctx context.Context, tag string, force bool) error {
 	return nil
 }

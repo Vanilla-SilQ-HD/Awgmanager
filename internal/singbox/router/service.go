@@ -50,12 +50,14 @@ type Service interface {
 	PolicyTunNATPreview(ctx context.Context) (NATPreview, error)
 
 	SetRouteFinal(ctx context.Context, tag string) error
-	// InsertRule, ReplaceUserRule, DeleteUserRule и MoveUserRule — правки
-	// правил пользователя для MCP, см. service_user_rules.go.
-	InsertRule(ctx context.Context, index int, r Rule) error
-	ReplaceUserRule(ctx context.Context, index int, r Rule) error
-	DeleteUserRule(ctx context.Context, index int) (Rule, error)
-	MoveUserRule(ctx context.Context, from, to int) error
+	// InsertRule, ReplaceUserRule, DeleteUserRule, MoveUserRule и
+	// SetUserRuleOutbound — правки правил пользователя для MCP со сверкой
+	// позиции (RuleCheck), см. service_user_rules.go.
+	InsertRule(ctx context.Context, index int, r Rule, check RuleCheck) error
+	ReplaceUserRule(ctx context.Context, index int, r Rule, check RuleCheck) error
+	DeleteUserRule(ctx context.Context, index int, check RuleCheck) (Rule, error)
+	MoveUserRule(ctx context.Context, from, to int, check RuleCheck) error
+	SetUserRuleOutbound(ctx context.Context, index int, outbound string, check RuleCheck) error
 
 	ListRules(ctx context.Context) ([]Rule, error)
 	AddRule(ctx context.Context, rule Rule) error

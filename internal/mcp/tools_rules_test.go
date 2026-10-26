@@ -171,3 +171,51 @@ func TestTools_SingboxRuleSets(t *testing.T) {
 		}
 	}
 }
+
+// TestTools_SingboxRuleEditsCheckExpectMatch — сценарий из ревью #1067:
+// агент удаляет правила 0 и 1 по старому списку. После первого удаления под
+// номером 1 стоит бывшее второе; с expectMatch правка не того правила
+// отказывает и ничего не меняет, а подсказка ведёт к новому списку.
+func TestTools_SingboxRuleEditsCheckExpectMatch(t *testing.T) {
+	s, _ := newTestSession(t)
+	if res, _ := callTool(t, s, "add_singbox_rule", map[string]any{"domain": []any{"new.example"}, "action": "reject", "position": 1}); res.IsError {
+		t.Fatal(toolText(res))
+	}
+	_, out := callTool(t, s, "list_singbox_rules", nil)
+	listed := out["rules"].([]any)
+	m0, m1 := listed[0].(map[string]any)["match"].(string), listed[1].(map[string]any)["match"].(string)
+
+	if res, _ := callTool(t, s, "delete_singbox_rule", map[string]any{"index": 0, "expectMatch": m0}); res.IsError {
+		t.Fatal(toolText(res))
+	}
+	_, out = callTool(t, s, "list_singbox_rules", nil)
+	before := ruleOutbounds(t, out)
+	for name, c := range map[string]struct {
+		tool string
+		args map[string]any
+	}{
+		"delete":   {"delete_singbox_rule", map[string]any{"index": 1, "expectMatch": m1}},
+		"update":   {"update_singbox_rule", map[string]any{"index": 1, "expectMatch": m1, "domain": []any{"a.example"}, "action": "reject"}},
+		"move":     {"move_singbox_rule", map[string]any{"from": 1, "to": 0, "expectMatch": m1}},
+		"add":      {"add_singbox_rule", map[string]any{"position": 1, "expectMatch": m1, "domain": []any{"a.example"}, "action": "reject"}},
+		"outbound": {"set_singbox_rule_outbound", map[string]any{"index": 1, "expectMatch": m1, "outbound": "auto"}},
+	} {
+		res, _ := callTool(t, s, c.tool, c.args)
+		if !res.IsError || !strings.Contains(toolText(res), "list_singbox_rules") {
+			t.Errorf("%s: a stale position must be refused with the way out: %q", name, toolText(res))
+		}
+	}
+	res, _ := callTool(t, s, "add_singbox_rule", map[string]any{"expectMatch": m1, "domain": []any{"a.example"}, "action": "reject"})
+	if !res.IsError || !strings.Contains(toolText(res), "position") {
+		t.Errorf("expectMatch without a position has nothing to check: %q", toolText(res))
+	}
+	_, out = callTool(t, s, "list_singbox_rules", nil)
+	if got := ruleOutbounds(t, out); strings.Join(got, ",") != strings.Join(before, ",") {
+		t.Fatalf("refused edits must change nothing: %v → %v", before, got)
+	}
+
+	res, out = callTool(t, s, "delete_singbox_rule", map[string]any{"index": 0, "expectMatch": m1})
+	if res.IsError || out["deleted"].(map[string]any)["match"] != m1 {
+		t.Fatalf("the rule now at 0 matches and goes: %q, %v", toolText(res), out)
+	}
+}

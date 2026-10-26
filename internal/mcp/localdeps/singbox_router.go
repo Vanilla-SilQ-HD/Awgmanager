@@ -392,7 +392,7 @@ func singboxRuleFrom(in mcpsrv.SingboxRuleInput) router.Rule {
 // AddSingboxRule inserts through InsertRule, which checks the outbound and
 // keeps system rules on top in the same write. -1 is the end of the list,
 // which InsertRule reads inside that write.
-func (l *Local) AddSingboxRule(ctx context.Context, position int, in mcpsrv.SingboxRuleInput) error {
+func (l *Local) AddSingboxRule(ctx context.Context, position int, expectMatch string, in mcpsrv.SingboxRuleInput) error {
 	if l.c.Router == nil {
 		return errUnavailable("sing-box router")
 	}
@@ -402,7 +402,7 @@ func (l *Local) AddSingboxRule(ctx context.Context, position int, in mcpsrv.Sing
 	if position < 0 {
 		position = -1
 	}
-	if err := l.c.Router.InsertRule(ctx, position, singboxRuleFrom(in)); err != nil {
+	if err := l.c.Router.InsertRule(ctx, position, singboxRuleFrom(in), expectRule(position, expectMatch)); err != nil {
 		l.singboxLog.Warn("rule-add", strconv.Itoa(position), "Failed to add sing-box rule (MCP): "+err.Error())
 		return ruleEditError(err)
 	}
@@ -410,14 +410,14 @@ func (l *Local) AddSingboxRule(ctx context.Context, position int, in mcpsrv.Sing
 	return nil
 }
 
-func (l *Local) UpdateSingboxRule(ctx context.Context, index int, in mcpsrv.SingboxRuleInput) error {
+func (l *Local) UpdateSingboxRule(ctx context.Context, index int, expectMatch string, in mcpsrv.SingboxRuleInput) error {
 	if l.c.Router == nil {
 		return errUnavailable("sing-box router")
 	}
 	if err := l.requireTProxyRouter(ctx); err != nil {
 		return err
 	}
-	if err := l.c.Router.ReplaceUserRule(ctx, index, singboxRuleFrom(in)); err != nil {
+	if err := l.c.Router.ReplaceUserRule(ctx, index, singboxRuleFrom(in), expectRule(index, expectMatch)); err != nil {
 		l.singboxLog.Warn("rule-update", strconv.Itoa(index), "Failed to replace sing-box rule (MCP): "+err.Error())
 		return ruleEditError(err)
 	}
@@ -425,14 +425,14 @@ func (l *Local) UpdateSingboxRule(ctx context.Context, index int, in mcpsrv.Sing
 	return nil
 }
 
-func (l *Local) DeleteSingboxRule(ctx context.Context, index int) (mcpsrv.SingboxRule, error) {
+func (l *Local) DeleteSingboxRule(ctx context.Context, index int, expectMatch string) (mcpsrv.SingboxRule, error) {
 	if l.c.Router == nil {
 		return mcpsrv.SingboxRule{}, errUnavailable("sing-box router")
 	}
 	if err := l.requireTProxyRouter(ctx); err != nil {
 		return mcpsrv.SingboxRule{}, err
 	}
-	deleted, err := l.c.Router.DeleteUserRule(ctx, index)
+	deleted, err := l.c.Router.DeleteUserRule(ctx, index, expectRule(index, expectMatch))
 	if err != nil {
 		l.singboxLog.Warn("rule-delete", strconv.Itoa(index), "Failed to delete sing-box rule (MCP): "+err.Error())
 		return mcpsrv.SingboxRule{}, ruleEditError(err)
@@ -441,14 +441,14 @@ func (l *Local) DeleteSingboxRule(ctx context.Context, index int) (mcpsrv.Singbo
 	return singboxRule(index, deleted), nil
 }
 
-func (l *Local) MoveSingboxRule(ctx context.Context, from, to int) error {
+func (l *Local) MoveSingboxRule(ctx context.Context, from, to int, expectMatch string) error {
 	if l.c.Router == nil {
 		return errUnavailable("sing-box router")
 	}
 	if err := l.requireTProxyRouter(ctx); err != nil {
 		return err
 	}
-	if err := l.c.Router.MoveUserRule(ctx, from, to); err != nil {
+	if err := l.c.Router.MoveUserRule(ctx, from, to, expectRule(from, expectMatch)); err != nil {
 		l.singboxLog.Warn("rule-move", strconv.Itoa(from), "Failed to move sing-box rule (MCP): "+err.Error())
 		return ruleEditError(err)
 	}
@@ -572,9 +572,32 @@ func ruleUsesSet(r router.Rule, tag string) bool {
 	return slices.ContainsFunc(r.Rules, func(sub router.Rule) bool { return ruleUsesSet(sub, tag) })
 }
 
+// errRuleChanged is a rule edit refused because the rule at the index is
+// not the one the agent read (expectMatch).
+var errRuleChanged = errors.New("the rule at this position is not the one expected")
+
+// expectRule turns expectMatch — a match from list_singbox_rules — into
+// the check the router runs in the same write as the edit. The rule is
+// compared by its rendered match, the one thing the agent saw of it; ""
+// skips the check.
+func expectRule(index int, expectMatch string) router.RuleCheck {
+	expectMatch = strings.TrimSpace(expectMatch)
+	if expectMatch == "" {
+		return nil
+	}
+	return func(r router.Rule) error {
+		if got := ruleMatchSummary(r); got != expectMatch {
+			return fmt.Errorf("%w: rule %d now matches %q, not %q", errRuleChanged, index, got, expectMatch)
+		}
+		return nil
+	}
+}
+
 // ruleEditError adds to a refused rule edit the step that resolves it.
 func ruleEditError(err error) error {
 	switch {
+	case errors.Is(err, errRuleChanged):
+		return fmt.Errorf("%w — the list changed since it was read (an earlier edit shifted the positions, or someone edited it in the web interface); nothing was changed: call list_singbox_rules again and use the new position", err)
 	case errors.Is(err, router.ErrRuleProtected):
 		return fmt.Errorf("%w (system rules and rules awg-manager manages stay as they are; list_singbox_rules marks them system or managed)", err)
 	case errors.Is(err, router.ErrRuleIndexOutOfRange):

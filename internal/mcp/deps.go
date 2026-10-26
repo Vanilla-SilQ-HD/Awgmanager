@@ -120,8 +120,10 @@ type Deps interface {
 	SingboxStaging(ctx context.Context) (SingboxStaging, error)
 	// SetSingboxRuleOutbound retargets one rule. The write lands in the
 	// draft; nothing changes for traffic until ApplySingboxStaging. Refused
-	// in fakeip-tun mode, as the writes below are.
-	SetSingboxRuleOutbound(ctx context.Context, index int, outbound string) error
+	// in fakeip-tun mode, as the writes below are. expectMatch, when not
+	// empty, is the rule's match from ListSingboxRules: the write is refused
+	// unless the rule at index still renders so, checked in the same write.
+	SetSingboxRuleOutbound(ctx context.Context, index int, expectMatch, outbound string) error
 	// ListSingboxDNSServers returns the router's DNS servers in
 	// configuration order. hasDraft is ListSingboxRules's: the list comes
 	// from the draft when one exists.
@@ -167,14 +169,20 @@ type Deps interface {
 	// hijack-dns, the private-address bypass) and rules awg-manager manages
 	// are neither edited nor moved, and nothing is put above a system rule.
 
-	// AddSingboxRule inserts a rule at position; -1 appends it.
-	AddSingboxRule(ctx context.Context, position int, in SingboxRuleInput) error
+	// Positions come from ListSingboxRules and shift with every insert,
+	// move and delete. expectMatch is checked as SetSingboxRuleOutbound
+	// checks it, against the rule the edit touches: the one at index, at
+	// from, or the one now at position that the new rule pushes down.
+
+	// AddSingboxRule inserts a rule at position; -1 appends it, and then
+	// there is nothing to check expectMatch against.
+	AddSingboxRule(ctx context.Context, position int, expectMatch string, in SingboxRuleInput) error
 	// UpdateSingboxRule replaces rule index whole.
-	UpdateSingboxRule(ctx context.Context, index int, in SingboxRuleInput) error
+	UpdateSingboxRule(ctx context.Context, index int, expectMatch string, in SingboxRuleInput) error
 	// DeleteSingboxRule removes rule index and returns it as it was.
-	DeleteSingboxRule(ctx context.Context, index int) (SingboxRule, error)
+	DeleteSingboxRule(ctx context.Context, index int, expectMatch string) (SingboxRule, error)
 	// MoveSingboxRule moves rule from to position to.
-	MoveSingboxRule(ctx context.Context, from, to int) error
+	MoveSingboxRule(ctx context.Context, from, to int, expectMatch string) error
 	// SetSingboxRouteFinal sets the outbound for traffic no rule matched.
 	SetSingboxRouteFinal(ctx context.Context, outbound string) error
 	// AddSingboxRuleSet adds a rule set; a tag already taken is an error.

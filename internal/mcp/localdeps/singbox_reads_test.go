@@ -94,7 +94,7 @@ func TestLocal_ReadsFollowTheFakeIPMode(t *testing.T) {
 	}
 
 	// The rule write would edit the tproxy configuration nothing reads.
-	if err := l.SetSingboxRuleOutbound(ctx, 0, "auto"); err == nil || !strings.Contains(err.Error(), "fakeip-tun") {
+	if err := l.SetSingboxRuleOutbound(ctx, 0, "", "auto"); err == nil || !strings.Contains(err.Error(), "fakeip-tun") {
 		t.Fatalf("err = %v", err)
 	}
 	if fr.bulkIdx != nil {

@@ -43,8 +43,16 @@ func (s *ServiceImpl) checkRuleTarget(ctx context.Context, r Rule, c *RouterConf
 	return nil
 }
 
-// userRuleAt — правило i существует и принадлежит пользователю.
-func userRuleAt(c *RouterConfig, i int) error {
+// RuleCheck сверяет правило на позиции, которую правка собирается тронуть,
+// с тем, что видел вызывающий. Агент берёт позицию из прочитанного раньше
+// списка; после удаления или правки в другом окне на ней стоит другое
+// правило. Сверка идёт внутри той же записи, что и правка, — между ними
+// нет зазора; её ошибка отменяет правку до записи. nil — без сверки.
+type RuleCheck func(Rule) error
+
+// userRuleAt — правило i существует, принадлежит пользователю и проходит
+// check.
+func userRuleAt(c *RouterConfig, i int, check RuleCheck) error {
 	if i < 0 || i >= len(c.Route.Rules) {
 		return ErrRuleIndexOutOfRange
 	}
@@ -54,14 +62,18 @@ func userRuleAt(c *RouterConfig, i int) error {
 	case r.AwgmManaged != "":
 		return fmt.Errorf("%w: правило %d создано awg-manager и будет переписано", ErrRuleProtected, i)
 	}
+	if check != nil {
+		return check(c.Route.Rules[i])
+	}
 	return nil
 }
 
 // InsertRule ставит r на место index, сдвигая правило с этого места ниже;
 // index, равный числу правил, — в конец. Как перетаскивание в веб-интерфейсе,
 // на место системного правила вставить нельзя: оно стоит выше правил
-// пользователя намеренно.
-func (s *ServiceImpl) InsertRule(ctx context.Context, index int, r Rule) error {
+// пользователя намеренно. check сверяет правило, которое сейчас стоит на
+// месте index и уйдёт ниже; в конце списка сверять не с чем.
+func (s *ServiceImpl) InsertRule(ctx context.Context, index int, r Rule, check RuleCheck) error {
 	return s.withConfig(ctx, "rules", func(c *RouterConfig) error {
 		n := len(c.Route.Rules)
 		if index == -1 {
@@ -75,6 +87,14 @@ func (s *ServiceImpl) InsertRule(ctx context.Context, index int, r Rule) error {
 		if index < n && isSystemRule(c.Route.Rules[index]) {
 			return fmt.Errorf("%w: на месте %d системное правило — вставьте ниже", ErrRuleProtected, index)
 		}
+		if check != nil {
+			if index == n {
+				return fmt.Errorf("%w: на месте %d правила нет — сверять не с чем", ErrRuleIndexOutOfRange, index)
+			}
+			if err := check(c.Route.Rules[index]); err != nil {
+				return err
+			}
+		}
 		if err := s.checkRuleTarget(ctx, r, c); err != nil {
 			return err
 		}
@@ -86,9 +106,9 @@ func (s *ServiceImpl) InsertRule(ctx context.Context, index int, r Rule) error {
 }
 
 // ReplaceUserRule заменяет правило пользователя index на r целиком.
-func (s *ServiceImpl) ReplaceUserRule(ctx context.Context, index int, r Rule) error {
+func (s *ServiceImpl) ReplaceUserRule(ctx context.Context, index int, r Rule, check RuleCheck) error {
 	return s.withConfig(ctx, "rules", func(c *RouterConfig) error {
-		if err := userRuleAt(c, index); err != nil {
+		if err := userRuleAt(c, index, check); err != nil {
 			return err
 		}
 		if err := s.checkRuleTarget(ctx, r, c); err != nil {
@@ -101,10 +121,10 @@ func (s *ServiceImpl) ReplaceUserRule(ctx context.Context, index int, r Rule) er
 // DeleteUserRule удаляет правило пользователя index и возвращает его, каким
 // оно было: после применения черновика правило ничем, кроме этой записи, не
 // восстановить.
-func (s *ServiceImpl) DeleteUserRule(ctx context.Context, index int) (Rule, error) {
+func (s *ServiceImpl) DeleteUserRule(ctx context.Context, index int, check RuleCheck) (Rule, error) {
 	var deleted Rule
 	err := s.withConfig(ctx, "rules", func(c *RouterConfig) error {
-		if err := userRuleAt(c, index); err != nil {
+		if err := userRuleAt(c, index, check); err != nil {
 			return err
 		}
 		deleted = c.Route.Rules[index]
@@ -115,10 +135,10 @@ func (s *ServiceImpl) DeleteUserRule(ctx context.Context, index int) (Rule, erro
 
 // MoveUserRule переносит правило пользователя from на место to. Как и
 // перетаскивание в веб-интерфейсе, место to не может занимать системное
-// правило.
-func (s *ServiceImpl) MoveUserRule(ctx context.Context, from, to int) error {
+// правило. check сверяет переносимое правило from.
+func (s *ServiceImpl) MoveUserRule(ctx context.Context, from, to int, check RuleCheck) error {
 	return s.withConfig(ctx, "rules", func(c *RouterConfig) error {
-		if err := userRuleAt(c, from); err != nil {
+		if err := userRuleAt(c, from, check); err != nil {
 			return err
 		}
 		if to < 0 || to >= len(c.Route.Rules) {
@@ -128,5 +148,17 @@ func (s *ServiceImpl) MoveUserRule(ctx context.Context, from, to int) error {
 			return fmt.Errorf("%w: на месте %d системное правило", ErrRuleProtected, to)
 		}
 		return c.MoveRule(from, to)
+	})
+}
+
+// SetUserRuleOutbound направляет правило пользователя index в outbound —
+// как BulkSetRuleOutbound для одного правила (outbound известен, правило —
+// route, не системное и не managed), но со сверкой check в той же записи.
+func (s *ServiceImpl) SetUserRuleOutbound(ctx context.Context, index int, outbound string, check RuleCheck) error {
+	return s.withConfig(ctx, "rules", func(c *RouterConfig) error {
+		if err := userRuleAt(c, index, check); err != nil {
+			return err
+		}
+		return bulkSetRuleOutbound(c, []int{index}, outbound, func(t string) bool { return s.isKnownOutboundTag(ctx, t, c) })
 	})
 }
