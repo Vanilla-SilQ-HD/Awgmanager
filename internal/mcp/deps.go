@@ -93,6 +93,9 @@ type Deps interface {
 	UpdateAccessPolicy(ctx context.Context, name string, description *string, standalone *bool) (AccessPolicy, error)
 	// SetAccessPolicyInterface permits iface at position order, or denies
 	// it, and returns the policy afterwards.
+	// order -1 puts a permitted interface last. A write that went through
+	// but could not be read back is not an error: the result carries the
+	// policy as it was and says so (AccessPolicy.Unconfirmed).
 	SetAccessPolicyInterface(ctx context.Context, name, iface string, permit bool, order int, expectOrder []string) (AccessPolicy, error)
 	// AssignDevicePolicy moves a device (by MAC) to a policy; "" returns it
 	// to the router's default.

@@ -48,16 +48,19 @@ type policyNameIn struct {
 type updatePolicyIn struct {
 	Policy      string  `json:"policy" jsonschema:"policy name from list_access_policies"`
 	Description *string `json:"description,omitempty" jsonschema:"new description — Latin letters, digits, hyphens and underscores only; omit to keep it"`
-	Standalone  *bool   `json:"standalone,omitempty" jsonschema:"true: devices reach only the interfaces the policy permits, never the router's default connection; omit to keep it"`
+	Standalone  *bool   `json:"standalone,omitempty" jsonschema:"true: the policy works on its own, not bound to the router's global rules: static routes from the router settings are not copied into it (routes from the \"IP addresses\" tab do not work for its devices). It does NOT block the router's default connection — that is decided by the interfaces the policy permits; omit to keep it"`
 }
 
 type policyInterfaceIn struct {
 	Policy    string `json:"policy" jsonschema:"policy name from list_access_policies"`
 	Interface string `json:"interface" jsonschema:"interface name from list_policy_interfaces"`
-	Permit    bool   `json:"permit" jsonschema:"true permits it at position order; false removes it from the policy, so devices of the policy no longer go out through it"`
-	Order     int    `json:"order,omitempty" jsonschema:"position for a permitted interface, from 0, in the policy's order as list_access_policies shows it; traffic uses the first permitted interface that is up"`
+	Permit    bool   `json:"permit" jsonschema:"true permits it; false removes it from the policy, so devices of the policy no longer go out through it"`
+	// Order is a pointer: an interface permitted without one goes to the
+	// end, where it takes no traffic while the ones above are up. A zero
+	// default would put it first and switch the whole policy to it.
+	Order *int `json:"order,omitempty" jsonschema:"position for a permitted interface, from 0, in the policy's order as list_access_policies shows it — traffic uses the first permitted interface that is up, so 0 moves the whole policy onto it. Omit to put it last. Requires expectOrder"`
 	// ExpectOrder ties Order to the list it was counted in.
-	ExpectOrder []string `json:"expectOrder,omitempty" jsonschema:"the names in the policy's order exactly as list_access_policies showed them. Pass it with order: a position counted in a list that has changed since lands elsewhere, so a list that differs is refused and nothing changes"`
+	ExpectOrder []string `json:"expectOrder,omitempty" jsonschema:"the names in the policy's order exactly as list_access_policies showed them; required with order. A position counted in a list that has changed since lands elsewhere, so a list that differs is refused and nothing changes"`
 }
 
 type assignDeviceIn struct {
@@ -140,8 +143,8 @@ func registerPolicyTools(s *mcp.Server, d Deps) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "set_access_policy_interface",
-		Description: "Permit an interface in an access policy at a given position — the order decides which permitted interface traffic uses first — or remove it from the policy. " +
-			"A position is counted in the policy's order from list_access_policies, which changes with every permit and removal: pass that order as expectOrder, and read the list again before the next call. " +
+		Description: "Permit an interface in an access policy, or remove it from the policy. Traffic uses the first permitted interface that is up: without order the interface goes last, as a fallback; order 0 makes it the one the whole policy uses. " +
+			"A position is counted in the policy's order from list_access_policies, which changes with every permit and removal: order requires that order as expectOrder, and read the list again before the next call. " +
 			"Applied at once in the router; devices of the policy switch path immediately.",
 		Annotations: safeWrite("Set access policy interface", true),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in policyInterfaceIn) (*mcp.CallToolResult, AccessPolicy, error) {
@@ -153,8 +156,18 @@ func registerPolicyTools(s *mcp.Server, d Deps) {
 		if !ifaceNameShape.MatchString(iface) {
 			return nil, AccessPolicy{}, fmt.Errorf("interface must be a name from list_policy_interfaces")
 		}
-		if in.Order < 0 || in.Order > 64 {
-			return nil, AccessPolicy{}, fmt.Errorf("order must be between 0 and 64")
+		order := -1
+		if in.Order != nil {
+			if *in.Order < 0 || *in.Order > 64 {
+				return nil, AccessPolicy{}, fmt.Errorf("order must be between 0 and 64")
+			}
+			if !in.Permit {
+				return nil, AccessPolicy{}, fmt.Errorf("order is a position for a permitted interface; a removal takes none")
+			}
+			if in.ExpectOrder == nil {
+				return nil, AccessPolicy{}, fmt.Errorf("order is counted in the policy's list, which changes with every edit: pass that list as expectOrder (the order names from list_access_policies), or omit order to put the interface last")
+			}
+			order = *in.Order
 		}
 		var expect []string
 		if in.ExpectOrder != nil {
@@ -163,7 +176,7 @@ func registerPolicyTools(s *mcp.Server, d Deps) {
 				expect = append(expect, strings.TrimSpace(n))
 			}
 		}
-		out, err := d.SetAccessPolicyInterface(ctx, name, iface, in.Permit, in.Order, expect)
+		out, err := d.SetAccessPolicyInterface(ctx, name, iface, in.Permit, order, expect)
 		return nil, out, err
 	})
 

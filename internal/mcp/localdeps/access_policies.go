@@ -109,11 +109,25 @@ func (l *Local) DeleteAccessPolicy(ctx context.Context, name string) (mcpsrv.Acc
 	return current, nil
 }
 
+// readBack reads a policy after a write that went through. A failed read
+// does not undo the write, so it is no error: the agent gets the policy as
+// it was, marked unconfirmed, instead of "failed" for a change in effect.
+func (l *Local) readBack(ctx context.Context, name string, before mcpsrv.AccessPolicy) mcpsrv.AccessPolicy {
+	after, err := l.findPolicy(ctx, name)
+	if err == nil {
+		return after
+	}
+	l.policyLog.Warn("read-back", name, "Policy changed, but could not be read back (MCP): "+err.Error())
+	before.Unconfirmed = "the change is applied, but the policy could not be read back (" + sanitizeText(err.Error(), maxMessageRunes) + "); the fields here are from before it"
+	return before
+}
+
 func (l *Local) UpdateAccessPolicy(ctx context.Context, name string, description *string, standalone *bool) (mcpsrv.AccessPolicy, error) {
 	if l.c.Policies == nil {
 		return mcpsrv.AccessPolicy{}, errUnavailable("access policies")
 	}
-	if _, err := l.findPolicy(ctx, name); err != nil {
+	before, err := l.findPolicy(ctx, name)
+	if err != nil {
 		return mcpsrv.AccessPolicy{}, err
 	}
 	if description != nil {
@@ -134,7 +148,7 @@ func (l *Local) UpdateAccessPolicy(ctx context.Context, name string, description
 	}
 	l.policyLog.Info("update", name, "Access policy updated (MCP)")
 	l.publish(events.ResourceRoutingAccessPolicies, "mcp-update")
-	return l.findPolicy(ctx, name)
+	return l.readBack(ctx, name, before), nil
 }
 
 // SetAccessPolicyInterface permits iface at a position, or removes it.
@@ -146,6 +160,10 @@ func (l *Local) UpdateAccessPolicy(ctx context.Context, name string, description
 // the position would land somewhere else. NDMS offers no compare-and-set,
 // so the read and the write are still two RCI calls; the check closes the
 // gap of the agent's turn, not that one.
+//
+// order -1 puts a permitted interface last — after every other entry, so
+// it takes traffic only when they are down — counted in the list read
+// here.
 //
 // Only a permit needs an interface the router offers. Removing one goes by
 // the policy's own list: an interface whose tunnel is gone is no longer
@@ -175,6 +193,9 @@ func (l *Local) SetAccessPolicyInterface(ctx context.Context, name, iface string
 		if !slices.ContainsFunc(known, func(g accesspolicy.GlobalInterface) bool { return g.Name == iface }) {
 			return mcpsrv.AccessPolicy{}, fmt.Errorf("%q is not an interface a policy can use (use list_policy_interfaces)", iface)
 		}
+		if order < 0 {
+			order = len(slices.DeleteFunc(slices.Clone(names), func(n string) bool { return n == iface }))
+		}
 		err = l.c.Policies.PermitInterface(ctx, name, iface, order)
 	} else {
 		if !slices.Contains(names, iface) {
@@ -192,7 +213,7 @@ func (l *Local) SetAccessPolicyInterface(ctx context.Context, name, iface string
 	}
 	l.policyLog.Info("interface", name, iface+" "+verb+" (MCP)")
 	l.publish(events.ResourceRoutingAccessPolicies, "mcp-interface")
-	return l.findPolicy(ctx, name)
+	return l.readBack(ctx, name, current), nil
 }
 
 func (l *Local) AssignDevicePolicy(ctx context.Context, mac, policy string) (mcpsrv.Device, error) {

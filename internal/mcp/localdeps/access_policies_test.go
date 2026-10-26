@@ -22,9 +22,18 @@ type fakePolicies struct {
 	calls         []string
 	deleteErr     error
 	standaloneErr error
+	// readBackErr fails every List after a write: the router took the
+	// change, the read that follows did not go through.
+	readBackErr error
+	written     bool
 }
 
-func (f *fakePolicies) List(context.Context) ([]accesspolicy.Policy, error) { return f.policies, nil }
+func (f *fakePolicies) List(context.Context) ([]accesspolicy.Policy, error) {
+	if f.written && f.readBackErr != nil {
+		return nil, f.readBackErr
+	}
+	return f.policies, nil
+}
 func (f *fakePolicies) ListDevices(context.Context) ([]accesspolicy.Device, error) {
 	return f.devices, nil
 }
@@ -43,6 +52,7 @@ func (f *fakePolicies) Delete(_ context.Context, name string) error {
 }
 func (f *fakePolicies) SetDescription(_ context.Context, name, d string) error {
 	f.calls = append(f.calls, "describe "+name+" "+d)
+	f.written = true
 	return nil
 }
 func (f *fakePolicies) SetStandalone(_ context.Context, name string, on bool) error {
@@ -55,6 +65,7 @@ func (f *fakePolicies) SetStandalone(_ context.Context, name string, on bool) er
 }
 func (f *fakePolicies) PermitInterface(_ context.Context, name, iface string, order int) error {
 	f.calls = append(f.calls, fmt.Sprintf("permit %s %s at %d", name, iface, order))
+	f.written = true
 	return nil
 }
 func (f *fakePolicies) DenyInterface(_ context.Context, name, iface string) error {
@@ -203,4 +214,46 @@ type settingsErrRouter struct{ *fakeRouter }
 
 func (settingsErrRouter) GetSettings(context.Context) (storage.SingboxRouterSettings, error) {
 	return storage.SingboxRouterSettings{}, errors.New("settings unreadable")
+}
+
+// TestLocal_SetAccessPolicyInterfaceAppendsByDefault — без позиции
+// интерфейс встаёт последним: трафик идёт через первый работающий, и
+// позиция 0 по умолчанию сразу увела бы на него всю политику.
+func TestLocal_SetAccessPolicyInterfaceAppendsByDefault(t *testing.T) {
+	fp := policiesHarness()
+	fp.globals = append(fp.globals, accesspolicy.GlobalInterface{Name: "Wireguard1", Up: true})
+	l := New(Config{Policies: fp})
+	ctx := context.Background()
+
+	if _, err := l.SetAccessPolicyInterface(ctx, "Policy0", "Wireguard1", true, -1, nil); err != nil || fp.calls[0] != "permit Policy0 Wireguard1 at 2" {
+		t.Fatalf("a new interface goes after the two the policy has: %v, %v", err, fp.calls)
+	}
+	// An interface already in the list moves to the end of the others.
+	if _, err := l.SetAccessPolicyInterface(ctx, "Policy0", "Wireguard0", true, -1, nil); err != nil || fp.calls[1] != "permit Policy0 Wireguard0 at 1" {
+		t.Fatalf("calls = %v, %v", fp.calls, err)
+	}
+}
+
+// TestLocal_AccessPolicyEditsSurviveAFailedReadBack — запись прошла, а
+// перечитать политику не удалось: это не ошибка — изменение уже действует,
+// — а политика как была, с пометкой.
+func TestLocal_AccessPolicyEditsSurviveAFailedReadBack(t *testing.T) {
+	fp := policiesHarness()
+	fp.readBackErr = errors.New("rci: timeout")
+	l := New(Config{Policies: fp})
+	ctx := context.Background()
+
+	got, err := l.SetAccessPolicyInterface(ctx, "Policy0", "ISP", true, -1, nil)
+	if err != nil || got.Unconfirmed == "" || !strings.Contains(got.Unconfirmed, "applied") || got.Name != "Policy0" || len(fp.calls) != 1 {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	fp.written = false
+	got, err = l.UpdateAccessPolicy(ctx, "Policy0", ptr("Kids"), nil)
+	if err != nil || got.Unconfirmed == "" || got.Description != "VPN" {
+		t.Fatalf("the policy comes back as it was, marked: %+v, %v", got, err)
+	}
+	fp.readBackErr, fp.written = nil, false
+	if got, err = l.UpdateAccessPolicy(ctx, "Policy0", ptr("Kids"), nil); err != nil || got.Unconfirmed != "" {
+		t.Fatalf("a read that works is not marked: %+v, %v", got, err)
+	}
 }

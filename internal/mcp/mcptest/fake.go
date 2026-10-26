@@ -896,6 +896,9 @@ func (f *Fake) SetAccessPolicyInterface(_ context.Context, name, iface string, p
 	}
 	p.Interfaces = slices.DeleteFunc(slices.Clone(p.Interfaces), func(n string) bool { return n == iface })
 	if permit {
+		if order < 0 {
+			order = len(p.Interfaces)
+		}
 		p.Interfaces = slices.Insert(p.Interfaces, min(order, len(p.Interfaces)), iface)
 	}
 	p.Order = nil
