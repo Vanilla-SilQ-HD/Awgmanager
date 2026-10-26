@@ -2718,6 +2718,23 @@ func (f *Fake) SetWireguardServerEnabled(_ context.Context, id string, _ bool) (
 	return f.WGServers[i], nil
 }
 
+func (f *Fake) GetWireguardServer(_ context.Context, id string) (mcpsrv.WireguardServerDetail, error) {
+	if f.Err != nil {
+		return mcpsrv.WireguardServerDetail{}, f.Err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	i, err := f.wgServer(id)
+	if err != nil {
+		return mcpsrv.WireguardServerDetail{}, err
+	}
+	out := mcpsrv.WireguardServerDetail{WireguardServer: f.WGServers[i], Obfuscation: map[string]string{}}
+	for k, v := range f.WGObfuscation {
+		out.Obfuscation[k] = fmt.Sprint(v)
+	}
+	return out, nil
+}
+
 func (f *Fake) SetWireguardServerObfuscation(_ context.Context, id string, params map[string]any) (mcpsrv.WireguardServer, error) {
 	if f.Err != nil {
 		return mcpsrv.WireguardServer{}, f.Err

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -150,5 +151,51 @@ func TestLocal_SetWireguardServerObfuscationMerges(t *testing.T) {
 	m.ascErr = managed.ErrASCNotApplied
 	if _, err := l.SetWireguardServerObfuscation(context.Background(), "Wireguard3", map[string]any{"jc": float64(7)}); err == nil || !strings.Contains(err.Error(), "some may have applied") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// TestLocal_GetWireguardServer — агенту нужно видеть, поверх чего ляжет
+// set_wireguard_server_obfuscation: параметры сервера из ASC, без I1–I5
+// (они у пиров) и без того, что этот инструмент не задаёт.
+func TestLocal_GetWireguardServer(t *testing.T) {
+	m := serverWritesHarness()
+	m.asc = json.RawMessage(`{"jc":4,"jmin":40,"h1":"100-200","i1":"<b 0x01>","x":"y","s3":null}`)
+	l := New(Config{Managed: m})
+	got, err := l.GetWireguardServer(context.Background(), "Wireguard3")
+	if err != nil || got.ID != "Wireguard3" || got.ListenPort != 51820 {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	if len(got.Obfuscation) != 3 || got.Obfuscation["jc"] != "4" || got.Obfuscation["jmin"] != "40" || got.Obfuscation["h1"] != "100-200" {
+		t.Fatalf("obfuscation = %v", got.Obfuscation)
+	}
+	m.asc = nil
+	if got, err = l.GetWireguardServer(context.Background(), "Wireguard3"); err != nil || len(got.Obfuscation) != 0 {
+		t.Fatalf("plain WireGuard: %+v, %v", got.Obfuscation, err)
+	}
+	m.asc = json.RawMessage(`not json`)
+	if _, err = l.GetWireguardServer(context.Background(), "Wireguard3"); err == nil {
+		t.Fatal("an unreadable ASC must be an error, not empty obfuscation")
+	}
+	if _, err = l.GetWireguardServer(context.Background(), "Wireguard1"); err == nil {
+		t.Fatal("a server awg-manager does not manage must be refused")
+	}
+}
+
+// TestLocal_SetWireguardServerObfuscationKeepsTheCause — REST отдаёт
+// причину отказа ASC от роутера (SET_ASC_FAILED, err.Error()); MCP не
+// должен её терять.
+func TestLocal_SetWireguardServerObfuscationKeepsTheCause(t *testing.T) {
+	m := serverWritesHarness()
+	m.asc = json.RawMessage(`{"jc":4}`)
+	l := New(Config{Managed: m})
+	for _, ascErr := range []error{
+		fmt.Errorf("set ASC params: rci: H1 overlaps H2 (%w)", managed.ErrASCNotApplied),
+		fmt.Errorf("%w: rci: timeout reading interface", managed.ErrASCUnverified),
+	} {
+		m.ascErr = ascErr
+		_, err := l.SetWireguardServerObfuscation(context.Background(), "Wireguard3", map[string]any{"jc": float64(7)})
+		if err == nil || !strings.Contains(err.Error(), "rci: ") || !strings.Contains(err.Error(), "get_wireguard_server") {
+			t.Errorf("%v: the router's reason and the way to read the server must reach the agent: %v", ascErr, err)
+		}
 	}
 }

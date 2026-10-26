@@ -69,6 +69,19 @@ type createdServerOut struct {
 // belong to the peers (managed.SetASCParams strips them).
 var obfuscationKeys = map[string]bool{"jc": true, "jmin": true, "jmax": true, "s1": true, "s2": true, "s3": true, "s4": true, "h1": true, "h2": true, "h3": true, "h4": true}
 
+// IsObfuscationKey reports a server-level AmneziaWG parameter (jc, jmin,
+// jmax, s1–s4, h1–h4) — the ones the obfuscation tools read and set; I1–I5
+// are the peers'.
+func IsObfuscationKey(key string) bool { return obfuscationKeys[key] }
+
+// checkMTU is the one MTU rule for create and update alike.
+func checkMTU(mtu int) error {
+	if mtu < 576 || mtu > 9000 {
+		return fmt.Errorf("mtu must be between 576 and 9000")
+	}
+	return nil
+}
+
 func checkPort(p int) error {
 	if p < 1 || p > 65535 {
 		return fmt.Errorf("listenPort must be between 1 and 65535")
@@ -114,8 +127,10 @@ func registerWireguardServerTools(s *mcp.Server, d Deps) {
 				return nil, createdServerOut{}, err
 			}
 		}
-		if in.MTU != 0 && (in.MTU < 576 || in.MTU > 9000) {
-			return nil, createdServerOut{}, fmt.Errorf("mtu must be between 576 and 9000")
+		if in.MTU != 0 {
+			if err := checkMTU(in.MTU); err != nil {
+				return nil, createdServerOut{}, err
+			}
 		}
 		created, warnings, err := d.CreateWireguardServer(ctx, WireguardServerInput{
 			Description: strings.TrimSpace(in.Description), Address: strings.TrimSpace(in.Address), Mask: strings.TrimSpace(in.Mask), ListenPort: in.ListenPort,
@@ -139,6 +154,11 @@ func registerWireguardServerTools(s *mcp.Server, d Deps) {
 		p := WireguardServerPatch{ID: id, Description: in.Description, Address: in.Address, Mask: in.Mask, ListenPort: in.ListenPort, Endpoint: in.Endpoint, DNS: in.DNS, MTU: in.MTU}
 		if p == (WireguardServerPatch{ID: id}) {
 			return nil, WireguardServer{}, fmt.Errorf("nothing to change: pass at least one field")
+		}
+		if in.MTU != nil {
+			if err := checkMTU(*in.MTU); err != nil {
+				return nil, WireguardServer{}, err
+			}
 		}
 		if in.ListenPort != nil {
 			if err := checkPort(*in.ListenPort); err != nil {
@@ -199,8 +219,21 @@ func registerWireguardServerTools(s *mcp.Server, d Deps) {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
+		Name:        "get_wireguard_server",
+		Description: "One WireGuard server awg-manager manages, with the AmneziaWG obfuscation parameters it uses now (jc, jmin, jmax, s1–s4, h1–h4) — read them before set_wireguard_server_obfuscation, and after it refused, to see what the router holds.",
+		Annotations: readOnly("Get WireGuard server"),
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in serverIDIn) (*mcp.CallToolResult, WireguardServerDetail, error) {
+		id, err := requireManagedServerID(in.ServerID)
+		if err != nil {
+			return nil, WireguardServerDetail{}, err
+		}
+		out, err := d.GetWireguardServer(ctx, id)
+		return nil, out, err
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
 		Name: "set_wireguard_server_obfuscation",
-		Description: "Change a WireGuard server's AmneziaWG obfuscation parameters (jc, jmin, jmax, s1–s4, h1–h4); the ones not given stay. " +
+		Description: "Change a WireGuard server's AmneziaWG obfuscation parameters (jc, jmin, jmax, s1–s4, h1–h4); the ones not given stay — get_wireguard_server shows the current ones. " +
 			"Clients connect only with the same values, so every client config must be renewed (get_server_peer_config). Applied at once.",
 		Annotations: safeWrite("Set WireGuard server obfuscation", true),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in serverObfuscationIn) (*mcp.CallToolResult, WireguardServer, error) {

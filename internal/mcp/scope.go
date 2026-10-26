@@ -52,6 +52,7 @@ var readOnlyTools = map[string]bool{
 	"run_tunnel_diagnostics":        true,
 	"list_policy_interfaces":        true,
 	"list_wireguard_server_options": true,
+	"get_wireguard_server":          true,
 }
 
 // credentialTools change nothing on the router but hand out material

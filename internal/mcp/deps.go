@@ -162,6 +162,9 @@ type Deps interface {
 	SetWireguardServerEnabled(ctx context.Context, id string, enabled bool) (WireguardServer, error)
 	// SetWireguardServerObfuscation lays the given AmneziaWG parameters over
 	// the server's current ones; clients need the new values too.
+	// GetWireguardServer returns one managed server with its obfuscation
+	// parameters, read from the router.
+	GetWireguardServer(ctx context.Context, id string) (WireguardServerDetail, error)
 	SetWireguardServerObfuscation(ctx context.Context, id string, params map[string]any) (WireguardServer, error)
 	// ServerPeerConfig renders the client .conf, private key included.
 	ServerPeerConfig(ctx context.Context, serverID, publicKey string) (string, error)

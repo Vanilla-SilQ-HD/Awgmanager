@@ -1007,6 +1007,16 @@ type WireguardServer struct {
 	PeerCount   int      `json:"peerCount"`
 }
 
+// WireguardServerDetail is one server with its AmneziaWG obfuscation as
+// the router holds it — what set_wireguard_server_obfuscation lays its
+// parameters over.
+type WireguardServerDetail struct {
+	WireguardServer
+	// Obfuscation maps a parameter (jc, jmin, jmax, s1–s4, h1–h4) to its
+	// value as NDMS returns it; absent ones are not set.
+	Obfuscation map[string]string `json:"obfuscation" jsonschema:"AmneziaWG parameters the server uses now (jc, jmin, jmax, s1–s4, h1–h4); empty means plain WireGuard. Clients connect only with the same values"`
+}
+
 // WireguardServerInput is a new server; zero fields take the service's
 // defaults (a free subnet, the default MTU).
 type WireguardServerInput struct {

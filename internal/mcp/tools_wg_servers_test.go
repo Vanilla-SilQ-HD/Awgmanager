@@ -28,6 +28,9 @@ func TestTools_WireguardServers(t *testing.T) {
 	if _, out := callTool(t, s, "list_wireguard_server_options", nil); out["suggestedAddress"] == nil {
 		t.Fatalf("out = %v", out)
 	}
+	if res, out := callTool(t, s, "get_wireguard_server", map[string]any{"serverId": id}); res.IsError || out["id"] != id || out["obfuscation"].(map[string]any)["jc"] != "5" {
+		t.Fatalf("%s / %v", toolText(res), out)
+	}
 	for name, c := range map[string]struct {
 		tool string
 		args map[string]any
@@ -36,6 +39,9 @@ func TestTools_WireguardServers(t *testing.T) {
 		"bad port":         {"create_wireguard_server", map[string]any{"listenPort": 70000}},
 		"address no mask":  {"create_wireguard_server", map[string]any{"listenPort": 51999, "address": "10.1.0.1"}},
 		"bad server id":    {"update_wireguard_server", map[string]any{"serverId": "../x", "mtu": 1400}},
+		"mtu too small":    {"update_wireguard_server", map[string]any{"serverId": id, "mtu": 100}},
+		"mtu too large":    {"update_wireguard_server", map[string]any{"serverId": id, "mtu": 65000}},
+		"get unmanaged":    {"get_wireguard_server", map[string]any{"serverId": "Wireguard1"}},
 		"nothing":          {"update_wireguard_server", map[string]any{"serverId": id}},
 		"bad nat":          {"set_wireguard_server_access", map[string]any{"serverId": id, "natMode": "half"}},
 		"unknown segment":  {"set_wireguard_server_access", map[string]any{"serverId": id, "lanSegments": []any{"Guest9"}}},
@@ -56,6 +62,9 @@ func TestScope_ReadOnlyKeyAndWireguardServers(t *testing.T) {
 	s := scopedSession(t, true)
 	if res, _ := callTool(t, s, "list_wireguard_server_options", nil); res.IsError {
 		t.Errorf("options must be readable: %s", toolText(res))
+	}
+	if res, _ := callTool(t, s, "get_wireguard_server", map[string]any{"serverId": "Wireguard0"}); res.IsError && strings.Contains(strings.ToLower(toolText(res)), "read-only") {
+		t.Errorf("a server's settings must be readable to a read-only key: %s", toolText(res))
 	}
 	for name, args := range map[string]map[string]any{
 		"create_wireguard_server":          {"listenPort": 51900},

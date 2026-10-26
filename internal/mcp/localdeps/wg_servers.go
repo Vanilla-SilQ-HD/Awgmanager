@@ -201,6 +201,43 @@ func (l *Local) SetWireguardServerEnabled(ctx context.Context, id string, enable
 // other parameters are integers there.
 var headerKeys = map[string]bool{"h1": true, "h2": true, "h3": true, "h4": true}
 
+// GetWireguardServer adds to the server its obfuscation as NDMS returns
+// it. Only the parameters the obfuscation tool sets are carried: the ASC
+// JSON may hold more, and they are the router's, not the agent's to read.
+func (l *Local) GetWireguardServer(ctx context.Context, id string) (mcpsrv.WireguardServerDetail, error) {
+	if l.c.Managed == nil {
+		return mcpsrv.WireguardServerDetail{}, errUnavailable("managed servers")
+	}
+	sv, err := l.readServer(ctx, id)
+	if err != nil {
+		return mcpsrv.WireguardServerDetail{}, err
+	}
+	raw, err := l.c.Managed.GetASCParams(ctx, id)
+	if err != nil {
+		return mcpsrv.WireguardServerDetail{}, fmt.Errorf("the server's obfuscation could not be read: %w", err)
+	}
+	out := mcpsrv.WireguardServerDetail{WireguardServer: sv, Obfuscation: map[string]string{}}
+	if len(raw) == 0 {
+		return out, nil
+	}
+	params := map[string]any{}
+	if err := json.Unmarshal(raw, &params); err != nil {
+		return mcpsrv.WireguardServerDetail{}, fmt.Errorf("the server's obfuscation could not be read: %w", err)
+	}
+	for k, v := range params {
+		if !mcpsrv.IsObfuscationKey(k) || v == nil {
+			continue
+		}
+		switch val := v.(type) {
+		case float64:
+			out.Obfuscation[k] = strconv.FormatInt(int64(val), 10)
+		default:
+			out.Obfuscation[k] = sanitizeText(fmt.Sprint(val), maxMessageRunes)
+		}
+	}
+	return out, nil
+}
+
 // SetWireguardServerObfuscation lays the parameters over the server's
 // current ones and writes them whole. A successful write is not followed by
 // InvalidateCache, as in the REST handler (F600): the service read the
@@ -252,14 +289,20 @@ func (l *Local) SetWireguardServerObfuscation(ctx context.Context, id string, pa
 	switch {
 	case errors.Is(err, managed.ErrASCUnverified):
 		l.serverChanged(id, "mcp-asc")
-		return mcpsrv.WireguardServer{}, fmt.Errorf("the router took the parameters but they could not be read back to confirm; check the server in the web interface")
+		return mcpsrv.WireguardServer{}, fmt.Errorf("the router took the parameters but they could not be read back to confirm (%s); read them with get_wireguard_server", ascCause(err))
 	case errors.Is(err, managed.ErrASCNotApplied):
 		l.serverChanged(id, "mcp-asc")
-		return mcpsrv.WireguardServer{}, fmt.Errorf("the router did not apply the parameters as sent — some may have applied; read the server again (list_managed_servers) before retrying")
+		return mcpsrv.WireguardServer{}, fmt.Errorf("the router did not apply the parameters as sent — some may have applied (%s); read the server's current ones with get_wireguard_server before retrying", ascCause(err))
 	case err != nil:
 		return mcpsrv.WireguardServer{}, err
 	}
 	l.serverLog.Info("asc", id, "WireGuard server obfuscation changed (MCP)")
 	l.publish(events.ResourceServers, "mcp-asc")
 	return l.readServer(ctx, id)
+}
+
+// ascCause is the router's reason for refusing an ASC write, as the REST
+// handler returns it (SET_ASC_FAILED carries err.Error()), cut to one line.
+func ascCause(err error) string {
+	return "router: " + sanitizeText(err.Error(), maxMessageRunes)
 }
