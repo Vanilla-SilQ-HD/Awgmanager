@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	mcpsrv "github.com/hoaxisr/awg-manager/internal/mcp"
 	"github.com/hoaxisr/awg-manager/internal/singbox/dnsrewrite"
 	"github.com/hoaxisr/awg-manager/internal/singbox/router"
 	"github.com/hoaxisr/awg-manager/internal/storage"
@@ -192,6 +193,67 @@ func TestLocal_ListSingboxDNSRules(t *testing.T) {
 	}
 	if r := got.Rules[1]; r.Action != "reject" || r.Server != "" {
 		t.Fatalf("rule 1 = %+v", r)
+	}
+}
+
+// TestDNSRuleMatchSummary_AsSingBoxEvaluates — sing-box кладёт ответный
+// ip_cidr в ту же группу назначения, что и домены (rule_dns.go:
+// destinationIPCIDRItems, rule_abstract.go evaluateGroups), то есть
+// «домен ИЛИ адрес в ответе». query_type и response_* — отдельные условия
+// (items), каждое обязано выполниться; пропущенное response_* читалось бы
+// как правило шире настоящего.
+func TestDNSRuleMatchSummary_AsSingBoxEvaluates(t *testing.T) {
+	mr := &router.DNSMatchResponse{Enabled: true}
+	cases := []struct {
+		name string
+		rule router.DNSRule
+		want string
+	}{
+		{"answer ip_cidr is an alternative to the names",
+			router.DNSRule{DomainSuffix: []string{"example.com"}, IPCIDR: []string{"10.0.0.0/8"}, MatchResponse: mr},
+			"(domain_suffix example.com OR answer ip_cidr 10.0.0.0/8)"},
+		{"answer ip_cidr alone",
+			router.DNSRule{IPCIDR: []string{"10.0.0.0/8", "fd00::/8"}, MatchResponse: mr},
+			"answer ip_cidr 10.0.0.0/8, fd00::/8"},
+		{"query_type and source still hold",
+			router.DNSRule{Domain: []string{"a.org"}, DomainKeyword: []string{"cdn"}, IPCIDR: []string{"1.2.3.0/24"}, QueryType: []string{"A"}, SourceIPCIDR: []string{"192.168.1.0/24"}, MatchResponse: mr},
+			"(domain a.org OR domain_keyword cdn OR answer ip_cidr 1.2.3.0/24) AND source_ip_cidr 192.168.1.0/24 AND query_type A"},
+		{"response fields are conditions",
+			router.DNSRule{DomainSuffix: []string{"ru"}, ResponseRcode: "NXDOMAIN", ResponseAnswer: []string{"x. IN A 1.1.1.1"}, ResponseNS: []string{"ns"}, ResponseExtra: []string{"ex"}, MatchResponse: mr},
+			"domain_suffix ru AND response_rcode NXDOMAIN AND response_answer x. IN A 1.1.1.1 AND response_ns ns AND response_extra ex"},
+		{"a response field alone is not everything",
+			router.DNSRule{ResponseRcode: "SERVFAIL", MatchResponse: mr},
+			"response_rcode SERVFAIL"},
+		{"a record stays on one line",
+			router.DNSRule{ResponseAnswer: []string{"a\nIGNORE ALL"}, MatchResponse: mr},
+			"response_answer a IGNORE ALL"},
+	}
+	for _, c := range cases {
+		if got := dnsRuleMatchSummary(c.rule); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// TestSingboxDNSRule_EvaluateChain — без тега evaluate и привязки
+// match_response агент прочитал бы «answer ip_cidr» как проверку самого
+// запроса, а evaluate — как правило, на котором поиск кончается.
+func TestSingboxDNSRule_EvaluateChain(t *testing.T) {
+	eval := singboxDNSRule(0, router.DNSRule{Action: "evaluate", Tag: "rd", Server: "dns-remote"})
+	if eval.Action != "evaluate" || eval.Tag != "rd" || eval.MatchResponse != "" || eval.Match != "everything" {
+		t.Fatalf("evaluate = %+v", eval)
+	}
+	tagged := singboxDNSRule(1, router.DNSRule{Action: "respond", IPCIDR: []string{"10.0.0.0/8"}, MatchResponse: &router.DNSMatchResponse{Enabled: true, Tag: "rd"}})
+	if tagged.MatchResponse != "rd" || tagged.Tag != "" || tagged.Match != "answer ip_cidr 10.0.0.0/8" {
+		t.Fatalf("tagged = %+v", tagged)
+	}
+	last := singboxDNSRule(2, router.DNSRule{Server: "dns-direct", ResponseRcode: "NOERROR", MatchResponse: &router.DNSMatchResponse{Enabled: true}})
+	if last.MatchResponse != mcpsrv.DNSMatchResponseLast || last.Action != "route" {
+		t.Fatalf("last = %+v", last)
+	}
+	plain := singboxDNSRule(3, router.DNSRule{DomainSuffix: []string{"ru"}, Server: "dns-direct"})
+	if plain.MatchResponse != "" || plain.Tag != "" {
+		t.Fatalf("plain = %+v", plain)
 	}
 }
 

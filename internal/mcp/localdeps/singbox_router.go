@@ -308,24 +308,51 @@ func (l *Local) ListSingboxDNSRules(ctx context.Context) (mcpsrv.SingboxDNSRules
 	}
 	out := mcpsrv.SingboxDNSRules{Rules: make([]mcpsrv.SingboxDNSRule, 0, len(rules)), Final: final, Strategy: token(strategy), HasDraft: l.hasDraft(ctx, rr.fakeIP)}
 	for i, r := range rules {
-		action := r.Action
-		if action == "" {
-			action = "route"
-		}
-		out.Rules = append(out.Rules, mcpsrv.SingboxDNSRule{Index: i, Match: dnsRuleMatchSummary(r), Action: token(action), Server: r.Server})
+		out.Rules = append(out.Rules, singboxDNSRule(i, r))
 	}
 	return out, nil
 }
 
-// dnsRuleMatchSummary renders a DNS rule as ruleMatchSummary renders a
-// routing rule: the name fields are alternatives to one another, and every
-// other field must hold too.
+func singboxDNSRule(i int, r router.DNSRule) mcpsrv.SingboxDNSRule {
+	action := r.Action
+	if action == "" {
+		action = "route"
+	}
+	out := mcpsrv.SingboxDNSRule{Index: i, Match: dnsRuleMatchSummary(r), Action: token(action), Server: r.Server, Tag: r.Tag}
+	if r.MatchResponse.IsEnabled() {
+		out.MatchResponse = r.MatchResponse.Tag
+		if out.MatchResponse == "" {
+			out.MatchResponse = mcpsrv.DNSMatchResponseLast
+		}
+	}
+	return out
+}
+
+// dnsRuleMatchSummary renders a DNS rule as sing-box evaluates it
+// (route/rule/rule_dns.go, rule_abstract.go): the name fields and the
+// answer ip_cidr are one destination group, alternatives to one another;
+// source_ip_cidr, the rule set, query_type and each response_* field must
+// hold too. The answer fields are read from the response match_response
+// points at (SingboxDNSRule.MatchResponse), never from the query.
 func dnsRuleMatchSummary(r router.DNSRule) string {
+	records := func(values []string) string {
+		clean := make([]string, 0, len(values))
+		for _, v := range values {
+			clean = append(clean, sanitizeText(v, maxMessageRunes))
+		}
+		return strings.Join(clean, ", ")
+	}
 	return ruleMatchSummary(router.Rule{
 		Domain: r.Domain, DomainSuffix: r.DomainSuffix, SourceIPCIDR: r.SourceIPCIDR, RuleSet: r.RuleSet,
 	}, matchExtra{
-		name: [][2]string{{"domain_keyword", strings.Join(r.DomainKeyword, ", ")}, {"domain_regex", strings.Join(r.DomainRegex, ", ")}},
-		and:  [][2]string{{"query_type", strings.Join(r.QueryType, ", ")}, {"answer ip_cidr", strings.Join(r.IPCIDR, ", ")}},
+		name: [][2]string{
+			{"domain_keyword", strings.Join(r.DomainKeyword, ", ")}, {"domain_regex", strings.Join(r.DomainRegex, ", ")},
+			{"answer ip_cidr", strings.Join(r.IPCIDR, ", ")},
+		},
+		and: [][2]string{
+			{"query_type", strings.Join(r.QueryType, ", ")}, {"response_rcode", r.ResponseRcode},
+			{"response_answer", records(r.ResponseAnswer)}, {"response_ns", records(r.ResponseNS)}, {"response_extra", records(r.ResponseExtra)},
+		},
 	})
 }
 

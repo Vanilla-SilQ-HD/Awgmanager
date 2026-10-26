@@ -263,6 +263,7 @@ func registerRouterTools(s *mcp.Server, d Deps) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "list_singbox_dns_rules",
 		Description: "DNS rules of the sing-box router in evaluation order — which DNS server answers which names — with the final server for names no rule matched. " +
+			"An evaluate rule only asks a server and keeps its response; rules below with matchResponse are checked against that response, so read the list as a chain, not as independent rules. " +
 			"Servers are in list_singbox_dns_servers; entries answered by sing-box itself are in list_singbox_dns_rewrites.",
 		Annotations: readOnly("List sing-box DNS rules"),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, SingboxDNSRules, error) {

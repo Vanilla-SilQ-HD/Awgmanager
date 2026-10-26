@@ -187,19 +187,30 @@ type SingboxDNSServer struct {
 	Managed bool `json:"managed" jsonschema:"true means awg-manager owns this server and it always goes directly — it takes no detour"`
 }
 
+// DNSMatchResponseLast is SingboxDNSRule.MatchResponse for a rule bound
+// to the response of the nearest untagged evaluate rule above it.
+const DNSMatchResponseLast = "last"
+
 // SingboxDNSRule is one DNS rule of the sing-box router, in evaluation
-// order; Match is rendered as SingboxRule's is.
+// order; Match is rendered as SingboxRule's is. Tag and MatchResponse
+// carry the evaluate chain (sing-box 1.14): without them an agent reads
+// a rule checked against an earlier answer as one checked against the
+// query.
 type SingboxDNSRule struct {
 	Index  int    `json:"index"`
-	Match  string `json:"match" jsonschema:"what the rule matches, with the connectives spelled out as in list_singbox_rules"`
-	Action string `json:"action,omitempty" jsonschema:"route when empty; reject, predefined and the like answer the query without a server"`
-	Server string `json:"server,omitempty" jsonschema:"DNS server tag from list_singbox_dns_servers that answers matching queries"`
+	Match  string `json:"match" jsonschema:"what the rule matches, with the connectives spelled out as in list_singbox_rules; domain fields are the query name, answer ip_cidr and response_* are read from the response matchResponse names"`
+	Action string `json:"action" jsonschema:"route: server answers the query, the search ends. evaluate: server is asked, its response is kept for the rules below and the search goes on. respond: the response matchResponse names is the answer. reject and predefined answer without a server"`
+	Server string `json:"server,omitempty" jsonschema:"DNS server tag from list_singbox_dns_servers that route or evaluate asks"`
+	Tag    string `json:"tag,omitempty" jsonschema:"evaluate only: the name rules below refer to this response by in matchResponse"`
+	// MatchResponse is the evaluate response the rule is checked against:
+	// an evaluate tag, or DNSMatchResponseLast.
+	MatchResponse string `json:"matchResponse,omitempty" jsonschema:"set: the rule is checked against an evaluate response obtained above — last means the nearest evaluate without a tag, anything else is that evaluate's tag — and matches nothing while there is none. Empty: checked against the query alone"`
 }
 
 // SingboxDNSRules is the router's DNS rule list with the settings that
 // decide what an unmatched query does.
 type SingboxDNSRules struct {
-	Rules    []SingboxDNSRule `json:"rules" jsonschema:"in evaluation order — sing-box takes the FIRST rule that matches"`
+	Rules    []SingboxDNSRule `json:"rules" jsonschema:"in evaluation order — the first matching rule whose action is not evaluate decides the answer"`
 	Final    string           `json:"final,omitempty" jsonschema:"DNS server that answers queries no rule matched; empty means the first server in list_singbox_dns_servers"`
 	Strategy string           `json:"strategy,omitempty" jsonschema:"default domain strategy (prefer_ipv4, ipv4_only, …); empty means sing-box's default"`
 	HasDraft bool             `json:"hasDraft" jsonschema:"true means these rules include staged, NOT YET APPLIED edits"`
