@@ -118,7 +118,7 @@ func registerSubscriptionManageTools(s *mcp.Server, d Deps) {
 		if err != nil {
 			return nil, SingboxSubscription{}, err
 		}
-		text := fmt.Sprintf("The subscription is created and fetched: its group %q has %d servers and sing-box runs it now. Point routing rules at the group with set_singbox_rule_outbound.", created.GroupTag, created.MemberCount)
+		text := fmt.Sprintf("The subscription is created and fetched: its group %q has %d servers and is in sing-box's configuration — it carries traffic while sing-box runs (get_system_status shows whether it does). Point routing rules at the group with set_singbox_rule_outbound.", created.GroupTag, created.MemberCount)
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, created, nil
 	})
 
