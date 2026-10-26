@@ -442,8 +442,11 @@ func TestConfDisabled_RunningQueuedOnLockBeforeEdge_NotBounce(t *testing.T) {
 	var ticks atomic.Int64
 	reads := make(chan struct{}, 16)
 	o.clock = func() time.Time {
+		// Тик берётся до сигнала: иначе горутину могут вытеснить между
+		// сигналом и ticks.Add, и порядок времён разойдётся с порядком reads.
+		n := ticks.Add(1)
 		reads <- struct{}{}
-		return base.Add(time.Duration(ticks.Add(1)) * time.Second)
+		return base.Add(time.Duration(n) * time.Second)
 	}
 	if err := o.lockTunnel(context.Background(), "awg11", "test"); err != nil {
 		t.Fatalf("lock: %v", err)
