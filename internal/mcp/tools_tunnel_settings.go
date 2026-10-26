@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"net"
 	"regexp"
 	"strings"
 
@@ -30,7 +31,7 @@ type tunnelSettingsIn struct {
 	PersistentKeepalive *string      `json:"persistentKeepalive,omitempty" jsonschema:"seconds between keepalives (0 turns them off), or a min-max range on AmneziaWG 2/3"`
 	ISPInterface        *string      `json:"ispInterface,omitempty" jsonschema:"connection the tunnel goes out through: auto (the router's default), a WAN id from list_routing_targets (wan:…), or tunnel:<id> to chain it through another awg-manager tunnel (type managed in list_routing_targets). A running tunnel restarts to apply it"`
 	ConnectivityCheck   *string      `json:"connectivityCheck,omitempty" jsonschema:"how the tunnel's health is judged: http, ping, handshake or disabled"`
-	PingTarget          string       `json:"pingTarget,omitempty" jsonschema:"IP address to ping, for connectivityCheck ping"`
+	PingTarget          string       `json:"pingTarget,omitempty" jsonschema:"IPv4 address or host name to ping through the tunnel, for connectivityCheck ping; a name is resolved to IPv4 at each check"`
 	AWG                 *awgParamsIn `json:"awg,omitempty" jsonschema:"AmneziaWG obfuscation parameters to change; both ends must match, so change them only to match the server"`
 }
 
@@ -80,6 +81,11 @@ func registerTunnelSettingsTools(s *mcp.Server, d Deps) {
 				if out.PingTarget == "" {
 					return nil, tunnelSettingsOut{}, fmt.Errorf("pingTarget is required for connectivityCheck ping")
 				}
+				if !pingTargetShape(out.PingTarget) {
+					// The probe resolves a name to IPv4 (icmpprobe.ByInterface), so
+					// an IPv6 address or anything else would only fail every check.
+					return nil, tunnelSettingsOut{}, fmt.Errorf("pingTarget must be an IPv4 address or a host name")
+				}
 			default:
 				return nil, tunnelSettingsOut{}, fmt.Errorf("connectivityCheck must be http, ping, handshake or disabled")
 			}
@@ -105,4 +111,17 @@ func registerTunnelSettingsTools(s *mcp.Server, d Deps) {
 		}
 		return nil, tunnelSettingsOut{TunnelDetail: detail, Warnings: warnings}, nil
 	})
+}
+
+// hostNameShape is a DNS host name: dot-separated labels of letters, digits
+// and inner hyphens.
+var hostNameShape = regexp.MustCompile(`^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
+
+// pingTargetShape accepts what the ping check can reach: an IPv4 address,
+// or a host name it resolves to one.
+func pingTargetShape(v string) bool {
+	if ip := net.ParseIP(v); ip != nil {
+		return ip.To4() != nil
+	}
+	return len(v) <= 253 && hostNameShape.MatchString(v)
 }

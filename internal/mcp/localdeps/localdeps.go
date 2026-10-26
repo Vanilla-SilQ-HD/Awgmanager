@@ -188,7 +188,7 @@ type Config struct {
 	// TunnelEdit is api.TunnelsHandler.EditTunnel: the tunnel card's edit,
 	// checks and side effects included. nil makes update_tunnel_settings
 	// report it unavailable.
-	TunnelEdit   func(ctx context.Context, id string, req storage.AWGTunnel) (api.EditedTunnel, error)
+	TunnelEdit   func(ctx context.Context, id string, build func(existing storage.AWGTunnel) (storage.AWGTunnel, error)) (api.EditedTunnel, error)
 	Orch         Orchestrator
 	Traffic      TrafficStats
 	DNSRoutes    api.DNSRouteService

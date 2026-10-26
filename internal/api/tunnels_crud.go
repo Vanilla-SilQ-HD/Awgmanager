@@ -299,6 +299,16 @@ type EditedTunnel struct {
 // storage.AWGTunnel (см. applyTunnelUpdate). Вынесено из обработчика,
 // чтобы MCP правил туннель тем же путём, что и веб-интерфейс.
 func (h *TunnelsHandler) EditTunnel(ctx context.Context, id string, req storage.AWGTunnel) (EditedTunnel, error) {
+	return h.EditTunnelWith(ctx, id, func(storage.AWGTunnel) (storage.AWGTunnel, error) { return req, nil })
+}
+
+// EditTunnelWith — EditTunnel, правку для которого строит build по записи,
+// которую читает сама правка. Блок интерфейса и пира applyTunnelUpdate
+// берёт целиком, и вызывающему, меняющему одно поле, нужен весь блок:
+// собранный из записи, прочитанной раньше, он перезаписал бы правку из
+// веб-интерфейса, легшую между тем чтением и этим. Отказ build возвращается
+// как есть, до всякого побочного действия.
+func (h *TunnelsHandler) EditTunnelWith(ctx context.Context, id string, build func(existing storage.AWGTunnel) (storage.AWGTunnel, error)) (EditedTunnel, error) {
 	// Get existing tunnel
 	existing, err := h.store.Get(id)
 	if err != nil {
@@ -309,6 +319,11 @@ func (h *TunnelsHandler) EditTunnel(ctx context.Context, id string, req storage.
 	// ветки зеркальной записи, которая пишет сама, и до svc.Update.
 	if existing.Locked {
 		return EditedTunnel{}, &TunnelEditError{Status: http.StatusForbidden, Code: "TUNNEL_LOCKED", Message: tunnelLockedMessage}
+	}
+
+	req, err := build(*existing)
+	if err != nil {
+		return EditedTunnel{}, err
 	}
 
 	if existing.Backend == backendWdttRaw {

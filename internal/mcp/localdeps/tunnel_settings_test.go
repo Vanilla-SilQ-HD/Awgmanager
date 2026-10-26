@@ -30,8 +30,14 @@ func TestLocal_UpdateTunnelSettingsSendsWholeBlocks(t *testing.T) {
 		t.Fatal(err)
 	}
 	var got storage.AWGTunnel
-	l.c.TunnelEdit = func(_ context.Context, id string, req storage.AWGTunnel) (api.EditedTunnel, error) {
-		got = req
+	l.c.TunnelEdit = func(_ context.Context, id string, build func(storage.AWGTunnel) (storage.AWGTunnel, error)) (api.EditedTunnel, error) {
+		existing, err := l.c.TunnelStore.Get(id)
+		if err != nil {
+			return api.EditedTunnel{}, err
+		}
+		if got, err = build(*existing); err != nil {
+			return api.EditedTunnel{}, err
+		}
 		return api.EditedTunnel{Warnings: []string{"10.8.0.2/32 conflicts with nwg3"}}, nil
 	}
 	l.c.Targets = catalogHarness()
@@ -69,12 +75,56 @@ func TestLocal_UpdateTunnelSettingsSendsWholeBlocks(t *testing.T) {
 	if got.Interface.Address != "" || got.Peer.PublicKey != "" || got.ConnectivityCheck == nil || got.ConnectivityCheck.PingTarget != "8.8.8.8" {
 		t.Fatalf("an untouched block must not be sent: %+v", got)
 	}
+
+	// The blocks come from the record the edit reads, not from the one read
+	// before: a web edit landing in between is kept.
+	l.c.TunnelEdit = func(ctx context.Context, id string, build func(storage.AWGTunnel) (storage.AWGTunnel, error)) (api.EditedTunnel, error) {
+		existing, _ := l.c.TunnelStore.Get(id)
+		existing.Interface.DNS, existing.Peer.Endpoint = "9.9.9.9", "new.example.net:51820"
+		got, err = build(*existing)
+		return api.EditedTunnel{}, err
+	}
+	if _, _, err := l.UpdateTunnelSettings(context.Background(), mcpsrv.TunnelSettingsInput{TunnelID: "tn-1", MTU: ptr(1300), PersistentKeepalive: ptr("20")}); err != nil {
+		t.Fatal(err)
+	}
+	if got.Interface.DNS != "9.9.9.9" || got.Interface.MTU != 1300 || got.Peer.Endpoint != "new.example.net:51820" {
+		t.Fatalf("a stale block would overwrite the web edit: %+v / %+v", got.Interface, got.Peer)
+	}
+}
+
+// TestLocal_UpdateTunnelSettingsRefusesABlockEditTunnelSkips —
+// mergedInterface пропускает блок без Address, mergedPeer — без PublicKey:
+// правка сообщила бы успех и ничего не изменила.
+func TestLocal_UpdateTunnelSettingsRefusesABlockEditTunnelSkips(t *testing.T) {
+	l, _, _, _ := newLocal(t)
+	if err := l.c.TunnelStore.Update("tn-1", func(t *storage.AWGTunnel) error {
+		t.Interface.Address, t.Peer.PublicKey = "", ""
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	l.c.TunnelEdit = func(_ context.Context, id string, build func(storage.AWGTunnel) (storage.AWGTunnel, error)) (api.EditedTunnel, error) {
+		existing, _ := l.c.TunnelStore.Get(id)
+		_, err := build(*existing)
+		return api.EditedTunnel{}, err
+	}
+	for name, in := range map[string]mcpsrv.TunnelSettingsInput{
+		"interface": {TunnelID: "tn-1", MTU: ptr(1400)},
+		"peer":      {TunnelID: "tn-1", PersistentKeepalive: ptr("25")},
+	} {
+		if _, _, err := l.UpdateTunnelSettings(context.Background(), in); err == nil || !strings.Contains(err.Error(), "web interface") {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+	if _, _, err := l.UpdateTunnelSettings(context.Background(), mcpsrv.TunnelSettingsInput{TunnelID: "tn-1", ConnectivityCheck: ptr("http")}); err != nil {
+		t.Fatalf("a field outside the blocks still goes: %v", err)
+	}
 }
 
 func TestLocal_UpdateTunnelSettingsRefusals(t *testing.T) {
 	l, _, _, _ := newLocal(t)
 	called := false
-	l.c.TunnelEdit = func(context.Context, string, storage.AWGTunnel) (api.EditedTunnel, error) {
+	l.c.TunnelEdit = func(context.Context, string, func(storage.AWGTunnel) (storage.AWGTunnel, error)) (api.EditedTunnel, error) {
 		called = true
 		return api.EditedTunnel{}, &api.TunnelEditError{Status: http.StatusForbidden, Code: "TUNNEL_LOCKED", Message: "туннель защищён от изменений"}
 	}

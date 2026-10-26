@@ -34,6 +34,8 @@ func TestTools_UpdateTunnelSettings(t *testing.T) {
 		"bad keepalive":    {"tunnelId": "tn-1", "persistentKeepalive": "soon"},
 		"bad isp":          {"tunnelId": "tn-1", "ispInterface": "eth0"},
 		"ping, no target":  {"tunnelId": "tn-1", "connectivityCheck": "ping"},
+		"ping, ipv6":       {"tunnelId": "tn-1", "connectivityCheck": "ping", "pingTarget": "2001:db8::1"},
+		"ping, not a host": {"tunnelId": "tn-1", "connectivityCheck": "ping", "pingTarget": "8.8.8.8; reboot"},
 		"bad method":       {"tunnelId": "tn-1", "connectivityCheck": "icmp"},
 		"bad header":       {"tunnelId": "tn-1", "awg": map[string]any{"h2": "x"}},
 		"negative junk":    {"tunnelId": "tn-1", "awg": map[string]any{"jmin": -1}},
@@ -46,5 +48,9 @@ func TestTools_UpdateTunnelSettings(t *testing.T) {
 		if name == "dns with newline" && !strings.Contains(toolText(res), "dns") {
 			t.Errorf("the refusal must name the field: %q", toolText(res))
 		}
+	}
+	// The probe resolves a name, as the web form allows one.
+	if res, _ := callTool(t, s, "update_tunnel_settings", map[string]any{"tunnelId": "tn-1", "connectivityCheck": "ping", "pingTarget": "gw.example.net"}); res.IsError {
+		t.Fatalf("a host name is a ping target: %q", toolText(res))
 	}
 }
