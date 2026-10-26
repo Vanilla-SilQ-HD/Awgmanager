@@ -1001,8 +1001,8 @@ type WireguardServer struct {
 	Endpoint    string   `json:"endpoint,omitempty" jsonschema:"address clients connect to; empty means the router's WAN address"`
 	DNS         string   `json:"dns,omitempty" jsonschema:"DNS servers written into client configs"`
 	MTU         int      `json:"mtu,omitempty"`
-	NATMode     string   `json:"natMode" jsonschema:"full, internet-only or none"`
-	LANSegments []string `json:"lanSegments,omitempty" jsonschema:"LAN segments clients may reach"`
+	NATMode     string   `json:"natMode" jsonschema:"source address translation: full (everywhere — in the LAN clients appear as the router), internet-only (toward the internet only) or none (no internet access)"`
+	LANSegments []string `json:"lanSegments,omitempty" jsonschema:"LAN segments awg-manager lets clients into; firewall rules set on the interface in the router's web interface apply as well"`
 	Policy      string   `json:"policy,omitempty" jsonschema:"access policy client traffic follows"`
 	PeerCount   int      `json:"peerCount"`
 }

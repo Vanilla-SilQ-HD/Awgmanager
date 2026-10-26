@@ -35,7 +35,7 @@ type createServerIn struct {
 type updateServerIn struct {
 	ServerID    string  `json:"serverId" jsonschema:"server id from list_managed_servers"`
 	Description *string `json:"description,omitempty"`
-	Address     *string `json:"address,omitempty" jsonschema:"new address inside the tunnel; existing clients keep their old addresses"`
+	Address     *string `json:"address,omitempty" jsonschema:"new address inside the tunnel. Existing clients keep their old addresses and are not moved into the new subnet: check list_server_peers and re-create the clients left outside it"`
 	Mask        *string `json:"mask,omitempty"`
 	ListenPort  *int    `json:"listenPort,omitempty" jsonschema:"new port; clients must be given the new one"`
 	Endpoint    *string `json:"endpoint,omitempty" jsonschema:"address clients connect to; empty for the WAN address"`
@@ -45,8 +45,8 @@ type updateServerIn struct {
 
 type serverAccessIn struct {
 	ServerID    string    `json:"serverId" jsonschema:"server id from list_managed_servers"`
-	NATMode     *string   `json:"natMode,omitempty" jsonschema:"full (clients reach everything through the router), internet-only (the internet, not the LAN) or none"`
-	LANSegments *[]string `json:"lanSegments,omitempty" jsonschema:"LAN segments clients may reach, from list_wireguard_server_options; [] lets them reach none"`
+	NATMode     *string   `json:"natMode,omitempty" jsonschema:"source address translation only — it does not decide what clients reach. full: translated everywhere, so in the LAN a client appears as the router; internet-only: translated toward the internet only, so in the LAN it appears with its VPN address; none: not translated, so clients have no internet access"`
+	LANSegments *[]string `json:"lanSegments,omitempty" jsonschema:"LAN segments awg-manager lets clients into, from list_wireguard_server_options — its own firewall list on the server interface; [] removes that list. Firewall rules the user set on the interface in the router's web interface are kept and may still let clients in"`
 	Policy      *string   `json:"policy,omitempty" jsonschema:"access policy client traffic follows, from list_wireguard_server_options; none clears it"`
 }
 
@@ -157,8 +157,9 @@ func registerWireguardServerTools(s *mcp.Server, d Deps) {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
-		Name:        "set_wireguard_server_access",
-		Description: "Set what a WireGuard server's clients reach: NAT mode (full, internet-only, none), the LAN segments they may enter, the access policy their traffic follows. Omitted fields are kept. Applied at once.",
+		Name: "set_wireguard_server_access",
+		Description: "Set how a WireGuard server's clients go out: the LAN segments awg-manager lets them into, the NAT mode (how their source address is translated — full, internet-only, none; none leaves them without internet), and the access policy their traffic follows. " +
+			"To keep clients out of the LAN, set lanSegments, not natMode. Omitted fields are kept. Applied at once.",
 		Annotations: safeWrite("Set WireGuard server access", true),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in serverAccessIn) (*mcp.CallToolResult, WireguardServer, error) {
 		id, err := requireManagedServerID(in.ServerID)
