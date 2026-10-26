@@ -27,11 +27,13 @@ type routerSettingsIn struct {
 	BypassPorts   *string `json:"bypassPorts,omitempty" jsonschema:"extra ports that never go through sing-box, comma-separated; empty clears them"`
 	BypassSubnets *string `json:"bypassSubnets,omitempty" jsonschema:"extra subnets that never go through sing-box, comma-separated; empty clears them"`
 	PolicyName    *string `json:"policyName,omitempty" jsonschema:"access policy whose devices go through sing-box, from list_access_policies"`
-	DeviceMode    *string `json:"deviceMode,omitempty" jsonschema:"which LAN devices are routed through sing-box, as get_singbox_router_status reports it"`
+	DeviceMode    *string `json:"deviceMode,omitempty" jsonschema:"which LAN devices are routed through sing-box: policy (the devices of policyName) or all"`
 }
 
 type userConfigIn struct {
 	Content string `json:"content" jsonschema:"the whole 90-user.json: a JSON object in sing-box's configuration format, merged over the generated slots"`
+	// ExpectRevision guards a draft saved by someone else meanwhile.
+	ExpectRevision string `json:"expectRevision,omitempty" jsonschema:"revision from get_singbox_user_config. Pass it: the draft is shared with the web editor, and a draft saved since that read is refused instead of overwritten"`
 }
 
 type discardOutUser struct {
@@ -95,7 +97,8 @@ func registerRouterEngineTools(s *mcp.Server, d Deps) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "save_singbox_user_config",
 		Description: "Save the expert configuration (90-user.json) as a DRAFT and check it against the rest of sing-box's configuration. Nothing changes until apply_singbox_user_config. " +
-			"Pass the whole file; read it with get_singbox_user_config first. A mistake here can stop sing-box from starting, which is why apply refuses a draft that fails the check.",
+			"The draft is shared with the web editor and replaced whole: pass the whole file, read it with get_singbox_user_config first and pass its revision as expectRevision. " +
+			"A mistake here can stop sing-box from starting, which is why apply refuses a draft that fails the check.",
 		Annotations: safeWrite("Save sing-box expert config draft", true),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in userConfigIn) (*mcp.CallToolResult, SingboxConfigCheck, error) {
 		raw := []byte(strings.TrimSpace(in.Content))
@@ -107,7 +110,7 @@ func registerRouterEngineTools(s *mcp.Server, d Deps) {
 		if err := json.Unmarshal(raw, &obj); err != nil || obj == nil {
 			return nil, SingboxConfigCheck{}, fmt.Errorf("content must be a JSON object")
 		}
-		out, err := d.SaveSingboxUserConfig(ctx, raw)
+		out, err := d.SaveSingboxUserConfig(ctx, raw, strings.TrimSpace(in.ExpectRevision))
 		if err != nil {
 			return nil, SingboxConfigCheck{}, err
 		}

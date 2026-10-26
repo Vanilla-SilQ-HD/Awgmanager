@@ -2555,19 +2555,28 @@ func (f *Fake) GetSingboxUserConfig(context.Context) (mcpsrv.SingboxUserConfig, 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.UserConfigDraft != "" {
-		return mcpsrv.SingboxUserConfig{Content: f.UserConfigDraft, HasDraft: true, Enabled: true}, nil
+		return mcpsrv.SingboxUserConfig{Content: f.UserConfigDraft, HasDraft: true, Enabled: true, Revision: fakeRevision(f.UserConfigDraft)}, nil
 	}
-	return mcpsrv.SingboxUserConfig{Content: cmp.Or(f.UserConfig, "{}"), Enabled: true}, nil
+	content := cmp.Or(f.UserConfig, "{}")
+	return mcpsrv.SingboxUserConfig{Content: content, Enabled: true, Revision: fakeRevision(content)}, nil
+}
+
+func fakeRevision(content string) string {
+	sum := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(sum[:8])
 }
 
 // SaveSingboxUserConfig takes any JSON object as a draft and fails the
 // check when it names an outbound "broken".
-func (f *Fake) SaveSingboxUserConfig(_ context.Context, content []byte) (mcpsrv.SingboxConfigCheck, error) {
+func (f *Fake) SaveSingboxUserConfig(_ context.Context, content []byte, expectRevision string) (mcpsrv.SingboxConfigCheck, error) {
 	if f.Err != nil {
 		return mcpsrv.SingboxConfigCheck{}, f.Err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if expectRevision != "" && expectRevision != fakeRevision(cmp.Or(f.UserConfigDraft, f.UserConfig, "{}")) {
+		return mcpsrv.SingboxConfigCheck{}, fmt.Errorf("the expert configuration changed since it was read; nothing was saved: read it again with get_singbox_user_config")
+	}
 	f.UserConfigDraft = string(content)
 	if strings.Contains(f.UserConfigDraft, "broken") {
 		return mcpsrv.SingboxConfigCheck{Ok: false, Errors: []string{"unknown outbound: broken"}}, nil

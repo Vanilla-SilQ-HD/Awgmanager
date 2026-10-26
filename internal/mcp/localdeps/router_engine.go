@@ -2,6 +2,8 @@ package localdeps
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -77,7 +79,7 @@ func (l *Local) GetSingboxUserConfig(context.Context) (mcpsrv.SingboxUserConfig,
 	if err != nil {
 		return mcpsrv.SingboxUserConfig{}, err
 	}
-	out := mcpsrv.SingboxUserConfig{HasDraft: l.c.UserConfig.HasDraft(singboxorch.SlotUser)}
+	out := mcpsrv.SingboxUserConfig{HasDraft: l.c.UserConfig.HasDraft(singboxorch.SlotUser), Revision: userConfigRevision(raw)}
 	for _, st := range l.c.UserConfig.Snapshot() {
 		if st.Slot == singboxorch.SlotUser {
 			out.Enabled = st.Enabled
@@ -120,9 +122,26 @@ func userConfigAdvisories(raw []byte) []string {
 // configuration with it, as the editor's save and check do. sing-box's own
 // refusal (a check error) is reported as a failed check, not a failed call:
 // the draft is saved either way.
-func (l *Local) SaveSingboxUserConfig(_ context.Context, content []byte) (mcpsrv.SingboxConfigCheck, error) {
+// SaveSingboxUserConfig replaces the slot's draft — one the web editor
+// saved included. expectRevision, from GetSingboxUserConfig, is compared
+// with the slot as it stands just before the write: a draft saved since
+// the agent read the slot is refused rather than overwritten.
+//
+// A check that could not run (CheckMerged's error: a temporary directory,
+// a snapshot) says nothing about the content, so it is an error — as the
+// editor's 500 — not a failed check the agent would try to fix in the JSON.
+func (l *Local) SaveSingboxUserConfig(_ context.Context, content []byte, expectRevision string) (mcpsrv.SingboxConfigCheck, error) {
 	if l.c.UserConfig == nil {
 		return mcpsrv.SingboxConfigCheck{}, errUnavailable("the expert configuration")
+	}
+	if expectRevision != "" {
+		current, err := l.c.UserConfig.LoadEffective(singboxorch.SlotUser)
+		if err != nil {
+			return mcpsrv.SingboxConfigCheck{}, err
+		}
+		if got := userConfigRevision(current); got != expectRevision {
+			return mcpsrv.SingboxConfigCheck{}, fmt.Errorf("the expert configuration changed since it was read (revision %s, not %s) — another draft was saved, perhaps in the web interface; nothing was saved: read it again with get_singbox_user_config", got, expectRevision)
+		}
 	}
 	if err := l.c.UserConfig.SaveDraft(singboxorch.SlotUser, content); err != nil {
 		l.singboxLog.Warn("user-config-save", "90-user.json", "Failed to save draft (MCP): "+err.Error())
@@ -131,7 +150,8 @@ func (l *Local) SaveSingboxUserConfig(_ context.Context, content []byte) (mcpsrv
 	l.singboxLog.Info("user-config-save", "90-user.json", "User config draft saved (MCP)")
 	res, err := l.c.UserConfig.CheckMerged(singboxorch.SlotUser, content)
 	if err != nil {
-		return mcpsrv.SingboxConfigCheck{Ok: false, Errors: []string{sanitizeText(err.Error(), maxMessageRunes)}, Warnings: userConfigAdvisories(content)}, nil
+		l.singboxLog.Warn("user-config-check", "90-user.json", "Merged check could not run (MCP): "+err.Error())
+		return mcpsrv.SingboxConfigCheck{}, fmt.Errorf("the draft is saved, but the check could not run (%s) — this is not a verdict on the content; apply_singbox_user_config checks it again", sanitizeText(err.Error(), maxMessageRunes))
 	}
 	out := configCheck(res)
 	out.Warnings = append(out.Warnings, userConfigAdvisories(content)...)
@@ -181,4 +201,12 @@ func (l *Local) DiscardSingboxUserConfig(context.Context) error {
 	}
 	l.singboxLog.Info("user-config-discard", "90-user.json", "User config draft discarded (MCP)")
 	return nil
+}
+
+// userConfigRevision names the slot's content as it stands, for
+// save_singbox_user_config's expectRevision: a truncated SHA-256 of the
+// bytes GetSingboxUserConfig reads, taken before any truncation.
+func userConfigRevision(raw []byte) string {
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:8])
 }

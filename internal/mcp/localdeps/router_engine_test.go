@@ -107,7 +107,7 @@ func TestLocal_SingboxUserConfig(t *testing.T) {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 	fs.checkRes = singboxorch.ValidationResult{Errors: []singboxorch.ValidationError{{Kind: "unknown-outbound", Message: "unknown outbound x"}, {Severity: singboxorch.SeverityWarning, Message: "dns final"}}}
-	check, err := l.SaveSingboxUserConfig(ctx, []byte(`{"route":{"final":"x"}}`))
+	check, err := l.SaveSingboxUserConfig(ctx, []byte(`{"route":{"final":"x"}}`), got.Revision)
 	if err != nil || check.Ok || len(check.Errors) != 1 || len(check.Warnings) != 1 || string(fs.draft) != `{"route":{"final":"x"}}` {
 		t.Fatalf("check = %+v, %v", check, err)
 	}
@@ -129,7 +129,7 @@ func TestLocal_SingboxUserConfig(t *testing.T) {
 	// on apply, as the editor's check and apply do (#699).
 	mixed := []byte(`{"route":{"rules":[{"rule_set":["geosite-x"],"ip_cidr":["10.0.0.0/8"],"outbound":"vpn"}]}}`)
 	fs.checkRes = singboxorch.ValidationResult{}
-	if check, err = l.SaveSingboxUserConfig(ctx, mixed); err != nil || len(check.Warnings) != 1 || !strings.Contains(check.Warnings[0], "route.rules[0]") {
+	if check, err = l.SaveSingboxUserConfig(ctx, mixed, ""); err != nil || len(check.Warnings) != 1 || !strings.Contains(check.Warnings[0], "route.rules[0]") {
 		t.Fatalf("save must flag the rule: %+v, %v", check, err)
 	}
 	if check, err = l.ApplySingboxUserConfig(ctx); err != nil || len(check.Warnings) != 1 {
@@ -143,9 +143,9 @@ func TestLocal_SingboxUserConfig(t *testing.T) {
 	if _, err = l.ApplySingboxUserConfig(ctx); err == nil || !strings.Contains(err.Error(), "no draft") {
 		t.Fatalf("a draft gone before the commit is no draft, not a failed check: %v", err)
 	}
-	fs.applyErr, fs.checkErr = nil, errors.New("merge: bad json")
-	if check, err = l.SaveSingboxUserConfig(ctx, []byte(`{}`)); err != nil || check.Ok || len(check.Errors) != 1 || !strings.Contains(check.Errors[0], "bad json") {
-		t.Fatalf("a check that could not run is a failed check: %+v, %v", check, err)
+	fs.applyErr, fs.checkErr = nil, errors.New("CheckMerged tmpdir: no space left on device")
+	if check, err = l.SaveSingboxUserConfig(ctx, []byte(`{}`), ""); err == nil || !strings.Contains(err.Error(), "could not run") || check.Ok || len(check.Errors) != 0 || string(fs.draft) != `{}` {
+		t.Fatalf("a check that could not run is an error about the router, not a verdict on the JSON: %+v, %v", check, err)
 	}
 	fs.checkErr = nil
 	if err := l.DiscardSingboxUserConfig(ctx); err != nil || fs.draft != nil {
@@ -156,7 +156,28 @@ func TestLocal_SingboxUserConfig(t *testing.T) {
 	}
 
 	fs.effective = []byte(strings.Repeat("x", maxUserConfigOut+10))
-	if got, _ := l.GetSingboxUserConfig(ctx); !got.Truncated || len(got.Content) != maxUserConfigOut {
-		t.Fatalf("a long slot must be cut and say so: %d %v", len(got.Content), got.Truncated)
+	if got, _ := l.GetSingboxUserConfig(ctx); !got.Truncated || len(got.Content) != maxUserConfigOut || got.Revision != userConfigRevision(fs.effective) {
+		t.Fatalf("a long slot must be cut and say so, its revision naming it whole: %d %v %s", len(got.Content), got.Truncated, got.Revision)
+	}
+}
+
+// TestLocal_SaveSingboxUserConfigChecksTheRevision — черновик общий с
+// веб-редактором и заменяется целиком: черновик, сохранённый после чтения
+// агента, не перезаписывается — отказ, и ничего не пишется.
+func TestLocal_SaveSingboxUserConfigChecksTheRevision(t *testing.T) {
+	fs := &fakeSlots{effective: []byte(`{"outbounds":[]}`), enabled: true}
+	l := New(Config{UserConfig: fs})
+	ctx := context.Background()
+	read, err := l.GetSingboxUserConfig(ctx)
+	if err != nil || read.Revision == "" {
+		t.Fatalf("read = %+v, %v", read, err)
+	}
+	fs.draft = []byte(`{"log":{"level":"debug"}}`) // the web editor saves meanwhile
+	if _, err := l.SaveSingboxUserConfig(ctx, []byte(`{"route":{}}`), read.Revision); err == nil || !strings.Contains(err.Error(), "get_singbox_user_config") || string(fs.draft) != `{"log":{"level":"debug"}}` {
+		t.Fatalf("a draft saved meanwhile must not be overwritten: %v, %s", err, fs.draft)
+	}
+	again, _ := l.GetSingboxUserConfig(ctx)
+	if _, err := l.SaveSingboxUserConfig(ctx, []byte(`{"route":{}}`), again.Revision); err != nil || string(fs.draft) != `{"route":{}}` {
+		t.Fatalf("the current revision saves: %v, %s", err, fs.draft)
 	}
 }

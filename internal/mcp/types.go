@@ -310,6 +310,8 @@ type SingboxUserConfig struct {
 	Truncated bool   `json:"truncated,omitempty" jsonschema:"true when the content is longer than returned; the web interface shows it whole"`
 	HasDraft  bool   `json:"hasDraft" jsonschema:"true means content is a draft not applied yet"`
 	Enabled   bool   `json:"enabled" jsonschema:"the slot takes part in the running configuration"`
+	// Revision is the content's, untruncated, for save's expectRevision.
+	Revision string `json:"revision" jsonschema:"names this content; pass it to save_singbox_user_config as expectRevision so a draft saved meanwhile is not overwritten"`
 }
 
 // SingboxConfigCheck is the outcome of checking or applying the expert

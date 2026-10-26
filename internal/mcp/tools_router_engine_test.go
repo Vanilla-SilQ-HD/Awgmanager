@@ -45,8 +45,16 @@ func TestTools_SingboxUserConfig(t *testing.T) {
 	if res, out := callTool(t, s, "save_singbox_user_config", map[string]any{"content": `{"log":{"level":"warn"}}`}); res.IsError || out["ok"] != true {
 		t.Fatalf("%s / %v", toolText(res), out)
 	}
-	if _, out := callTool(t, s, "get_singbox_user_config", nil); out["hasDraft"] != true {
-		t.Fatalf("out = %v", out)
+	_, read := callTool(t, s, "get_singbox_user_config", nil)
+	if read["hasDraft"] != true || read["revision"] == "" {
+		t.Fatalf("out = %v", read)
+	}
+	// A revision read before another save names nothing now.
+	if res, _ := callTool(t, s, "save_singbox_user_config", map[string]any{"content": `{"log":{}}`, "expectRevision": "0000000000000000"}); !res.IsError || !strings.Contains(toolText(res), "get_singbox_user_config") {
+		t.Fatalf("a stale revision must be refused: %s", toolText(res))
+	}
+	if res, _ := callTool(t, s, "save_singbox_user_config", map[string]any{"content": `{"log":{"level":"warn"}}`, "expectRevision": read["revision"]}); res.IsError {
+		t.Fatalf("the current revision saves: %s", toolText(res))
 	}
 	if res, out := callTool(t, s, "apply_singbox_user_config", nil); res.IsError || out["ok"] != true {
 		t.Fatalf("%s / %v", toolText(res), out)

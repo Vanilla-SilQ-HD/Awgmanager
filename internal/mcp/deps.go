@@ -193,7 +193,9 @@ type Deps interface {
 	// credentials), save a draft, check it against the merged configuration,
 	// apply or discard it.
 	GetSingboxUserConfig(ctx context.Context) (SingboxUserConfig, error)
-	SaveSingboxUserConfig(ctx context.Context, content []byte) (SingboxConfigCheck, error)
+	// SaveSingboxUserConfig replaces the draft; expectRevision, when not
+	// empty, must name the slot as it stands (GetSingboxUserConfig).
+	SaveSingboxUserConfig(ctx context.Context, content []byte, expectRevision string) (SingboxConfigCheck, error)
 	ApplySingboxUserConfig(ctx context.Context) (SingboxConfigCheck, error)
 	DiscardSingboxUserConfig(ctx context.Context) error
 	// SingboxRouterStatus describes how the router is set up and whether
