@@ -136,9 +136,9 @@ type (
 		Snapshot() []singboxorch.SlotState
 		LoadEffective(slot singboxorch.Slot) ([]byte, error)
 		HasDraft(slot singboxorch.Slot) bool
-		SaveDraft(slot singboxorch.Slot, jsonBytes []byte) error
+		SaveDraftChecked(slot singboxorch.Slot, jsonBytes []byte, check func(current []byte) error) error
 		CheckMerged(slot singboxorch.Slot, jsonBytes []byte) (singboxorch.ValidationResult, error)
-		ApplyDraft(slot singboxorch.Slot) (singboxorch.ValidationResult, error)
+		ApplyDraftChecked(slot singboxorch.Slot, check func(draft []byte) error) (singboxorch.ValidationResult, error)
 		DiscardDraft(slot singboxorch.Slot) error
 		SetEnabled(slot singboxorch.Slot, enabled bool) error
 	}

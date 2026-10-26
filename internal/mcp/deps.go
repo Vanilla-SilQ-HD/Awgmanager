@@ -196,7 +196,9 @@ type Deps interface {
 	// SaveSingboxUserConfig replaces the draft; expectRevision, when not
 	// empty, must name the slot as it stands (GetSingboxUserConfig).
 	SaveSingboxUserConfig(ctx context.Context, content []byte, expectRevision string) (SingboxConfigCheck, error)
-	ApplySingboxUserConfig(ctx context.Context) (SingboxConfigCheck, error)
+	// ApplySingboxUserConfig applies the draft only when it is the one
+	// expectRevision names (save's result), checked under the commit's lock.
+	ApplySingboxUserConfig(ctx context.Context, expectRevision string) (SingboxConfigCheck, error)
 	DiscardSingboxUserConfig(ctx context.Context) error
 	// SingboxRouterStatus describes how the router is set up and whether
 	// it works. It asks NDMS and probes the kernel, as the web page does,

@@ -324,6 +324,10 @@ func TestApplyDraft_SingboxCheckFail(t *testing.T) {
 	if err == nil {
 		t.Fatalf("want sb-check error, got nil; res=%v", res)
 	}
+	// A verdict on the draft, told apart from the file system's errors.
+	if !errors.Is(err, ErrSingboxCheck) || !strings.Contains(err.Error(), "simulated sb-check failure") {
+		t.Errorf("err = %v, want ErrSingboxCheck with the cause", err)
+	}
 	if !res.Ok() {
 		t.Errorf("res should be ZeroResult on sb-check failure")
 	}
@@ -449,5 +453,30 @@ func TestSaveAndValidate_DisabledSlotWritesToDisabledDir(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "20-router.json")); err == nil {
 		t.Error("выключенный слот записан в active/ — Bootstrap сочтёт это патологией")
+	}
+}
+
+// TestDraftChecked — SaveDraftChecked и ApplyDraftChecked отдают check
+// содержимое под тем же замком, что и запись: отказ check ничего не пишет
+// и не применяет, совпадение — пропускает.
+func TestDraftChecked(t *testing.T) {
+	o, _ := setupOrch(t)
+	refused := errors.New("refused")
+
+	if err := o.SaveDraft(SlotRouter, []byte(`{"a":1}`)); err != nil {
+		t.Fatal(err)
+	}
+	var seen string
+	if err := o.SaveDraftChecked(SlotRouter, []byte(`{"b":2}`), func(cur []byte) error { seen = string(cur); return refused }); err != refused {
+		t.Fatalf("err = %v", err)
+	}
+	if got, _ := o.LoadEffective(SlotRouter); seen != `{"a":1}` || string(got) != `{"a":1}` {
+		t.Fatalf("check must see the draft, and a refusal write nothing: seen %s, draft %s", seen, got)
+	}
+	if err := o.SaveDraftChecked(SlotRouter, []byte(`{"b":2}`), func([]byte) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.ApplyDraftChecked(SlotRouter, func(d []byte) error { seen = string(d); return refused }); err != refused || seen != `{"b":2}` || !o.HasDraft(SlotRouter) {
+		t.Fatalf("a refused apply must keep the draft: %v, %s", err, seen)
 	}
 }

@@ -79,17 +79,35 @@ func (l *Local) GetSingboxUserConfig(context.Context) (mcpsrv.SingboxUserConfig,
 	if err != nil {
 		return mcpsrv.SingboxUserConfig{}, err
 	}
-	out := mcpsrv.SingboxUserConfig{HasDraft: l.c.UserConfig.HasDraft(singboxorch.SlotUser), Revision: userConfigRevision(raw)}
+	out := mcpsrv.SingboxUserConfig{HasDraft: l.c.UserConfig.HasDraft(singboxorch.SlotUser), Revision: userConfigRevision(raw), Size: len(raw)}
 	for _, st := range l.c.UserConfig.Snapshot() {
 		if st.Slot == singboxorch.SlotUser {
 			out.Enabled = st.Enabled
 		}
 	}
 	if len(raw) > maxUserConfigOut {
-		raw, out.Truncated = raw[:maxUserConfigOut], true
+		// No revision for a cut copy: save takes one only with the whole
+		// file, and a cut copy saved back would drop the rest of the user's
+		// configuration.
+		raw, out.Truncated, out.Revision = raw[:maxUserConfigOut], true, ""
 	}
 	out.Content = string(raw)
 	return out, nil
+}
+
+// errUserConfigChanged is a save or apply refused because the slot is not
+// the one the agent read or saved.
+var errUserConfigChanged = errors.New("the expert configuration changed since it was read")
+
+// revisionCheck compares the slot's bytes with expectRevision inside the
+// orchestrator's lock (SaveDraftChecked, ApplyDraftChecked).
+func revisionCheck(expectRevision, what string) func([]byte) error {
+	return func(current []byte) error {
+		if got := userConfigRevision(current); got != expectRevision {
+			return fmt.Errorf("%w: %s is revision %s, not %s — another draft was saved, perhaps in the web interface; nothing was %s: read it again with get_singbox_user_config", errUserConfigChanged, what, got, expectRevision, map[string]string{"the slot": "saved", "the draft": "applied"}[what])
+		}
+		return nil
+	}
 }
 
 // configCheck maps the orchestrator's verdict.
@@ -134,16 +152,7 @@ func (l *Local) SaveSingboxUserConfig(_ context.Context, content []byte, expectR
 	if l.c.UserConfig == nil {
 		return mcpsrv.SingboxConfigCheck{}, errUnavailable("the expert configuration")
 	}
-	if expectRevision != "" {
-		current, err := l.c.UserConfig.LoadEffective(singboxorch.SlotUser)
-		if err != nil {
-			return mcpsrv.SingboxConfigCheck{}, err
-		}
-		if got := userConfigRevision(current); got != expectRevision {
-			return mcpsrv.SingboxConfigCheck{}, fmt.Errorf("the expert configuration changed since it was read (revision %s, not %s) — another draft was saved, perhaps in the web interface; nothing was saved: read it again with get_singbox_user_config", got, expectRevision)
-		}
-	}
-	if err := l.c.UserConfig.SaveDraft(singboxorch.SlotUser, content); err != nil {
+	if err := l.c.UserConfig.SaveDraftChecked(singboxorch.SlotUser, content, revisionCheck(expectRevision, "the slot")); err != nil {
 		l.singboxLog.Warn("user-config-save", "90-user.json", "Failed to save draft (MCP): "+err.Error())
 		return mcpsrv.SingboxConfigCheck{}, err
 	}
@@ -155,29 +164,48 @@ func (l *Local) SaveSingboxUserConfig(_ context.Context, content []byte, expectR
 	}
 	out := configCheck(res)
 	out.Warnings = append(out.Warnings, userConfigAdvisories(content)...)
+	out.Revision = userConfigRevision(content)
 	return out, nil
 }
 
 // ApplySingboxUserConfig applies, then enables the slot — the editor's
 // order: a refused apply leaves a parked slot parked.
-func (l *Local) ApplySingboxUserConfig(context.Context) (mcpsrv.SingboxConfigCheck, error) {
+//
+// expectRevision names the draft the agent means — save's revision, or
+// get's when the draft is there already. ApplyDraftChecked compares it
+// with the draft it is about to commit, under the commit's lock, so a draft
+// the web editor saved meanwhile is refused, not applied in the agent's
+// name. A sing-box refusal (ErrSingboxCheck) is a failed check; any other
+// error is the file system's, says nothing about the draft, and is an
+// error — the agent must not start fixing the JSON for it.
+func (l *Local) ApplySingboxUserConfig(_ context.Context, expectRevision string) (mcpsrv.SingboxConfigCheck, error) {
 	if l.c.UserConfig == nil {
 		return mcpsrv.SingboxConfigCheck{}, errUnavailable("the expert configuration")
 	}
 	if !l.c.UserConfig.HasDraft(singboxorch.SlotUser) {
 		return mcpsrv.SingboxConfigCheck{}, fmt.Errorf("there is no draft to apply; save one with save_singbox_user_config")
 	}
-	// Read before applying, as the editor does: the commit removes the
-	// draft, and its advisories go back with the result. With a draft,
-	// LoadEffective returns it.
-	draft, _ := l.c.UserConfig.LoadEffective(singboxorch.SlotUser)
-	res, err := l.c.UserConfig.ApplyDraft(singboxorch.SlotUser)
+	// The draft is kept as the commit sees it, as the editor does: the
+	// commit removes it, and its advisories go back with the result.
+	var draft []byte
+	check := revisionCheck(expectRevision, "the draft")
+	res, err := l.c.UserConfig.ApplyDraftChecked(singboxorch.SlotUser, func(d []byte) error {
+		draft = d
+		return check(d)
+	})
 	if errors.Is(err, singboxorch.ErrNoDraft) {
 		return mcpsrv.SingboxConfigCheck{}, fmt.Errorf("there is no draft to apply")
 	}
-	if err != nil {
+	if errors.Is(err, errUserConfigChanged) {
+		return mcpsrv.SingboxConfigCheck{}, err
+	}
+	if errors.Is(err, singboxorch.ErrSingboxCheck) {
 		l.singboxLog.Warn("user-config-apply", "90-user.json", "Apply refused by sing-box check (MCP): "+err.Error())
 		return mcpsrv.SingboxConfigCheck{Ok: false, Errors: []string{sanitizeText(err.Error(), maxMessageRunes)}}, nil
+	}
+	if err != nil {
+		l.singboxLog.Warn("user-config-apply", "90-user.json", "Apply could not run (MCP): "+err.Error())
+		return mcpsrv.SingboxConfigCheck{}, fmt.Errorf("the draft was not applied: applying could not run (%s) — this is the router's file system, not a verdict on the draft; nothing changed", sanitizeText(err.Error(), maxMessageRunes))
 	}
 	if !res.Ok() {
 		l.singboxLog.Warn("user-config-apply", "90-user.json", "Apply refused: validation failed (MCP)")

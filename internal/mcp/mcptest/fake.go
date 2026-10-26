@@ -2555,10 +2555,10 @@ func (f *Fake) GetSingboxUserConfig(context.Context) (mcpsrv.SingboxUserConfig, 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.UserConfigDraft != "" {
-		return mcpsrv.SingboxUserConfig{Content: f.UserConfigDraft, HasDraft: true, Enabled: true, Revision: fakeRevision(f.UserConfigDraft)}, nil
+		return mcpsrv.SingboxUserConfig{Content: f.UserConfigDraft, HasDraft: true, Enabled: true, Revision: fakeRevision(f.UserConfigDraft), Size: len(f.UserConfigDraft)}, nil
 	}
 	content := cmp.Or(f.UserConfig, "{}")
-	return mcpsrv.SingboxUserConfig{Content: content, Enabled: true, Revision: fakeRevision(content)}, nil
+	return mcpsrv.SingboxUserConfig{Content: content, Enabled: true, Revision: fakeRevision(content), Size: len(content)}, nil
 }
 
 func fakeRevision(content string) string {
@@ -2574,17 +2574,18 @@ func (f *Fake) SaveSingboxUserConfig(_ context.Context, content []byte, expectRe
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if expectRevision != "" && expectRevision != fakeRevision(cmp.Or(f.UserConfigDraft, f.UserConfig, "{}")) {
+	if expectRevision == "" || expectRevision != fakeRevision(cmp.Or(f.UserConfigDraft, f.UserConfig, "{}")) {
 		return mcpsrv.SingboxConfigCheck{}, fmt.Errorf("the expert configuration changed since it was read; nothing was saved: read it again with get_singbox_user_config")
 	}
 	f.UserConfigDraft = string(content)
+	rev := fakeRevision(f.UserConfigDraft)
 	if strings.Contains(f.UserConfigDraft, "broken") {
-		return mcpsrv.SingboxConfigCheck{Ok: false, Errors: []string{"unknown outbound: broken"}}, nil
+		return mcpsrv.SingboxConfigCheck{Ok: false, Errors: []string{"unknown outbound: broken"}, Revision: rev}, nil
 	}
-	return mcpsrv.SingboxConfigCheck{Ok: true}, nil
+	return mcpsrv.SingboxConfigCheck{Ok: true, Revision: rev}, nil
 }
 
-func (f *Fake) ApplySingboxUserConfig(context.Context) (mcpsrv.SingboxConfigCheck, error) {
+func (f *Fake) ApplySingboxUserConfig(_ context.Context, expectRevision string) (mcpsrv.SingboxConfigCheck, error) {
 	if f.Err != nil {
 		return mcpsrv.SingboxConfigCheck{}, f.Err
 	}
@@ -2592,6 +2593,9 @@ func (f *Fake) ApplySingboxUserConfig(context.Context) (mcpsrv.SingboxConfigChec
 	defer f.mu.Unlock()
 	if f.UserConfigDraft == "" {
 		return mcpsrv.SingboxConfigCheck{}, fmt.Errorf("there is no draft to apply")
+	}
+	if expectRevision != fakeRevision(f.UserConfigDraft) {
+		return mcpsrv.SingboxConfigCheck{}, fmt.Errorf("the expert configuration changed since it was read: the draft is another one; nothing was applied: read it again with get_singbox_user_config")
 	}
 	if strings.Contains(f.UserConfigDraft, "broken") {
 		return mcpsrv.SingboxConfigCheck{Ok: false, Errors: []string{"unknown outbound: broken"}}, nil

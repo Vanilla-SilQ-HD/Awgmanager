@@ -17,3 +17,9 @@ var ErrSlotAlreadyRegistered = errors.New("orchestrator: slot already registered
 // ErrNoDraft is returned by ApplyDraft when the slot has no pending file
 // to apply. HTTP layer maps this to 409 Conflict.
 var ErrNoDraft = errors.New("orchestrator: no draft to apply")
+
+// ErrSingboxCheck wraps `sing-box check` refusing a draft in ApplyDraft —
+// a verdict on the content. ApplyDraft's other errors (a temporary
+// directory, a snapshot, the commit) are the file system's and say
+// nothing about the draft.
+var ErrSingboxCheck = errors.New("sing-box check")

@@ -19,11 +19,29 @@ import (
 //
 // Returns ErrUnknownSlot if the slot is not registered.
 func (o *Orchestrator) SaveDraft(slot Slot, jsonBytes []byte) error {
+	return o.SaveDraftChecked(slot, jsonBytes, nil)
+}
+
+// SaveDraftChecked is SaveDraft that first hands check the slot's
+// effective bytes (LoadEffective's) under the same lock as the write: a
+// caller that edited a copy it read earlier refuses to overwrite a draft
+// saved since (the web editor's, say). A check error writes nothing and is
+// returned as is; nil check is SaveDraft.
+func (o *Orchestrator) SaveDraftChecked(slot Slot, jsonBytes []byte, check func(current []byte) error) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	meta, ok := o.slots[slot]
 	if !ok {
 		return ErrUnknownSlot
+	}
+	if check != nil {
+		current, err := o.loadEffectiveLocked(slot, meta)
+		if err != nil {
+			return err
+		}
+		if err := check(current); err != nil {
+			return err
+		}
 	}
 	if err := writeAtomic(o.pendingPath(meta), jsonBytes); err != nil {
 		return fmt.Errorf("SaveDraft %s: %w", slot, err)
@@ -50,6 +68,11 @@ func (o *Orchestrator) LoadEffective(slot Slot) ([]byte, error) {
 	if !ok {
 		return nil, ErrUnknownSlot
 	}
+	return o.loadEffectiveLocked(slot, meta)
+}
+
+// loadEffectiveLocked is LoadEffective under o.mu.
+func (o *Orchestrator) loadEffectiveLocked(slot Slot, meta SlotMeta) ([]byte, error) {
 	data, err := readIfExists(o.pendingPath(meta))
 	if err != nil {
 		return nil, fmt.Errorf("LoadEffective pending %s: %w", slot, err)
@@ -199,6 +222,14 @@ func (o *Orchestrator) DraftInfo(slot Slot) DraftInfo {
 // Returns (ZeroResult, wrapped error) on FS or external-check failures.
 // In all error paths, pending is preserved and active is unchanged.
 func (o *Orchestrator) ApplyDraft(slot Slot) (ValidationResult, error) {
+	return o.ApplyDraftChecked(slot, nil)
+}
+
+// ApplyDraftChecked is ApplyDraft that first hands check the draft it is
+// about to apply, under the same lock as the commit: a caller that means a
+// particular draft refuses one saved since by someone else. A check error
+// applies nothing and is returned as is; nil check is ApplyDraft.
+func (o *Orchestrator) ApplyDraftChecked(slot Slot, check func(draft []byte) error) (ValidationResult, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	meta, ok := o.slots[slot]
@@ -212,6 +243,11 @@ func (o *Orchestrator) ApplyDraft(slot Slot) (ValidationResult, error) {
 			return ValidationResult{}, ErrNoDraft
 		}
 		return ValidationResult{}, fmt.Errorf("ApplyDraft read pending %s: %w", slot, err)
+	}
+	if check != nil {
+		if err := check(draftBytes); err != nil {
+			return ValidationResult{}, err
+		}
 	}
 
 	// Cross-slot validation against draft. Результат сохраняем: при успехе
@@ -256,7 +292,7 @@ func (o *Orchestrator) ApplyDraft(slot Slot) (ValidationResult, error) {
 		}
 
 		if err := o.validator.Validate(context.Background(), tmpdir); err != nil {
-			return ValidationResult{}, fmt.Errorf("sing-box check: %w", err)
+			return ValidationResult{}, fmt.Errorf("%w: %w", ErrSingboxCheck, err)
 		}
 	}
 
