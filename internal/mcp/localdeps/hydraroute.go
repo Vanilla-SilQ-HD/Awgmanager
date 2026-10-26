@@ -21,10 +21,12 @@ type (
 		RefreshStatus() hydraroute.Status
 		Control(action string) error
 		ReadConfig() (*hydraroute.Config, error)
-		WriteConfig(cfg *hydraroute.Config) error
 		SyncGeoFilesToConfig() error
 		OversizedTags(ctx context.Context) ([]hydraroute.OversizedTag, error)
 		RemoveOversizedTag(name string) error
+		// UpdateConfig reads, edits and writes hrneo.conf in one locked
+		// step (hydraroute.Service.UpdateConfig).
+		UpdateConfig(edit func(*hydraroute.Config) error) (*hydraroute.Config, error)
 		CalculateIpsetUsage() (*hydraroute.IpsetUsage, error)
 	}
 	// HydraGeo is the part of *hydraroute.GeoDataStore the geo tools use.
@@ -83,30 +85,31 @@ func (l *Local) ControlHydraRoute(ctx context.Context, action string) (mcpsrv.Hy
 	return l.HydraRouteStatus(ctx)
 }
 
-// UpdateHydraRouteSettings reads hrneo.conf and writes it back with the
-// patch: WriteConfig takes the whole struct, and the REST editor sends it
-// whole too. The service schedules the daemon's restart itself; the
-// status event mirrors UpdateConfig.
+// UpdateHydraRouteSettings lays the patch over hrneo.conf: the file is
+// written whole, as the REST editor writes it, but read and written in one
+// step under the service's lock (UpdateConfig). The service schedules the
+// daemon's restart itself; the status event mirrors the REST UpdateConfig.
 func (l *Local) UpdateHydraRouteSettings(ctx context.Context, p mcpsrv.HydraRouteSettingsPatch) (mcpsrv.HydraRouteStatus, error) {
 	if l.c.Hydra == nil {
 		return mcpsrv.HydraRouteStatus{}, errUnavailable("HydraRoute Neo")
 	}
-	cfg, err := l.c.Hydra.ReadConfig()
-	if err != nil {
-		return mcpsrv.HydraRouteStatus{}, err
-	}
-	for dst, src := range map[*bool]*bool{&cfg.AutoStart: p.AutoStart, &cfg.ClearIPSet: p.ClearIPSet, &cfg.IpsetEnableTimeout: p.IpsetTimeoutEnabled, &cfg.ConntrackFlush: p.ConntrackFlush} {
-		if src != nil {
-			*dst = *src
+	// The fields are laid over the file as it is under the write's lock: a
+	// policy order or geo file list written meanwhile stays.
+	_, err := l.c.Hydra.UpdateConfig(func(cfg *hydraroute.Config) error {
+		for dst, src := range map[*bool]*bool{&cfg.AutoStart: p.AutoStart, &cfg.ClearIPSet: p.ClearIPSet, &cfg.IpsetEnableTimeout: p.IpsetTimeoutEnabled, &cfg.ConntrackFlush: p.ConntrackFlush} {
+			if src != nil {
+				*dst = *src
+			}
 		}
-	}
-	if p.IpsetTimeout != nil {
-		cfg.IpsetTimeout = *p.IpsetTimeout
-	}
-	if p.IpsetMaxElem != nil {
-		cfg.IpsetMaxElem = *p.IpsetMaxElem
-	}
-	if err := l.c.Hydra.WriteConfig(cfg); err != nil {
+		if p.IpsetTimeout != nil {
+			cfg.IpsetTimeout = *p.IpsetTimeout
+		}
+		if p.IpsetMaxElem != nil {
+			cfg.IpsetMaxElem = *p.IpsetMaxElem
+		}
+		return nil
+	})
+	if err != nil {
 		l.dnsLog.Warn("hydraroute-config", "", "Failed to write HydraRoute settings (MCP): "+err.Error())
 		return mcpsrv.HydraRouteStatus{}, err
 	}

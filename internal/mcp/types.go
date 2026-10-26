@@ -1071,7 +1071,7 @@ type HydraRouteStatus struct {
 	Running      bool              `json:"running"`
 	State        string            `json:"state" jsonschema:"not_installed, stopped, running or dead"`
 	Version      string            `json:"version,omitempty"`
-	IpsetMaxElem int               `json:"ipsetMaxElem,omitempty" jsonschema:"entries one ipset can hold; a list larger than this is cut"`
+	IpsetMaxElem int               `json:"ipsetMaxElem,omitempty" jsonschema:"entries one ipset can hold; a geoip tag larger than this is disabled (disabledTags)"`
 	IpsetUsage   map[string]int    `json:"ipsetUsage,omitempty" jsonschema:"entries per target interface now"`
 	DisabledTags []HydraRouteTag   `json:"disabledTags,omitempty" jsonschema:"geoip tags HydraRoute could not use (\"impossible to use\") — too large for the ipset"`
 	Settings     HydraRouteSetting `json:"settings"`

@@ -1,6 +1,7 @@
 package hydraroute
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1127,5 +1128,45 @@ func TestService_HealInvalidRuntimeConfig_HealsBrokenDefaults(t *testing.T) {
 	got := mustRead(t, hrConfPath)
 	if !strContains(got, "CIDR=true") || !strContains(got, "autoStart=true") {
 		t.Errorf("service did not heal broken defaults:\n%s", got)
+	}
+}
+
+// TestService_UpdateConfigEditsTheFileAsItIs — правка настроек ложится на
+// hrneo.conf, каким его оставила последняя запись (SetPolicyOrder из
+// веб-интерфейса), а не на копию, прочитанную раньше; отказ правки ничего
+// не пишет.
+func TestService_UpdateConfigEditsTheFileAsItIs(t *testing.T) {
+	setupTestConf(t, "AutoStart=true\nIpsetMaxElem=65536\nPolicyOrder=HydraRoute\n")
+	s := NewService(nil, nil)
+	t.Cleanup(func() {
+		if s.restartTimer != nil {
+			s.restartTimer.Stop()
+		}
+	})
+
+	if err := s.SetPolicyOrder([]string{"Policy1", "HydraRoute"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := s.UpdateConfig(func(c *Config) error {
+		c.IpsetMaxElem = 262144
+		return nil
+	})
+	if err != nil || cfg.IpsetMaxElem != 262144 {
+		t.Fatalf("cfg = %+v, %v", cfg, err)
+	}
+	got, err := ReadConfig()
+	if err != nil || got.IpsetMaxElem != 262144 || !got.AutoStart || len(got.PolicyOrder) != 2 || got.PolicyOrder[0] != "Policy1" {
+		t.Fatalf("written = %+v, %v", got, err)
+	}
+
+	before := mustRead(t, hrConfPath)
+	if _, err := s.UpdateConfig(func(c *Config) error {
+		c.AutoStart = false
+		return errors.New("refused")
+	}); err == nil {
+		t.Fatal("an edit's error must come back")
+	}
+	if after := mustRead(t, hrConfPath); after != before {
+		t.Fatalf("a refused edit must write nothing:\n%s\n---\n%s", before, after)
 	}
 }

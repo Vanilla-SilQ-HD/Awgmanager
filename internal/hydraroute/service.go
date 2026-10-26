@@ -373,7 +373,33 @@ func (s *Service) ReadConfig() (*Config, error) {
 func (s *Service) WriteConfig(cfg *Config) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.writeConfigLocked(cfg)
+}
 
+// UpdateConfig reads hrneo.conf, lets edit change it and writes it as
+// WriteConfig does, all under s.mu — the lock SetPolicyOrder and
+// SyncGeoFilesToConfig write their parts under. A caller that changes a few
+// settings must not write back a whole copy read before such a write: the
+// policy order dragged in the web interface meanwhile would be lost. An
+// edit's error writes nothing. Returns the config written.
+func (s *Service) UpdateConfig(edit func(*Config) error) (*Config, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cfg, err := ReadConfig()
+	if err != nil {
+		return nil, err
+	}
+	if err := edit(cfg); err != nil {
+		return nil, err
+	}
+	if err := s.writeConfigLocked(cfg); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+// writeConfigLocked is WriteConfig under s.mu.
+func (s *Service) writeConfigLocked(cfg *Config) error {
 	if s.geodata != nil {
 		geoIP, geoSite := s.geodata.GeoFilePaths()
 		cfg.GeoIPFiles = geoIP

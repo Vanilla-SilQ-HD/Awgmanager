@@ -23,6 +23,7 @@ type fakeHydra struct {
 	removeErr  error
 	removed    string
 	readErr    error
+	beforeEdit func(*fakeHydra)
 }
 
 func (f *fakeHydra) RefreshStatus() hydraroute.Status { return f.st }
@@ -41,6 +42,23 @@ func (f *fakeHydra) WriteConfig(cfg *hydraroute.Config) error {
 	f.written = cfg
 	f.cfg = *cfg
 	return nil
+}
+
+// UpdateConfig mirrors hydraroute.Service.UpdateConfig: beforeEdit is a
+// write that lands between another caller's read and this write — it must
+// be what edit sees.
+func (f *fakeHydra) UpdateConfig(edit func(*hydraroute.Config) error) (*hydraroute.Config, error) {
+	if f.beforeEdit != nil {
+		f.beforeEdit(f)
+	}
+	cfg, err := f.ReadConfig()
+	if err != nil {
+		return nil, err
+	}
+	if err := edit(cfg); err != nil {
+		return nil, err
+	}
+	return cfg, f.WriteConfig(cfg)
 }
 func (f *fakeHydra) SyncGeoFilesToConfig() error {
 	f.synced++
@@ -118,8 +136,15 @@ func TestLocal_HydraRouteStatusAndSettings(t *testing.T) {
 	if st.Settings.IpsetMaxElem != 262144 || !bus.has(events.ResourceRoutingHydrarouteStatus) {
 		t.Fatalf("status after write = %+v, events %v", st.Settings, bus.pub)
 	}
-	if _, err := l.ControlHydraRoute(context.Background(), "restart"); err != nil || h.controlled != "restart" {
-		t.Fatalf("control: %v, %q", err, h.controlled)
+	// The policy order is dragged in the web interface between this write's
+	// read and the file being written: the patch lands on the file as it is.
+	h.beforeEdit = func(f *fakeHydra) { f.cfg.PolicyOrder = []string{"Policy1", "HydraRoute"} }
+	if _, err := l.UpdateHydraRouteSettings(context.Background(), mcpsrv.HydraRouteSettingsPatch{AutoStart: &off}); err != nil || len(h.written.PolicyOrder) != 2 || h.written.PolicyOrder[0] != "Policy1" {
+		t.Fatalf("a policy order written meanwhile must stay: %+v, %v", h.written, err)
+	}
+	h.beforeEdit, bus.pub = nil, nil
+	if _, err := l.ControlHydraRoute(context.Background(), "restart"); err != nil || h.controlled != "restart" || !bus.has(events.ResourceRoutingHydrarouteStatus) {
+		t.Fatalf("control: %v, %q, events %v", err, h.controlled, bus.pub)
 	}
 }
 
@@ -132,7 +157,8 @@ func TestLocal_HydraRouteGeo(t *testing.T) {
 	for i := range 250 {
 		g.tags = append(g.tags, hydraroute.GeoTag{Name: "t" + strings.Repeat("x", i%3), Count: i})
 	}
-	l := New(Config{Hydra: h, HydraGeo: g, Downloads: fakeDownloads{}})
+	bus := &recBus{}
+	l := New(Config{Hydra: h, HydraGeo: g, Downloads: fakeDownloads{}, Bus: bus})
 	files, err := l.ListHydraRouteGeoFiles(context.Background())
 	if err != nil || len(files) != 1 || files[0].Host != "github.com" || files[0].Updated == "" {
 		t.Fatalf("files = %+v, %v", files, err)
@@ -150,6 +176,9 @@ func TestLocal_HydraRouteGeo(t *testing.T) {
 
 	if n, partial, err := l.UpdateHydraRouteGeoFiles(context.Background(), "/opt/geo/geoip.dat"); err != nil || n != 1 || partial || g.updated != "/opt/geo/geoip.dat" || g.via != "proxy-1 (vless)" || h.synced != 1 {
 		t.Fatalf("one: %d %v %v via %q synced %d", n, partial, err, g.via, h.synced)
+	}
+	if !bus.has(events.ResourceRoutingHydrarouteStatus) {
+		t.Fatalf("an update must tell open pages, as REST does: %v", bus.pub)
 	}
 	g.allN, g.allErr = 2, errors.New("one failed")
 	if n, partial, err := l.UpdateHydraRouteGeoFiles(context.Background(), ""); err != nil || n != 2 || !partial || g.updated != "*" {

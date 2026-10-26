@@ -67,8 +67,9 @@ func registerHydraRouteTools(s *mcp.Server, d Deps) {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
-		Name:        "control_hydraroute",
-		Description: "Start, stop or restart the HydraRoute Neo daemon. While it is stopped its rule groups route nothing.",
+		Name: "control_hydraroute",
+		Description: "Start, stop or restart the HydraRoute Neo daemon. While it is stopped its rule groups route nothing. " +
+			"A later settings write or geo file update runs neo restart, which can start it again.",
 		Annotations: safeWrite("Control HydraRoute", true),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in hydraControlIn) (*mcp.CallToolResult, HydraRouteStatus, error) {
 		action := strings.ToLower(strings.TrimSpace(in.Action))
@@ -81,7 +82,8 @@ func registerHydraRouteTools(s *mcp.Server, d Deps) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "set_hydraroute_settings",
-		Description: "Change HydraRoute Neo's settings (hrneo.conf): autostart, ipset size and timeout, clearing, conntrack flush. Omitted fields are kept. The daemon restarts to read them. " +
+		Description: "Change HydraRoute Neo's settings (hrneo.conf): autostart, ipset size and timeout, clearing, conntrack flush. Omitted fields are kept. " +
+			"neo restart runs a couple of seconds later to read them — even if the daemon was stopped, so it can start it; the status returned is read before that. " +
 			"Global routing and DirectRoute are not changed here: global routing overwrites the router's policies.",
 		Annotations: safeWrite("Set HydraRoute settings", true),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in hydraSettingsIn) (*mcp.CallToolResult, HydraRouteStatus, error) {
@@ -124,7 +126,7 @@ func registerHydraRouteTools(s *mcp.Server, d Deps) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "update_hydraroute_geo_files",
-		Description: "Download HydraRoute Neo's geo files again — one, or every file awg-manager downloaded — and wait; the daemon restarts to read them. " +
+		Description: "Download HydraRoute Neo's geo files again — one, or every file awg-manager downloaded — and wait; neo restart then runs to read them, even if the daemon was stopped. " +
 			"Network work: it can take a while, and a slow source can run past the call's deadline.",
 		Annotations: safeWrite("Update HydraRoute geo files", true),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in geoUpdateIn) (*mcp.CallToolResult, geoUpdateOut, error) {
