@@ -42,11 +42,6 @@ type geoUpdateIn struct {
 	Path string `json:"path,omitempty" jsonschema:"one geo file's path from list_hydraroute_geo_files; omit to update every downloaded file"`
 }
 
-type geoUpdateOut struct {
-	Updated int  `json:"updated"`
-	Partial bool `json:"partial" jsonschema:"true when some files were updated and others failed; the journal says which"`
-}
-
 type disabledTagIn struct {
 	Name string `json:"name" jsonschema:"disabled geoip tag from get_hydraroute_status (ru or geoip:ru)"`
 }
@@ -129,15 +124,12 @@ func registerHydraRouteTools(s *mcp.Server, d Deps) {
 		Description: "Download HydraRoute Neo's geo files again — one, or every file awg-manager downloaded — and wait; neo restart then runs to read them, even if the daemon was stopped. " +
 			"Network work: it can take a while, and a slow source can run past the call's deadline.",
 		Annotations: safeWrite("Update HydraRoute geo files", true),
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in geoUpdateIn) (*mcp.CallToolResult, geoUpdateOut, error) {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in geoUpdateIn) (*mcp.CallToolResult, HydraRouteGeoUpdate, error) {
 		if in.Path != "" && (!geoPathShape.MatchString(in.Path) || strings.Contains(in.Path, "..")) {
-			return nil, geoUpdateOut{}, fmt.Errorf("path must be a geo file's path from list_hydraroute_geo_files")
+			return nil, HydraRouteGeoUpdate{}, fmt.Errorf("path must be a geo file's path from list_hydraroute_geo_files")
 		}
-		n, partial, err := d.UpdateHydraRouteGeoFiles(ctx, in.Path)
-		if err != nil {
-			return nil, geoUpdateOut{}, err
-		}
-		return nil, geoUpdateOut{Updated: n, Partial: partial}, nil
+		out, err := d.UpdateHydraRouteGeoFiles(ctx, in.Path)
+		return nil, out, err
 	})
 
 	mcp.AddTool(s, &mcp.Tool{

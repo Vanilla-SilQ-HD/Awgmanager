@@ -61,10 +61,14 @@ func (l *Local) HydraRouteStatus(ctx context.Context) (mcpsrv.HydraRouteStatus, 
 	} else {
 		out.Settings = hydraSetting(cfg)
 	}
-	if u, err := l.c.Hydra.CalculateIpsetUsage(); err == nil && u != nil {
+	if u, err := l.c.Hydra.CalculateIpsetUsage(); err != nil {
+		out.IpsetUsageError = sanitizeText(err.Error(), maxMessageRunes)
+	} else if u != nil {
 		out.IpsetMaxElem, out.IpsetUsage = u.MaxElem, u.Usage
 	}
-	if tags, err := l.c.Hydra.OversizedTags(ctx); err == nil {
+	if tags, err := l.c.Hydra.OversizedTags(ctx); err != nil {
+		out.DisabledTagsError = sanitizeText(err.Error(), maxMessageRunes)
+	} else {
 		for _, t := range tags {
 			out.DisabledTags = append(out.DisabledTags, mcpsrv.HydraRouteTag{Name: sanitizeLabel(t.Name), Count: t.Count})
 		}
@@ -109,6 +113,9 @@ func (l *Local) UpdateHydraRouteSettings(ctx context.Context, p mcpsrv.HydraRout
 		}
 		return nil
 	})
+	if errors.Is(err, hydraroute.ErrNoConfig) {
+		return mcpsrv.HydraRouteStatus{}, fmt.Errorf("HydraRoute Neo has no hrneo.conf on this router — it is not installed, or has not started yet; nothing was written (get_hydraroute_status shows whether it is installed)")
+	}
 	if err != nil {
 		l.dnsLog.Warn("hydraroute-config", "", "Failed to write HydraRoute settings (MCP): "+err.Error())
 		return mcpsrv.HydraRouteStatus{}, err
@@ -165,40 +172,42 @@ func (l *Local) HydraRouteGeoTags(_ context.Context, path string, offset int) (m
 // UpdateHydraRouteGeoFiles mirrors api.HydraRouteHandler.UpdateGeoFile:
 // the download goes through the route service downloads use, then the geo
 // keys of hrneo.conf are synced, which restarts the daemon.
-func (l *Local) UpdateHydraRouteGeoFiles(ctx context.Context, path string) (int, bool, error) {
+func (l *Local) UpdateHydraRouteGeoFiles(ctx context.Context, path string) (mcpsrv.HydraRouteGeoUpdate, error) {
 	if l.c.Hydra == nil || l.c.HydraGeo == nil || l.c.Downloads == nil {
-		return 0, false, errUnavailable("HydraRoute geo files")
+		return mcpsrv.HydraRouteGeoUpdate{}, errUnavailable("HydraRoute geo files")
 	}
 	lease, err := l.c.Downloads.ResolveClient(ctx, nil)
 	if err != nil {
-		return 0, false, fmt.Errorf("no route for the download: %w", err)
+		return mcpsrv.HydraRouteGeoUpdate{}, fmt.Errorf("no route for the download: %w", err)
 	}
 	defer lease.Close()
 	label := lease.Route.DisplayName()
-	updated, partial := 0, false
+	var out mcpsrv.HydraRouteGeoUpdate
 	if path == "" {
 		n, err := l.c.HydraGeo.UpdateAllWithClientVia(ctx, lease.Client, label)
-		updated = n
+		out.Updated = n
 		if err != nil {
 			if n == 0 {
 				l.dnsLog.Warn("hydraroute-geo", "", "Geo update failed (MCP): "+err.Error())
-				return 0, false, fmt.Errorf("the geo files could not be updated via %s: %s", label, geoError(err))
+				return mcpsrv.HydraRouteGeoUpdate{}, fmt.Errorf("the geo files could not be updated via %s: %s", label, geoError(err))
 			}
-			partial = true
+			out.DownloadError = geoError(err)
 		}
 	} else {
 		if _, err := l.c.HydraGeo.UpdateWithClientVia(ctx, path, lease.Client, label); err != nil {
-			return 0, false, fmt.Errorf("the geo file could not be updated via %s: %s", label, geoError(err))
+			return mcpsrv.HydraRouteGeoUpdate{}, fmt.Errorf("the geo file could not be updated via %s: %s", label, geoError(err))
 		}
-		updated = 1
+		out.Updated = 1
 	}
 	if err := l.c.Hydra.SyncGeoFilesToConfig(); err != nil {
-		partial = true
+		out.SyncError = sanitizeText(err.Error(), maxMessageRunes)
 		l.dnsLog.Warn("hydraroute-geo", "", "Geo files updated but not synced to hrneo.conf (MCP): "+err.Error())
+	} else {
+		out.ConfigSynced = true
 	}
-	l.dnsLog.Info("hydraroute-geo", path, fmt.Sprintf("%d geo files updated (MCP)", updated))
+	l.dnsLog.Info("hydraroute-geo", path, fmt.Sprintf("%d geo files updated (MCP)", out.Updated))
 	l.publish(events.ResourceRoutingHydrarouteStatus, "mcp-geo-update")
-	return updated, partial, nil
+	return out, nil
 }
 
 // geoError is the store's error for the agent: it quotes the source URL

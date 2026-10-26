@@ -1078,6 +1078,21 @@ type HydraRouteStatus struct {
 	// SettingsError keeps a failed read from passing for real values:
 	// every field of an unread Settings is zero.
 	SettingsError string `json:"settingsError,omitempty" jsonschema:"set when hrneo.conf could not be read; settings is then empty, not the daemon's values"`
+	// DisabledTagsError and IpsetUsageError keep a failed read from
+	// passing for "none": the list or the map is then absent, not empty.
+	DisabledTagsError string `json:"disabledTagsError,omitempty" jsonschema:"set when the disabled tags could not be read — disabledTags is then unknown, NOT empty"`
+	IpsetUsageError   string `json:"ipsetUsageError,omitempty" jsonschema:"set when the ipset fill could not be read — ipsetUsage and ipsetMaxElem are then unknown"`
+}
+
+// HydraRouteGeoUpdate is the outcome of update_hydraroute_geo_files: the
+// download and the hand-over to the daemon fail apart, and each says why.
+type HydraRouteGeoUpdate struct {
+	Updated int `json:"updated" jsonschema:"geo files downloaded again"`
+	// DownloadError is set when some files were not downloaded; Updated
+	// counts the rest. The source addresses in it are cut to their host.
+	DownloadError string `json:"downloadError,omitempty" jsonschema:"set when some files failed to download — the reason, source addresses cut to their host; updated counts the ones that did"`
+	ConfigSynced  bool   `json:"configSynced" jsonschema:"true when hrneo.conf was updated to the files and neo restart was scheduled to read them; false means HR Neo still uses the old ones"`
+	SyncError     string `json:"syncError,omitempty" jsonschema:"why hrneo.conf was not updated (then no restart either)"`
 }
 
 // HydraRouteTag is one disabled geoip tag.

@@ -2,6 +2,7 @@ package hydraroute
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -376,6 +377,10 @@ func (s *Service) WriteConfig(cfg *Config) error {
 	return s.writeConfigLocked(cfg)
 }
 
+// ErrNoConfig is UpdateConfig refused: hrneo.conf does not exist — HR Neo
+// is not installed, or has not written its configuration yet.
+var ErrNoConfig = errors.New("hrneo.conf does not exist")
+
 // UpdateConfig reads hrneo.conf, lets edit change it and writes it as
 // WriteConfig does, all under s.mu — the lock SetPolicyOrder and
 // SyncGeoFilesToConfig write their parts under. A caller that changes a few
@@ -385,6 +390,15 @@ func (s *Service) WriteConfig(cfg *Config) error {
 func (s *Service) UpdateConfig(edit func(*Config) error) (*Config, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// ReadConfig gives the defaults for a missing file, and the write would
+	// create it: on a router without HR Neo that is a hrneo.conf nobody
+	// reads, and "settings saved" for nothing.
+	if _, err := os.Stat(hrConfPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrNoConfig
+		}
+		return nil, err
+	}
 	cfg, err := ReadConfig()
 	if err != nil {
 		return nil, err

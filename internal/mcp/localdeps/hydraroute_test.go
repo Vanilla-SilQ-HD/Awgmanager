@@ -24,6 +24,11 @@ type fakeHydra struct {
 	removed    string
 	readErr    error
 	beforeEdit func(*fakeHydra)
+	// noConfig is a router without hrneo.conf; tagsErr and usageErr fail
+	// those reads.
+	noConfig bool
+	tagsErr  error
+	usageErr error
 }
 
 func (f *fakeHydra) RefreshStatus() hydraroute.Status { return f.st }
@@ -48,6 +53,9 @@ func (f *fakeHydra) WriteConfig(cfg *hydraroute.Config) error {
 // write that lands between another caller's read and this write — it must
 // be what edit sees.
 func (f *fakeHydra) UpdateConfig(edit func(*hydraroute.Config) error) (*hydraroute.Config, error) {
+	if f.noConfig {
+		return nil, hydraroute.ErrNoConfig
+	}
 	if f.beforeEdit != nil {
 		f.beforeEdit(f)
 	}
@@ -65,6 +73,9 @@ func (f *fakeHydra) SyncGeoFilesToConfig() error {
 	return f.syncErr
 }
 func (f *fakeHydra) OversizedTags(context.Context) ([]hydraroute.OversizedTag, error) {
+	if f.tagsErr != nil {
+		return nil, f.tagsErr
+	}
 	return []hydraroute.OversizedTag{{Name: "geoip:ru", Count: 90000, File: "/opt/geo/geoip.dat"}}, nil
 }
 func (f *fakeHydra) RemoveOversizedTag(name string) error {
@@ -72,6 +83,9 @@ func (f *fakeHydra) RemoveOversizedTag(name string) error {
 	return f.removeErr
 }
 func (f *fakeHydra) CalculateIpsetUsage() (*hydraroute.IpsetUsage, error) {
+	if f.usageErr != nil {
+		return nil, f.usageErr
+	}
 	return &hydraroute.IpsetUsage{MaxElem: 65536, Usage: map[string]int{"nwg0": 12}}, nil
 }
 
@@ -174,34 +188,35 @@ func TestLocal_HydraRouteGeo(t *testing.T) {
 		t.Fatal("a path that is not a geo file must be refused")
 	}
 
-	if n, partial, err := l.UpdateHydraRouteGeoFiles(context.Background(), "/opt/geo/geoip.dat"); err != nil || n != 1 || partial || g.updated != "/opt/geo/geoip.dat" || g.via != "proxy-1 (vless)" || h.synced != 1 {
-		t.Fatalf("one: %d %v %v via %q synced %d", n, partial, err, g.via, h.synced)
+	if r, err := l.UpdateHydraRouteGeoFiles(context.Background(), "/opt/geo/geoip.dat"); err != nil || r.Updated != 1 || r.DownloadError != "" || !r.ConfigSynced || g.updated != "/opt/geo/geoip.dat" || g.via != "proxy-1 (vless)" || h.synced != 1 {
+		t.Fatalf("one: %+v %v via %q synced %d", r, err, g.via, h.synced)
 	}
 	if !bus.has(events.ResourceRoutingHydrarouteStatus) {
 		t.Fatalf("an update must tell open pages, as REST does: %v", bus.pub)
 	}
-	g.allN, g.allErr = 2, errors.New("one failed")
-	if n, partial, err := l.UpdateHydraRouteGeoFiles(context.Background(), ""); err != nil || n != 2 || !partial || g.updated != "*" {
-		t.Fatalf("all, one failing: %d %v %v", n, partial, err)
+	g.allN, g.allErr = 2, errors.New("update errors: /opt/geo/geosite.dat: re-download https://user:secret@github.com/x/geosite.dat?token=abc: timeout")
+	r, err := l.UpdateHydraRouteGeoFiles(context.Background(), "")
+	if err != nil || r.Updated != 2 || !r.ConfigSynced || g.updated != "*" || !strings.Contains(r.DownloadError, "github.com") || strings.Contains(r.DownloadError, "secret") {
+		t.Fatalf("some files failing: the reason comes, its address cut to the host, and the sync is told apart: %+v, %v", r, err)
 	}
 	g.allN = 0
-	if _, _, err := l.UpdateHydraRouteGeoFiles(context.Background(), ""); err == nil {
+	if _, err := l.UpdateHydraRouteGeoFiles(context.Background(), ""); err == nil {
 		t.Fatal("nothing updated must be an error")
 	}
 	g.allErr = errors.New("update errors: /opt/geo/geoip.dat: re-download https://user:secret@github.com/x/geoip.dat?token=abc: timeout")
-	if _, _, err := l.UpdateHydraRouteGeoFiles(context.Background(), ""); err == nil || strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), "token") || !strings.Contains(err.Error(), "github.com") {
+	if _, err := l.UpdateHydraRouteGeoFiles(context.Background(), ""); err == nil || strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), "token") || !strings.Contains(err.Error(), "github.com") {
 		t.Fatalf("the source URL is cut to its host: %v", err)
 	}
 	g.oneErr = g.allErr
-	if _, _, err := l.UpdateHydraRouteGeoFiles(context.Background(), "/opt/geo/geoip.dat"); err == nil || strings.Contains(err.Error(), "secret") {
+	if _, err := l.UpdateHydraRouteGeoFiles(context.Background(), "/opt/geo/geoip.dat"); err == nil || strings.Contains(err.Error(), "secret") {
 		t.Fatalf("one file: the source URL is cut to its host: %v", err)
 	}
 	g.oneErr = nil
 	g.allErr, g.allN, h.syncErr = nil, 3, errors.New("conf busy")
-	if _, partial, err := l.UpdateHydraRouteGeoFiles(context.Background(), ""); err != nil || !partial {
-		t.Fatalf("sync failure must make it partial: %v %v", partial, err)
+	if r, err := l.UpdateHydraRouteGeoFiles(context.Background(), ""); err != nil || r.ConfigSynced || r.SyncError != "conf busy" || r.DownloadError != "" || r.Updated != 3 {
+		t.Fatalf("a failed sync is told apart from failed downloads, with its reason: %+v, %v", r, err)
 	}
-	if _, _, err := New(Config{Hydra: h, HydraGeo: g, Downloads: fakeDownloads{err: errors.New("no route")}}).UpdateHydraRouteGeoFiles(context.Background(), ""); err == nil {
+	if _, err := New(Config{Hydra: h, HydraGeo: g, Downloads: fakeDownloads{err: errors.New("no route")}}).UpdateHydraRouteGeoFiles(context.Background(), ""); err == nil {
 		t.Fatal("no download route must be an error")
 	}
 }
@@ -216,5 +231,28 @@ func TestLocal_RemoveHydraRouteDisabledTag(t *testing.T) {
 	h.removeErr = hydraroute.ErrOversizedTagNotFound
 	if err := l.RemoveHydraRouteDisabledTag(context.Background(), "us"); err == nil || !strings.Contains(err.Error(), "get_hydraroute_status") {
 		t.Fatalf("unknown tag: %v", err)
+	}
+}
+
+// TestLocal_HydraRouteReadsThatFailSaySo — несчитанный список отключённых
+// тегов — не «отключённых тегов нет», и то же с заполнением ipset; запись
+// настроек без hrneo.conf — отказ, а не «сохранено».
+func TestLocal_HydraRouteReadsThatFailSaySo(t *testing.T) {
+	h := &fakeHydra{st: hydraroute.Status{Installed: true}, cfg: hydraroute.Config{IpsetMaxElem: 65536},
+		tagsErr: errors.New("geo index: busy"), usageErr: errors.New("ipset: not found")}
+	l := New(Config{Hydra: h})
+	st, err := l.HydraRouteStatus(context.Background())
+	if err != nil || st.DisabledTags != nil || st.DisabledTagsError == "" || st.IpsetUsage != nil || st.IpsetUsageError == "" {
+		t.Fatalf("status = %+v, %v", st, err)
+	}
+	h.tagsErr, h.usageErr = nil, nil
+	if st, _ = l.HydraRouteStatus(context.Background()); st.DisabledTagsError != "" || st.IpsetUsageError != "" || len(st.DisabledTags) != 1 {
+		t.Fatalf("reads that work carry no error: %+v", st)
+	}
+
+	h.noConfig = true
+	off := false
+	if _, err := l.UpdateHydraRouteSettings(context.Background(), mcpsrv.HydraRouteSettingsPatch{AutoStart: &off}); err == nil || !strings.Contains(err.Error(), "nothing was written") || h.written != nil {
+		t.Fatalf("no hrneo.conf, no write: %v, %+v", err, h.written)
 	}
 }

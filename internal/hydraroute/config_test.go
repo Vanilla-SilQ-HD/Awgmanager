@@ -1170,3 +1170,21 @@ func TestService_UpdateConfigEditsTheFileAsItIs(t *testing.T) {
 		t.Fatalf("a refused edit must write nothing:\n%s\n---\n%s", before, after)
 	}
 }
+
+// TestService_UpdateConfigRefusesWithoutAFile — ReadConfig отдаёт значения
+// по умолчанию для файла, которого нет, а запись создала бы его: на роутере
+// без HR Neo — hrneo.conf, который никто не читает, и «сохранено» впустую.
+func TestService_UpdateConfigRefusesWithoutAFile(t *testing.T) {
+	setupEmptyConf(t)
+	s := NewService(nil, nil)
+	called := false
+	if _, err := s.UpdateConfig(func(*Config) error { called = true; return nil }); !errors.Is(err, ErrNoConfig) {
+		t.Fatalf("err = %v, want ErrNoConfig", err)
+	}
+	if called {
+		t.Fatal("edit must not run without a file")
+	}
+	if _, err := os.Stat(hrConfPath); !os.IsNotExist(err) {
+		t.Fatalf("no hrneo.conf may be created: %v", err)
+	}
+}

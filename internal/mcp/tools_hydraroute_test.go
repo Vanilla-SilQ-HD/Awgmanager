@@ -25,7 +25,7 @@ func TestTools_HydraRoute(t *testing.T) {
 	if tags, _ := out["tags"].(map[string]any); res.IsError || tags == nil || tags["total"] != float64(3) || len(tags["tags"].([]any)) != 2 {
 		t.Fatalf("%s / %v", toolText(res), out)
 	}
-	if res, out := callTool(t, s, "update_hydraroute_geo_files", nil); res.IsError || out["updated"] != float64(1) {
+	if res, out := callTool(t, s, "update_hydraroute_geo_files", nil); res.IsError || out["updated"] != float64(1) || out["configSynced"] != true {
 		t.Fatalf("external files are not updated: %s / %v", toolText(res), out)
 	}
 	if res, out := callTool(t, s, "remove_hydraroute_disabled_tag", map[string]any{"name": "RU"}); res.IsError || out["removed"] != "RU" || len(f.Hydra.DisabledTags) != 0 {

@@ -2833,9 +2833,9 @@ func (f *Fake) HydraRouteGeoTags(_ context.Context, path string, offset int) (mc
 	return mcpsrv.HydraRouteGeoTags{Path: path, Tags: slices.Clone(tags[offset:end]), Total: len(tags), Truncated: end < len(tags)}, nil
 }
 
-func (f *Fake) UpdateHydraRouteGeoFiles(_ context.Context, path string) (int, bool, error) {
+func (f *Fake) UpdateHydraRouteGeoFiles(_ context.Context, path string) (mcpsrv.HydraRouteGeoUpdate, error) {
 	if f.Err != nil {
-		return 0, false, f.Err
+		return mcpsrv.HydraRouteGeoUpdate{}, f.Err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -2848,9 +2848,9 @@ func (f *Fake) UpdateHydraRouteGeoFiles(_ context.Context, path string) (int, bo
 		n++
 	}
 	if path != "" && n == 0 {
-		return 0, false, fmt.Errorf("%q is not a geo file awg-manager downloads", path)
+		return mcpsrv.HydraRouteGeoUpdate{}, fmt.Errorf("%q is not a geo file awg-manager downloads", path)
 	}
-	return n, false, nil
+	return mcpsrv.HydraRouteGeoUpdate{Updated: n, ConfigSynced: true}, nil
 }
 
 func (f *Fake) RemoveHydraRouteDisabledTag(_ context.Context, name string) error {

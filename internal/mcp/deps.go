@@ -178,9 +178,10 @@ type Deps interface {
 	// HydraRouteGeoTags returns one page of a geo file's tags.
 	HydraRouteGeoTags(ctx context.Context, path string, offset int) (HydraRouteGeoTags, error)
 	// UpdateHydraRouteGeoFiles downloads one file again (path) or every
-	// file (""), waits, and restarts the daemon to read them. partial means
-	// some files were updated and some were not.
-	UpdateHydraRouteGeoFiles(ctx context.Context, path string) (updated int, partial bool, err error)
+	// file (""), waits, and restarts the daemon to read them. A download
+	// that failed for some files and a hrneo.conf that was not updated are
+	// told apart in the result, each with its reason.
+	UpdateHydraRouteGeoFiles(ctx context.Context, path string) (HydraRouteGeoUpdate, error)
 	// RemoveHydraRouteDisabledTag removes a tag from the disabled list. It
 	// renumbers every hr: id.
 	RemoveHydraRouteDisabledTag(ctx context.Context, name string) error
