@@ -121,7 +121,8 @@ func registerObservabilityTools(s *mcp.Server, d Deps) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "run_tunnel_diagnostics",
-		Description: "Check one tunnel or sing-box proxy now and wait for the result — the per-tunnel checks of a full sweep (interface, handshake, connectivity, DNS leak and the like), without the system-wide ones and without the restart test. " +
+		Description: "Check one tunnel or sing-box proxy now and wait for the result. A tunnel gets the per-tunnel checks of a full sweep: name resolution and reachability of the endpoint, its route, handshake, connectivity, firewall rules, config, interface state, MTU, proxy health, ping-check, rp_filter; a sing-box proxy gets the connectivity check only. " +
+			"The DNS leak and route leak checks compare tunnels with each other and run in the full sweep only (run_diagnostics); so do the system-wide checks, and the restart test never runs here. " +
 			"Takes up to a few tens of seconds. Changes nothing; refused while a full sweep runs.",
 		Annotations: readOnly("Run tunnel diagnostics"),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in tunnelDiagnosticsIn) (*mcp.CallToolResult, tunnelDiagnosticsOut, error) {
