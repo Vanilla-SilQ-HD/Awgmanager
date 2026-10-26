@@ -476,6 +476,10 @@ const MaxDomainsInDetail = 200
 // DNSSubscription is a remote domain list feeding a routing list. Only
 // the fields that explain where the domains came from are carried over.
 type DNSSubscription struct {
+	// Ref names the subscription in removeSubscriptions: the URL above is
+	// cut to its host, so two lists from one host look the same, and a
+	// position shifts as soon as one is removed.
+	Ref         string `json:"ref" jsonschema:"stable reference to this subscription — pass it in update_dns_route's removeSubscriptions"`
 	URL         string `json:"url" jsonschema:"scheme and host of the list's address only: its path, query or userinfo can carry a token. The full address is in the web interface"`
 	Name        string `json:"name,omitempty"`
 	LastFetched string `json:"lastFetched,omitempty"`
@@ -568,7 +572,7 @@ type DNSRouteUpdate struct {
 	KillSwitch          *bool    `json:"killSwitch,omitempty" jsonschema:"true blocks the traffic when every target is down, false lets it out through the provider; omit to keep the current setting"`
 	Excludes            []string `json:"excludes,omitempty" jsonschema:"replaces ALL exclusions, domains and subnets alike — read get_dns_route's excludes AND excludeSubnets and pass back every one to keep; [] clears them; omit to keep them"`
 	AddSubscriptionURLs []string `json:"addSubscriptionUrls,omitempty" jsonschema:"domain list URLs to add; each is fetched now and the edit fails if one fails or is empty"`
-	RemoveSubscriptions []int    `json:"removeSubscriptions,omitempty" jsonschema:"positions (from 0) in get_dns_route's subscriptions to remove — positions, because only the host of each URL is shown"`
+	RemoveSubscriptions []string `json:"removeSubscriptions,omitempty" jsonschema:"refs of the subscriptions to remove, from get_dns_route's subscriptions; a ref the list no longer has is refused and nothing changes"`
 }
 
 type StaticRoute struct {

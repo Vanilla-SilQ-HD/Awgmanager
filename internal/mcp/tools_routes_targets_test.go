@@ -68,23 +68,36 @@ func TestTools_UpdateDNSRouteTargets(t *testing.T) {
 	if routes := out["routes"].([]any); len(routes) != 2 || routes[0].(map[string]any)["tunnelId"] != "wan:ppp0" {
 		t.Fatalf("routes = %v", routes)
 	}
-	if res, _ := callTool(t, s, "update_dns_route", map[string]any{"routeId": id, "addSubscriptionUrls": []any{"https://a.example/l"}}); res.IsError {
+	if res, _ := callTool(t, s, "update_dns_route", map[string]any{"routeId": id, "addSubscriptionUrls": []any{"https://a.example/l", "https://a.example/m"}}); res.IsError {
 		t.Fatal(toolText(res))
 	}
-	if res, _ := callTool(t, s, "update_dns_route", map[string]any{"routeId": id, "removeSubscriptions": []any{0}}); res.IsError {
+	_, detail := callTool(t, s, "get_dns_route", map[string]any{"routeId": id})
+	subs := detail["subscriptions"].([]any)
+	refL, refM := subs[0].(map[string]any)["ref"].(string), subs[1].(map[string]any)["ref"].(string)
+	if refL == "" || refL == refM {
+		t.Fatalf("two lists from one host must get distinct refs: %v", subs)
+	}
+	if res, _ := callTool(t, s, "update_dns_route", map[string]any{"routeId": id, "removeSubscriptions": []any{refL}}); res.IsError {
 		t.Fatal(toolText(res))
 	}
-	if n := len(f.DNSRoutes[0].Subscriptions); n != 0 {
-		t.Fatalf("subscriptions = %d", n)
+	// A retry, or a ref read before the list changed, names nothing now.
+	res, _ = callTool(t, s, "update_dns_route", map[string]any{"routeId": id, "removeSubscriptions": []any{refL}})
+	if !res.IsError || !strings.Contains(toolText(res), "get_dns_route") {
+		t.Fatalf("a ref the list no longer has must be refused: %q", toolText(res))
+	}
+	if n := len(f.DNSRoutes[0].Subscriptions); n != 1 || f.DNSRoutes[0].Subscriptions[0].Ref != refM {
+		t.Fatalf("only the named subscription goes: %+v", f.DNSRoutes[0].Subscriptions)
 	}
 	for name, args := range map[string]map[string]any{
 		"both target forms": {"routeId": id, "tunnelId": "tn-1", "targets": []any{"tn-1"}},
-		"negative position": {"routeId": id, "removeSubscriptions": []any{-1}},
 		"nothing":           {"routeId": id},
 	} {
 		if res, _ := callTool(t, s, "update_dns_route", args); !res.IsError {
 			t.Errorf("%s: must be refused", name)
 		}
+	}
+	if res, _ := callTool(t, s, "update_dns_route", map[string]any{"routeId": id, "removeSubscriptions": []any{" "}}); !res.IsError || !strings.Contains(toolText(res), "empty") {
+		t.Errorf("an empty ref must be refused before the router is asked: %q", toolText(res))
 	}
 }
 

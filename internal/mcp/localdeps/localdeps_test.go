@@ -143,6 +143,30 @@ type fakeDNSRoutes struct {
 	// afterSetEnabled runs after the flag is stored: lets a test model the
 	// HR revision change that renumbers every "hr:" id.
 	afterSetEnabled func(f *fakeDNSRoutes)
+	// beforeEdit runs inside UpdateWith before the stored list is read: a
+	// web-interface edit landing between the adapter's read and the write.
+	beforeEdit func(f *fakeDNSRoutes)
+	updateWith int
+}
+
+// UpdateWith mirrors dnsroute.ServiceImpl.UpdateWith: edit sees the list
+// as stored at the write, and its patch goes through Update.
+func (f *fakeDNSRoutes) UpdateWith(ctx context.Context, id string, edit func(dnsroute.DomainList) (dnsroute.DomainList, error)) (*dnsroute.DomainList, error) {
+	f.updateWith++
+	if f.beforeEdit != nil {
+		f.beforeEdit(f)
+	}
+	for i := range f.lists {
+		if f.lists[i].ID == id {
+			patch, err := edit(f.lists[i])
+			if err != nil {
+				return nil, err
+			}
+			patch.ID = id
+			return f.Update(ctx, patch)
+		}
+	}
+	return nil, errNotFound(id)
 }
 
 func (f *fakeDNSRoutes) Create(_ context.Context, l dnsroute.DomainList) (*dnsroute.DomainList, error) {

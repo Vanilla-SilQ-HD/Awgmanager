@@ -67,6 +67,14 @@ func (f *fakeDNSRouteService) Update(ctx context.Context, list dnsroute.DomainLi
 	f.updated = append(f.updated, list)
 	return &list, nil
 }
+func (f *fakeDNSRouteService) UpdateWith(ctx context.Context, id string, edit func(dnsroute.DomainList) (dnsroute.DomainList, error)) (*dnsroute.DomainList, error) {
+	patch, err := edit(dnsroute.DomainList{ID: id})
+	if err != nil {
+		return nil, err
+	}
+	patch.ID = id
+	return f.Update(ctx, patch)
+}
 func (f *fakeDNSRouteService) Delete(ctx context.Context, id string) error {
 	if f.deleteFn != nil {
 		return f.deleteFn(ctx, id)

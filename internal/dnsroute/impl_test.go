@@ -812,3 +812,63 @@ func TestRoutedSubnets_LimitCountsWhatTheRouterGets(t *testing.T) {
 		t.Fatalf("with SkipIPv6 the same list is within the limit: %v", err)
 	}
 }
+
+// TestServiceImpl_UpdateWithBuildsThePatchFromTheStoredList — правку из
+// MCP, посчитанную от прочитанного раньше (подписки по ссылке, цели),
+// UpdateWith строит по списку под замком записи; её отказ ничего не пишет,
+// а списки HydraRoute сюда не идут.
+func TestServiceImpl_UpdateWithBuildsThePatchFromTheStoredList(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	created, err := svc.Create(ctx, DomainList{
+		Name:          "stored",
+		ManualDomains: []string{"example.com"},
+		Routes:        []RouteTarget{{Interface: "OpkgTun0", TunnelID: "t1"}},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	// A web edit after the caller's read: the edit must see it.
+	if _, err := svc.Update(ctx, DomainList{ID: created.ID, ManualDomains: []string{"example.com", "web.example.com"}}); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	var seen DomainList
+	updated, err := svc.UpdateWith(ctx, created.ID, func(stored DomainList) (DomainList, error) {
+		seen = stored
+		return DomainList{Name: "renamed"}, nil
+	})
+	if err != nil {
+		t.Fatalf("UpdateWith: %v", err)
+	}
+	if !slices.Equal(seen.ManualDomains, []string{"example.com", "web.example.com"}) {
+		t.Fatalf("edit must see the list as stored at the write: %v", seen.ManualDomains)
+	}
+	if updated.Name != "renamed" || updated.ID != created.ID || !slices.Equal(updated.ManualDomains, seen.ManualDomains) {
+		t.Fatalf("the patch is sparse, as for Update: %+v", updated)
+	}
+
+	refused := fmt.Errorf("stale")
+	if _, err := svc.UpdateWith(ctx, created.ID, func(DomainList) (DomainList, error) { return DomainList{Name: "never"}, refused }); err != refused {
+		t.Fatalf("an edit's refusal must come back as is: %v", err)
+	}
+	if got, err := svc.Get(ctx, created.ID); err != nil || got.Name != "renamed" {
+		t.Fatalf("a refused edit must write nothing: %+v, %v", got, err)
+	}
+	// A legacy row of a HydraRoute list still in the store: its source of
+	// truth is the HR files.
+	data := svc.store.Draft()
+	data.Lists = append(data.Lists, DomainList{ID: "legacy-hr", Name: "hr", Backend: "hydraroute"})
+	if err := svc.store.Save(data); err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	for _, id := range []string{"hr:1:awgm0:0", "legacy-hr", "missing"} {
+		if _, err := svc.UpdateWith(ctx, id, func(DomainList) (DomainList, error) { called = true; return DomainList{}, nil }); err == nil {
+			t.Errorf("%s: must be refused", id)
+		}
+	}
+	if called {
+		t.Fatal("edit must not run for a list UpdateWith does not take")
+	}
+}

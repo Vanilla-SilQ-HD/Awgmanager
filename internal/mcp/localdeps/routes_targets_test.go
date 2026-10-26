@@ -107,8 +107,8 @@ func TestLocal_AddDNSRouteWithFailover(t *testing.T) {
 }
 
 // TestLocal_UpdateDNSRouteTargetsAndSubscriptions — новые цели сохраняют
-// Kill Switch, если его не трогали; подписки удаляются по позиции (агент
-// видит только хост URL) и добавляются в конец.
+// Kill Switch, если его не трогали; подписки удаляются по ref (агент видит
+// только хост URL, а позиция сдвигается) и добавляются в конец.
 func TestLocal_UpdateDNSRouteTargetsAndSubscriptions(t *testing.T) {
 	fd := &fakeDNSRoutes{lists: []dnsroute.DomainList{{
 		ID: "dl-1", Name: "video",
@@ -132,7 +132,11 @@ func TestLocal_UpdateDNSRouteTargetsAndSubscriptions(t *testing.T) {
 	if r := fd.updated.Routes; len(r) != 2 || r[0].TunnelID != "system:Proxy0" || r[1].TunnelID != "tn-1" || r[1].Fallback != "" {
 		t.Fatalf("the kill switch alone keeps the stored targets: %+v", r)
 	}
-	if _, _, err := l.UpdateDNSRoute(ctx, mcpsrv.DNSRouteUpdate{RouteID: "dl-1", RemoveSubscriptions: []int{0}, AddSubscriptionURLs: []string{"https://c.example/l"}}); err != nil {
+	detail, err := l.GetDNSRoute(ctx, "dl-1")
+	if err != nil || len(detail.Subscriptions) != 2 || detail.Subscriptions[0].Ref != subscriptionRef("https://a.example/u/T1") {
+		t.Fatalf("detail = %+v, %v", detail.Subscriptions, err)
+	}
+	if _, _, err := l.UpdateDNSRoute(ctx, mcpsrv.DNSRouteUpdate{RouteID: "dl-1", RemoveSubscriptions: []string{detail.Subscriptions[0].Ref}, AddSubscriptionURLs: []string{"https://c.example/l"}}); err != nil {
 		t.Fatal(err)
 	}
 	if s := fd.updated.Subscriptions; len(s) != 2 || s[0].URL != "https://b.example/u/T2" || s[1].URL != "https://c.example/l" {
@@ -153,8 +157,8 @@ func TestLocal_UpdateDNSRouteTargetsAndSubscriptions(t *testing.T) {
 	if fd.updated.Excludes == nil || len(fd.updated.Excludes) != 0 {
 		t.Fatal("[] must reach the service as an empty, non-nil slice: that is what clears excludes")
 	}
-	if _, _, err := l.UpdateDNSRoute(ctx, mcpsrv.DNSRouteUpdate{RouteID: "dl-1", RemoveSubscriptions: []int{5}}); err == nil {
-		t.Fatal("a position past the end must be refused")
+	if _, _, err := l.UpdateDNSRoute(ctx, mcpsrv.DNSRouteUpdate{RouteID: "dl-1", RemoveSubscriptions: []string{"0"}}); err == nil || !strings.Contains(err.Error(), "get_dns_route") {
+		t.Fatalf("a ref the list does not have must be refused: %v", err)
 	}
 	if _, _, err := l.UpdateDNSRoute(ctx, mcpsrv.DNSRouteUpdate{RouteID: "dl-1", Targets: []string{"tn-ghost"}}); err == nil {
 		t.Fatal("an unknown target must be refused")
@@ -226,5 +230,44 @@ func TestLocal_StaticRouteKillSwitchSurvivesAnEdit(t *testing.T) {
 	}
 	if _, err := l.UpdateStaticRoute(ctx, mcpsrv.StaticRouteUpdate{RouteID: "ghost", Name: "x"}); err == nil {
 		t.Fatal("an unknown list must be refused")
+	}
+}
+
+// TestLocal_UpdateDNSRouteBuildsOnTheStoredList — между чтением агента и
+// записью пользователь добавил подписку в веб-интерфейсе. Правка MCP
+// строится по списку под замком записи (UpdateWith), поэтому снимает только
+// названную подписку и не теряет добавленную; Kill Switch берётся с целей,
+// какими они стали.
+func TestLocal_UpdateDNSRouteBuildsOnTheStoredList(t *testing.T) {
+	fd := &fakeDNSRoutes{lists: []dnsroute.DomainList{{
+		ID: "dl-1", Name: "video",
+		Routes:        []dnsroute.RouteTarget{{TunnelID: "tn-1"}},
+		Subscriptions: []dnsroute.Subscription{{URL: "https://a.example/u/T1"}, {URL: "https://a.example/u/T2"}},
+	}}}
+	l := New(Config{DNSRoutes: fd, Targets: catalogHarness()})
+	ctx := context.Background()
+
+	detail, err := l.GetDNSRoute(ctx, "dl-1")
+	if err != nil || len(detail.Subscriptions) != 2 || detail.Subscriptions[0].URL != detail.Subscriptions[1].URL || detail.Subscriptions[0].Ref == detail.Subscriptions[1].Ref {
+		t.Fatalf("two lists from one host show the same URL and must differ by ref: %+v, %v", detail.Subscriptions, err)
+	}
+	fd.beforeEdit = func(f *fakeDNSRoutes) {
+		// The store saves a new record; what the adapter read stays as it was.
+		f.lists = append([]dnsroute.DomainList(nil), f.lists...)
+		f.lists[0].Subscriptions = append([]dnsroute.Subscription{{URL: "https://web.example/new"}}, f.lists[0].Subscriptions...)
+		f.lists[0].Routes = []dnsroute.RouteTarget{{TunnelID: "tn-1", Fallback: "reject"}}
+	}
+	if _, _, err := l.UpdateDNSRoute(ctx, mcpsrv.DNSRouteUpdate{RouteID: "dl-1", RemoveSubscriptions: []string{detail.Subscriptions[0].Ref}, Targets: []string{"system:Proxy0", "tn-1"}}); err != nil {
+		t.Fatal(err)
+	}
+	if fd.updateWith != 1 {
+		t.Fatalf("a stored list must be patched through UpdateWith: %d", fd.updateWith)
+	}
+	subs := fd.updated.Subscriptions
+	if len(subs) != 2 || subs[0].URL != "https://web.example/new" || subs[1].URL != "https://a.example/u/T2" {
+		t.Fatalf("only the named subscription goes, the one added meanwhile stays: %+v", subs)
+	}
+	if r := fd.updated.Routes; len(r) != 2 || r[1].Fallback != "reject" {
+		t.Fatalf("new targets keep the kill switch the list has at the write: %+v", r)
 	}
 }

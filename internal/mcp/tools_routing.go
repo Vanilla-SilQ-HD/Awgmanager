@@ -270,8 +270,8 @@ func registerRoutingTools(s *mcp.Server, d Deps) {
 			"Omitted fields are left untouched and the backend always survives, which is why this is the way to change a list, " +
 			"not remove_dns_route followed by add_dns_route. manualDomains and excludes each replace EVERY entry of their kind — read them from get_dns_route first. " +
 			"HydraRoute lists take one target and no excludes, subscriptions or kill switch. Check the returned warnings.",
-		// Not idempotent: removeSubscriptions is by position, so a retried
-		// call removes the next subscription.
+		// Not idempotent: addSubscriptionUrls fetches the lists again, and a
+		// retried removeSubscriptions is refused once the ref is gone.
 		Annotations: safeWrite("Update DNS route", false),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in DNSRouteUpdate) (*mcp.CallToolResult, updateDNSOut, error) {
 		if in.RouteID == "" {
@@ -301,9 +301,10 @@ func registerRoutingTools(s *mcp.Server, d Deps) {
 			return nil, updateDNSOut{}, err
 		}
 		in.AddSubscriptionURLs = subs
-		for _, i := range in.RemoveSubscriptions {
-			if i < 0 {
-				return nil, updateDNSOut{}, fmt.Errorf("removeSubscriptions holds positions from 0 (use get_dns_route)")
+		for i, ref := range in.RemoveSubscriptions {
+			in.RemoveSubscriptions[i] = strings.TrimSpace(ref)
+			if in.RemoveSubscriptions[i] == "" {
+				return nil, updateDNSOut{}, fmt.Errorf("removeSubscriptions holds refs from get_dns_route's subscriptions; an empty one names nothing")
 			}
 		}
 		if in.ManualDomains != nil {

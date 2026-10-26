@@ -317,7 +317,41 @@ func (s *ServiceImpl) List(ctx context.Context) ([]DomainList, error) {
 func (s *ServiceImpl) Update(ctx context.Context, list DomainList) (*DomainList, error) {
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
+	return s.updateLocked(ctx, list)
+}
 
+// UpdateWith — Update, правку для которого строит edit по списку,
+// прочитанному под тем же замком, что и запись. Правка, посчитанная от
+// прочитанного раньше (подписки, цели), иначе ложится на устаревший
+// снимок: изменение из веб-интерфейса между чтением и записью терялось бы.
+// edit получает хранимый список и не должен менять его срезы — это кэш
+// хранилища; вернуть он должен разреженную правку, как для Update.
+// Списки HydraRoute сюда не идут: их источник — файлы HR, а не хранилище.
+func (s *ServiceImpl) UpdateWith(ctx context.Context, id string, edit func(DomainList) (DomainList, error)) (*DomainList, error) {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+
+	data := s.store.Draft()
+	if data == nil {
+		return nil, fmt.Errorf("store not loaded")
+	}
+	i := slices.IndexFunc(data.Lists, func(l DomainList) bool { return l.ID == id })
+	if isHRID(id) || (i >= 0 && isHydraRoute(data.Lists[i].Backend)) {
+		return nil, fmt.Errorf("dns route list %q is a HydraRoute list: UpdateWith edits stored lists only", id)
+	}
+	if i < 0 {
+		return nil, fmt.Errorf("dns route list %q not found", id)
+	}
+	patch, err := edit(data.Lists[i])
+	if err != nil {
+		return nil, err
+	}
+	patch.ID = id
+	return s.updateLocked(ctx, patch)
+}
+
+// updateLocked is Update under s.opMu.
+func (s *ServiceImpl) updateLocked(ctx context.Context, list DomainList) (*DomainList, error) {
 	if isHRID(list.ID) || isHydraRoute(list.Backend) {
 		return s.updateHydraRoute(ctx, list.ID, list)
 	}

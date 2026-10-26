@@ -5,6 +5,8 @@ package mcptest
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"slices"
@@ -474,6 +476,13 @@ func fakeSubscriptionURL(raw string) string {
 	return scheme + "://" + host
 }
 
+// fakeSubscription is a subscription as get_dns_route shows it: the host
+// of the URL and a ref derived from the whole URL, as localdeps derives it.
+func fakeSubscription(raw string) mcpsrv.DNSSubscription {
+	sum := sha256.Sum256([]byte(raw))
+	return mcpsrv.DNSSubscription{Ref: hex.EncodeToString(sum[:6]), URL: fakeSubscriptionURL(raw)}
+}
+
 func (f *Fake) AddDNSRoute(_ context.Context, in mcpsrv.DNSRouteInput) (mcpsrv.DNSRoute, error) {
 	if f.Err != nil {
 		return mcpsrv.DNSRoute{}, f.Err
@@ -491,7 +500,7 @@ func (f *Fake) AddDNSRoute(_ context.Context, in mcpsrv.DNSRouteInput) (mcpsrv.D
 	r := mcpsrv.DNSRouteDetail{ID: f.nextID("dl"), Name: in.Name, Enabled: true, Domains: in.Domains, ManualDomains: in.Domains,
 		Excludes: in.Excludes, Routes: fakeRouteTargets(targets, in.KillSwitch)}
 	for _, u := range in.SubscriptionURLs {
-		r.Subscriptions = append(r.Subscriptions, mcpsrv.DNSSubscription{URL: fakeSubscriptionURL(u)})
+		r.Subscriptions = append(r.Subscriptions, fakeSubscription(u))
 	}
 	f.DNSRoutes = append(f.DNSRoutes, r)
 	return r.Summary(), nil
@@ -560,22 +569,22 @@ func (f *Fake) UpdateDNSRoute(_ context.Context, in mcpsrv.DNSRouteUpdate) (mcps
 		if in.Excludes != nil {
 			r.Excludes = append([]string{}, in.Excludes...)
 		}
-		for _, i := range in.RemoveSubscriptions {
-			if i >= len(r.Subscriptions) {
-				return mcpsrv.DNSRoute{}, nil, fmt.Errorf("removeSubscriptions: position %d is out of range", i)
+		for _, ref := range in.RemoveSubscriptions {
+			if !slices.ContainsFunc(r.Subscriptions, func(s mcpsrv.DNSSubscription) bool { return s.Ref == ref }) {
+				return mcpsrv.DNSRoute{}, nil, fmt.Errorf("removeSubscriptions: %q is not among the list's subscriptions — read get_dns_route again", ref)
 			}
 		}
 		if len(in.RemoveSubscriptions) > 0 {
 			var kept []mcpsrv.DNSSubscription
-			for i, sub := range r.Subscriptions {
-				if !slices.Contains(in.RemoveSubscriptions, i) {
+			for _, sub := range r.Subscriptions {
+				if !slices.Contains(in.RemoveSubscriptions, sub.Ref) {
 					kept = append(kept, sub)
 				}
 			}
 			r.Subscriptions = kept
 		}
 		for _, u := range in.AddSubscriptionURLs {
-			r.Subscriptions = append(r.Subscriptions, mcpsrv.DNSSubscription{URL: fakeSubscriptionURL(u)})
+			r.Subscriptions = append(r.Subscriptions, fakeSubscription(u))
 		}
 		return r.Summary(), warnings, nil
 	}

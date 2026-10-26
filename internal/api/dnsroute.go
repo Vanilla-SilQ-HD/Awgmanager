@@ -107,6 +107,9 @@ type DNSRouteService interface {
 	Get(ctx context.Context, id string) (*dnsroute.DomainList, error)
 	List(ctx context.Context) ([]dnsroute.DomainList, error)
 	Update(ctx context.Context, list dnsroute.DomainList) (*dnsroute.DomainList, error)
+	// UpdateWith is Update with the patch built by edit from the stored
+	// list, under the same lock as the write (dnsroute.ServiceImpl).
+	UpdateWith(ctx context.Context, id string, edit func(dnsroute.DomainList) (dnsroute.DomainList, error)) (*dnsroute.DomainList, error)
 	Delete(ctx context.Context, id string) error
 	DeleteBatch(ctx context.Context, ids []string) (int, error)
 	CreateBatch(ctx context.Context, lists []dnsroute.DomainList) ([]*dnsroute.DomainList, error)

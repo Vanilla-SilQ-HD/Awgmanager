@@ -5,6 +5,8 @@ package localdeps
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -905,7 +907,7 @@ func dnsRouteDetail(dl *dnsroute.DomainList) mcpsrv.DNSRouteDetail {
 	}
 	for _, sub := range dl.Subscriptions {
 		out.Subscriptions = append(out.Subscriptions, mcpsrv.DNSSubscription{
-			URL: logging.RedactURLs(sub.URL), Name: sub.Name, LastFetched: sub.LastFetched, LastCount: sub.LastCount, LastFetchFailed: sub.LastError != "",
+			Ref: subscriptionRef(sub.URL), URL: logging.RedactURLs(sub.URL), Name: sub.Name, LastFetched: sub.LastFetched, LastCount: sub.LastCount, LastFetchFailed: sub.LastError != "",
 		})
 	}
 	out.SkipIPv6 = dl.SkipsIPv6()
@@ -1009,6 +1011,12 @@ func (l *Local) AddDNSRoute(ctx context.Context, in mcpsrv.DNSRouteInput) (mcpsr
 // sent" and restores it from the stored list, so a sparse payload is what
 // keeps subscriptions, excludes and the backend intact. Sending a full
 // record built from mcp.DNSRoute would wipe every field MCP cannot carry.
+//
+// A stored list is patched through UpdateWith: the patch is built from the
+// list as it is under the write's lock, so a subscription named by ref, the
+// kill switch on the stored targets and the warnings all refer to what is
+// written, not to a copy read before a web-interface edit. The targets are
+// checked first, outside that lock: the check asks NDMS.
 func (l *Local) UpdateDNSRoute(ctx context.Context, in mcpsrv.DNSRouteUpdate) (mcpsrv.DNSRoute, []string, error) {
 	if l.c.DNSRoutes == nil {
 		return mcpsrv.DNSRoute{}, nil, errUnavailable("dns routes")
@@ -1017,14 +1025,8 @@ func (l *Local) UpdateDNSRoute(ctx context.Context, in mcpsrv.DNSRouteUpdate) (m
 	if err != nil {
 		return mcpsrv.DNSRoute{}, nil, err
 	}
-
-	patch := dnsroute.DomainList{ID: in.RouteID, Name: in.Name}
-	if in.Name == "" {
-		// The HR path of dnsroute.Update takes the name as the group
-		// description verbatim, so an empty one would erase it.
-		patch.Name = existing.Name
-	}
-	if existing.Backend == "hydraroute" {
+	hr := existing.Backend == "hydraroute"
+	if hr {
 		// HydraRoute takes one target and none of the NDMS-only features
 		// (hr_delegate.go); refusing here beats a write that drops them.
 		switch {
@@ -1036,14 +1038,67 @@ func (l *Local) UpdateDNSRoute(ctx context.Context, in mcpsrv.DNSRouteUpdate) (m
 		if len(in.Targets) == 1 {
 			in.TunnelID, in.Targets = in.Targets[0], nil
 		}
-		// The HR path rewrites the whole group and restores nothing from
-		// the stored one: a sparse patch read as an interface group with
-		// no tunnel, no domains and no icon (F632). Start from what is
-		// stored and overlay only what the caller sent.
 		if in.TunnelID != "" && existing.HRRouteMode == "policy" {
 			return mcpsrv.DNSRoute{}, nil, fmt.Errorf(
 				"dns route %q routes through policy %q, not a tunnel — change its target in the web UI", in.RouteID, existing.HRPolicyName)
 		}
+	}
+	if in.TunnelID != "" {
+		in.Targets = []string{in.TunnelID}
+	}
+	if in.Targets != nil {
+		if err := l.checkTargets(ctx, in.Targets); err != nil {
+			return mcpsrv.DNSRoute{}, nil, err
+		}
+	}
+
+	var (
+		updated  *dnsroute.DomainList
+		warnings []string
+	)
+	if hr {
+		// The HR files are the source of truth for these lists and
+		// UpdateWith does not take them; the HR path rewrites the group as
+		// dnsRoutePatch builds it from the list just read.
+		var patch dnsroute.DomainList
+		patch, warnings, err = dnsRoutePatch(*existing, in)
+		if err == nil {
+			updated, err = l.c.DNSRoutes.Update(ctx, patch)
+		}
+	} else {
+		updated, err = l.c.DNSRoutes.UpdateWith(ctx, in.RouteID, func(stored dnsroute.DomainList) (dnsroute.DomainList, error) {
+			patch, w, err := dnsRoutePatch(stored, in)
+			warnings = w
+			return patch, err
+		})
+	}
+	if err != nil {
+		l.dnsLog.Warn("update", existing.Name, "Failed to update DNS route list (MCP): "+err.Error())
+		return mcpsrv.DNSRoute{}, nil, err
+	}
+	if updated == nil {
+		return mcpsrv.DNSRoute{}, nil, fmt.Errorf("dns route update returned no list")
+	}
+	l.dnsLog.Info("update", updated.Name, "DNS route list updated (MCP)")
+	l.publish(events.ResourceRoutingDnsRoutes, "mcp-update")
+	return dnsRoute(updated), warnings, nil
+}
+
+// dnsRoutePatch builds the sparse patch for in from the stored list. It
+// must not modify existing's slices: under UpdateWith they are the store's
+// cache. in.Targets is already normalised (tunnelId folded in) and checked.
+func dnsRoutePatch(existing dnsroute.DomainList, in mcpsrv.DNSRouteUpdate) (dnsroute.DomainList, []string, error) {
+	patch := dnsroute.DomainList{ID: in.RouteID, Name: in.Name}
+	if in.Name == "" {
+		// The HR path of dnsroute.Update takes the name as the group
+		// description verbatim, so an empty one would erase it.
+		patch.Name = existing.Name
+	}
+	if existing.Backend == "hydraroute" {
+		// The HR path rewrites the whole group and restores nothing from
+		// the stored one: a sparse patch read as an interface group with
+		// no tunnel, no domains and no icon (F632). Start from what is
+		// stored and overlay only what the caller sent.
 		patch.Backend = existing.Backend
 		patch.HRRouteMode = existing.HRRouteMode
 		patch.HRPolicyName = existing.HRPolicyName
@@ -1066,12 +1121,8 @@ func (l *Local) UpdateDNSRoute(ctx context.Context, in mcpsrv.DNSRouteUpdate) (m
 			warnings = append(warnings, fmt.Sprintf(
 				"the list routed to %d targets; they were replaced by the single tunnel %q — pass targets instead to keep several", n, in.TunnelID))
 		}
-		in.Targets = []string{in.TunnelID}
 	}
 	if in.Targets != nil {
-		if err := l.checkTargets(ctx, in.Targets); err != nil {
-			return mcpsrv.DNSRoute{}, nil, err
-		}
 		// A new target list keeps the kill switch as it was unless the
 		// caller sets it: the fallback rides on the last target.
 		killSwitch := lastFallback(existing.Routes) == "reject"
@@ -1081,7 +1132,7 @@ func (l *Local) UpdateDNSRoute(ctx context.Context, in mcpsrv.DNSRouteUpdate) (m
 		patch.Routes = routeTargets(in.Targets, killSwitch)
 	} else if in.KillSwitch != nil {
 		if len(existing.Routes) == 0 {
-			return mcpsrv.DNSRoute{}, nil, fmt.Errorf("dns route %q has no target to put a kill switch on; pass targets as well", in.RouteID)
+			return dnsroute.DomainList{}, nil, fmt.Errorf("dns route %q has no target to put a kill switch on; pass targets as well", in.RouteID)
 		}
 		patch.Routes = slices.Clone(existing.Routes)
 		patch.Routes[len(patch.Routes)-1].Fallback = fallbackFor(*in.KillSwitch)
@@ -1094,22 +1145,11 @@ func (l *Local) UpdateDNSRoute(ctx context.Context, in mcpsrv.DNSRouteUpdate) (m
 	if len(in.AddSubscriptionURLs) > 0 || len(in.RemoveSubscriptions) > 0 {
 		subs, err := editSubscriptions(existing.Subscriptions, in.AddSubscriptionURLs, in.RemoveSubscriptions)
 		if err != nil {
-			return mcpsrv.DNSRoute{}, nil, err
+			return dnsroute.DomainList{}, nil, err
 		}
 		patch.Subscriptions = subs
 	}
-
-	updated, err := l.c.DNSRoutes.Update(ctx, patch)
-	if err != nil {
-		l.dnsLog.Warn("update", existing.Name, "Failed to update DNS route list (MCP): "+err.Error())
-		return mcpsrv.DNSRoute{}, nil, err
-	}
-	if updated == nil {
-		return mcpsrv.DNSRoute{}, nil, fmt.Errorf("dns route update returned no list")
-	}
-	l.dnsLog.Info("update", updated.Name, "DNS route list updated (MCP)")
-	l.publish(events.ResourceRoutingDnsRoutes, "mcp-update")
-	return dnsRoute(updated), warnings, nil
+	return patch, warnings, nil
 }
 
 // routeTargets builds a failover list in priority order. The fallback
@@ -1140,20 +1180,30 @@ func lastFallback(routes []dnsroute.RouteTarget) string {
 	return routes[len(routes)-1].Fallback
 }
 
-// editSubscriptions removes the subscriptions at the given positions and
-// appends new ones. Positions, not URLs: an agent sees only the host of a
-// stored URL (dnsRouteDetail), so it could never name one exactly.
-func editSubscriptions(existing []dnsroute.Subscription, add []string, remove []int) ([]dnsroute.Subscription, error) {
-	drop := make(map[int]bool, len(remove))
-	for _, i := range remove {
-		if i < 0 || i >= len(existing) {
-			return nil, fmt.Errorf("removeSubscriptions: position %d is out of range (the list has %d subscriptions; get_dns_route lists them)", i, len(existing))
+// subscriptionRef names a subscription for removeSubscriptions. The agent
+// sees only the host of a stored URL (dnsRouteDetail), so it could never
+// name one exactly, and a position shifts with every removal. The ref is a
+// truncated SHA-256 of the URL: stable while the subscription stays, and
+// nothing of a token in the URL can be read back from it.
+func subscriptionRef(url string) string {
+	sum := sha256.Sum256([]byte(url))
+	return hex.EncodeToString(sum[:6])
+}
+
+// editSubscriptions removes the subscriptions named by ref and appends new
+// ones. A ref the list does not have is refused: the agent read a list that
+// has changed since, and removing nothing would read as done.
+func editSubscriptions(existing []dnsroute.Subscription, add []string, remove []string) ([]dnsroute.Subscription, error) {
+	drop := make(map[string]bool, len(remove))
+	for _, ref := range remove {
+		if !slices.ContainsFunc(existing, func(s dnsroute.Subscription) bool { return subscriptionRef(s.URL) == ref }) {
+			return nil, fmt.Errorf("removeSubscriptions: %q is not among the list's subscriptions — it may be removed already; nothing was changed: read get_dns_route again", ref)
 		}
-		drop[i] = true
+		drop[ref] = true
 	}
 	out := make([]dnsroute.Subscription, 0, len(existing)+len(add))
-	for i, sub := range existing {
-		if !drop[i] {
+	for _, sub := range existing {
+		if !drop[subscriptionRef(sub.URL)] {
 			out = append(out, sub)
 		}
 	}
