@@ -3,6 +3,7 @@ package awg3endpoint
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 )
@@ -245,31 +246,21 @@ func normalizeCIDR(s string) string {
 // splitEndpoint режет "host:port" на host и port. IPv6-литерал приходит в скобках
 // ([::1]:51820) — снимаем скобки, порт по хвосту.
 func splitEndpoint(s string) (string, int, error) {
-	if strings.HasPrefix(s, "[") {
-		end := strings.LastIndex(s, "]")
-		if end < 0 {
-			return "", 0, fmt.Errorf("битый IPv6 Endpoint: %q", s)
-		}
-		host := s[1:end]
-		rest := s[end+1:]
-		if !strings.HasPrefix(rest, ":") {
-			return "", 0, fmt.Errorf("Endpoint без порта: %q", s)
-		}
-		port, err := strconv.Atoi(rest[1:])
-		if err != nil {
-			return "", 0, fmt.Errorf("невалидный порт в Endpoint %q: %w", s, err)
-		}
-		return host, port, nil
+	host, portText, err := net.SplitHostPort(s)
+	if err != nil {
+		return "", 0, fmt.Errorf("невалидный Endpoint %q (ожидается host:port или [IPv6]:port): %w", s, err)
 	}
-	i := strings.LastIndex(s, ":")
-	if i < 0 {
-		return "", 0, fmt.Errorf("Endpoint без порта: %q", s)
+	if strings.TrimSpace(host) == "" {
+		return "", 0, fmt.Errorf("пустой адрес в Endpoint %q", s)
 	}
-	port, err := strconv.Atoi(s[i+1:])
+	port, err := strconv.Atoi(portText)
 	if err != nil {
 		return "", 0, fmt.Errorf("невалидный порт в Endpoint %q: %w", s, err)
 	}
-	return s[:i], port, nil
+	if port < 1 || port > 65535 {
+		return "", 0, fmt.Errorf("порт в Endpoint %q должен быть от 1 до 65535", s)
+	}
+	return host, port, nil
 }
 
 // confBool разбирает булев ключ AWG 3.1 из .conf так же, как parse_bool в

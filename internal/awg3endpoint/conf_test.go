@@ -7,6 +7,67 @@ import (
 	"testing"
 )
 
+func TestParseConf_EndpointValidation(t *testing.T) {
+	for _, tt := range []struct {
+		endpoint string
+		host     string
+		port     int
+	}{
+		{"192.0.2.1:51820", "192.0.2.1", 51820},
+		{"vpn.example.com:51820", "vpn.example.com", 51820},
+		{"[2001:db8::1]:51820", "2001:db8::1", 51820},
+		{"vpn.example.com:1", "vpn.example.com", 1},
+		{"[2001:db8::1]:65535", "2001:db8::1", 65535},
+		{"vpn.example.com:+051820", "vpn.example.com", 51820},
+		{" \tvpn.example.com:051820 \t", "vpn.example.com", 51820},
+		{"vpn.example.com:0", "", 0},
+		{"vpn.example.com:-1", "", 0},
+		{"vpn.example.com:65536", "", 0},
+		{"[2001:db8::1]:99999", "", 0},
+		{"[2001:db8::1]:0", "", 0},
+		{"[2001:db8::1]:-1", "", 0},
+		{"vpn.example.com:", "", 0},
+		{"vpn.example.com:abc", "", 0},
+		{"vpn.example.com: 51820", "", 0},
+		{":51820", "", 0},
+		{"[]:51820", "", 0},
+		{"[2001:db8::1:51820", "", 0},
+		{"2001:db8::1]:51820", "", 0},
+		{"[[2001:db8::1]]:51820", "", 0},
+		{"[2001:db8::1]51820", "", 0},
+		{"2001:db8::1:51820", "", 0},
+	} {
+		t.Run(tt.endpoint, func(t *testing.T) {
+			conf := "[Interface]\nPrivateKey = K==\n[Peer]\nPublicKey = P==\nEndpoint = " + tt.endpoint
+			data, err := ParseConf(conf)
+			if tt.host == "" {
+				if err == nil {
+					t.Fatalf("ParseConf accepted invalid Endpoint %q", tt.endpoint)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Parse(data, "test", nil); err != nil {
+				t.Fatalf("Parse rejected converted config: %v", err)
+			}
+			var got struct {
+				Peers []struct {
+					Address string `json:"address"`
+					Port    int    `json:"port"`
+				} `json:"peers"`
+			}
+			if err := json.Unmarshal(data, &got); err != nil {
+				t.Fatal(err)
+			}
+			if len(got.Peers) != 1 || got.Peers[0].Address != tt.host || got.Peers[0].Port != tt.port {
+				t.Fatalf("unexpected endpoint: %s", data)
+			}
+		})
+	}
+}
+
 // eqJSON структурно сравнивает два JSON-байта (порядок ключей не важен).
 func eqJSON(t *testing.T, got []byte, want string) {
 	t.Helper()
@@ -73,7 +134,13 @@ RejectAfterTime = 180
 KeepaliveTimeout = 25
 MaxHandshakeAttempts = 18
 I1 =  <b 0xde>
+I2 = <b 0xad>
+I3 = <b 0xbe>
+I4 = <b 0xef>
+I5 = <b 0x00>
 HeaderProtectionKey = HPKBASE64==
+RandomTrailers = on
+DisableCookies = on
 
 [Peer]
 PublicKey = SERVERPUB==
@@ -93,7 +160,8 @@ PersistentKeepalive = 25`
 		"content_padding_addition":"200-400",
 		"rekey_after_time":"120-150","rekey_timeout":"5","reject_after_time":"180",
 		"keepalive_timeout":"25","max_handshake_attempts":"18",
-		"i1":"<b 0xde>","header_protection_key":"HPKBASE64==",
+		"i1":"<b 0xde>","i2":"<b 0xad>","i3":"<b 0xbe>","i4":"<b 0xef>","i5":"<b 0x00>",
+		"header_protection_key":"HPKBASE64==","random_trailers":true,"disable_cookies":true,
 		"peers":[{
 			"public_key":"SERVERPUB==","preshared_key":"PSK==",
 			"address":"vpn.example.com","port":51820,
@@ -101,6 +169,9 @@ PersistentKeepalive = 25`
 		}]
 	}`)
 	// DNS выброшен
+	if _, err := Parse(got, "awg-3.1", nil); err != nil {
+		t.Fatalf("Parse rejected full AWG 3.1 config: %v", err)
+	}
 	if strings.Contains(string(got), "1.1.1.1") {
 		t.Fatalf("DNS не должен попадать в endpoint: %s", got)
 	}
