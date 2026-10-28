@@ -156,6 +156,9 @@ func (nopPublisher) Publish(string, any) {}
 func newTestRouteCommands() (*command.RouteCommands, *fakePoster) {
 	poster := &fakePoster{}
 	sc := command.NewSaveCoordinator(poster, nopPublisher{}, 500*time.Millisecond, 5*time.Second, 0, nil)
+	// Без шины событий: иначе сработавший fire ждёт запасные 10 с, и goleak
+	// пакета ловит его, если тесты шли дольше debounce (флейк CI 28.10).
+	sc.SetSaveTimings(command.SaveEventCap, 0, command.SaveAfterRemoval)
 	q := query.NewQueries(query.Deps{
 		Getter: query.NewFakeGetter(),
 		Logger: query.NopLogger(),
