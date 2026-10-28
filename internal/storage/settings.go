@@ -90,18 +90,10 @@ func (s *SettingsStore) Load() (*Settings, error) {
 		// Corrupt settings file (typically a torn write after power loss).
 		// Quarantine it and fall back to the backup kept by saveUnlocked so
 		// a single bad file does not leave the daemon permanently down.
-		quarantine := s.path + ".corrupt"
-		renamed := os.Rename(s.path, quarantine) == nil
-		if renamed {
-			// Карантинный файл — снимок настроек целиком, то есть он несёт те
-			// же секреты открытым текстом. Вычистить их нечем: файл на то и
-			// карантинный, что не разбирается. Остаётся закрыть права — он
-			// переживает перезагрузки и лежит до ручного разбора.
-			_ = os.Chmod(quarantine, SecretFilePermission)
-		}
+		quarantine, quarantineErr := quarantineFile(s.path)
 		where := "quarantined to " + quarantine
-		if !renamed {
-			where = "corrupt file left in place (rename to " + quarantine + " failed)"
+		if quarantineErr != nil {
+			where = fmt.Sprintf("corrupt file left in place (quarantine failed: %v)", quarantineErr)
 		}
 		bak, bakErr := os.ReadFile(s.path + ".bak")
 		if bakErr != nil {
@@ -271,7 +263,7 @@ func (s *SettingsStore) Load() (*Settings, error) {
 	}
 
 	if needsSave {
-		if err := s.saveUnlocked(&settings); err != nil {
+		if err := s.saveUnlockedWithBackup(&settings, !restoredFromBackup); err != nil {
 			return nil, err
 		}
 	}
@@ -1025,6 +1017,12 @@ func (s *SettingsStore) Update(mut func(*Settings) error) error {
 // saveUnlocked writes settings to disk without acquiring lock.
 // Caller must hold the lock.
 func (s *SettingsStore) saveUnlocked(settings *Settings) error {
+	return s.saveUnlockedWithBackup(settings, true)
+}
+
+// Recovery must never rotate the corrupt main file over the good backup,
+// including when quarantine failed and the main file is still present.
+func (s *SettingsStore) saveUnlockedWithBackup(settings *Settings, rotateBackup bool) error {
 	settings.SchemaVersion = CurrentSchemaVersion
 
 	var buf bytes.Buffer
@@ -1055,7 +1053,7 @@ func (s *SettingsStore) saveUnlocked(settings *Settings) error {
 	// inode survives the rename below). Load() falls back to it if the main
 	// file is ever found corrupt after a power loss.
 	bakPath := s.path + ".bak"
-	if _, err := os.Stat(s.path); err == nil {
+	if _, err := os.Stat(s.path); rotateBackup && err == nil {
 		_ = os.Remove(bakPath)
 		_ = os.Link(s.path, bakPath)
 	}

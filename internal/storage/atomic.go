@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 const FilePermission = 0644
@@ -128,7 +129,7 @@ func syncDir(dir string) {
 	d.Close()
 }
 
-// QuarantineCorrupt уносит повреждённый файл состояния в <path>.corrupt и
+// QuarantineCorrupt уносит повреждённый файл состояния в <path>.corrupt[.N] и
 // сообщает об этом в журнал приложения. Зовут его хранилища, которые иначе
 // молча сбросились бы к умолчаниям, а на следующем сохранении затёрли бы
 // повреждённый файл окончательно.
@@ -138,10 +139,10 @@ func syncDir(dir string) {
 // руками — до файла на роутере он не пойдёт, — а чтобы данные можно было
 // достать, если он попросит помощи.
 func QuarantineCorrupt(path string, parseErr error) {
-	quarantine := path + ".corrupt"
-	if err := os.Rename(path, quarantine); err != nil {
+	quarantine, err := quarantineFile(path)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "storage: %s is corrupt (%v); quarantine failed: %v\n", path, parseErr, err)
-		// Переименовать не вышло — файл остаётся на месте и будет прочитан
+		// Сохранить в карантин не вышло — файл остаётся на месте и будет прочитан
 		// снова, то есть сообщение повторится на каждом чтении. Говорим об
 		// этом прямо: сам он не починится.
 		recordNotice("quarantine", filepath.Base(path), fmt.Sprintf(
@@ -157,4 +158,82 @@ func QuarantineCorrupt(path string, parseErr error) {
 	recordNotice("quarantine", filepath.Base(path), fmt.Sprintf(
 		"Файл %s повреждён и больше не используется (%v). Настройки из него потеряны — создайте их заново. Повреждённая копия сохранена рядом как %s.",
 		filepath.Base(path), parseErr, filepath.Base(quarantine)))
+}
+
+// Serialize link/unlink pairs, including callers with different store locks.
+// As with other storage operations, callers must serialize source writes with
+// loading/quarantine; this lock does not coordinate external file editors.
+var quarantineMu sync.Mutex
+
+// quarantineFile uses link's atomic no-replace semantics, supported by Entware's
+// EXT/UBIFS filesystems (and already used for settings.json.bak). It needs no
+// renameat2 support and copies no file data.
+// Unsupported filesystems fail without removing the source; never fall back to
+// an overwriting rename. A crash before unlink leaves two complete names for
+// the same inode. Existing copies are retained without automatic rotation.
+func quarantineFile(path string) (string, error) {
+	quarantineMu.Lock()
+	defer quarantineMu.Unlock()
+
+	info, err := os.Lstat(path)
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("quarantine %s: not a regular file", path)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	// Tighten legacy files BEFORE publishing another name for their secrets.
+	// Preserve any permissions stricter than 0600 as well.
+	err = f.Chmod(info.Mode().Perm() & SecretFilePermission)
+	if err == nil {
+		err = f.Sync()
+	}
+	closeErr := f.Close()
+	if err != nil {
+		return "", err
+	}
+	if closeErr != nil {
+		return "", closeErr
+	}
+
+	quarantine := path + ".corrupt"
+	for n := 1; ; n++ {
+		if err := os.Link(path, quarantine); err != nil {
+			if !os.IsExist(err) {
+				return "", err
+			}
+			// A directory here is unexpected filesystem state, not a saved
+			// copy. Keep the existing failure/recovery behaviour for it.
+			fi, statErr := os.Lstat(quarantine)
+			if statErr != nil || fi.IsDir() {
+				return "", err
+			}
+			quarantine = fmt.Sprintf("%s.corrupt.%d", path, n)
+			continue
+		}
+		break
+	}
+	// Persist the new directory entry before removing the original. On any
+	// failure leave the complete link in place as well as the source.
+	d, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		return "", fmt.Errorf("linked to %s, source retained: %w", quarantine, err)
+	}
+	err = d.Sync()
+	closeErr = d.Close()
+	if err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return "", fmt.Errorf("linked to %s, source retained: %w", quarantine, err)
+	}
+	if err := os.Remove(path); err != nil {
+		return "", fmt.Errorf("linked to %s, remove source: %w", quarantine, err)
+	}
+	syncDir(filepath.Dir(path))
+	return quarantine, nil
 }

@@ -16,6 +16,40 @@ func newKeyStore(t *testing.T) *McpKeyStore {
 	return newKeyStoreIn(t, t.TempDir())
 }
 
+func TestMcpKeyStore_QuarantineFailurePreservesBackup(t *testing.T) {
+	dir := t.TempDir()
+	s := newKeyStoreIn(t, dir)
+	_, plain, err := s.Create("recovery", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, mcpKeysFile)
+	backup, err := os.ReadFile(path + ".bak")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("{broken"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path+".corrupt", 0700); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		fresh := NewMcpKeyStore(dir)
+		if err := fresh.Load(); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := fresh.Verify(plain); !ok {
+			t.Fatal("restored key rejected")
+		}
+		assertQuarantine(t, path+".bak", string(backup))
+		data, err := os.ReadFile(path)
+		if err != nil || !json.Valid(data) {
+			t.Fatalf("invalid main: %q, %v", data, err)
+		}
+	}
+}
+
 // blockWrites makes every persist fail regardless of uid: the store's
 // directory is re-pointed under a regular file, so AtomicWritePerm's
 // MkdirAll fails with ENOTDIR. Permission bits would not do — the local
