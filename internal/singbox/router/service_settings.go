@@ -126,6 +126,19 @@ func (s *ServiceImpl) updateSettings(ctx context.Context, sr storage.SingboxRout
 			return nil, ErrTransitionInProgress
 		}
 		defer s.transitionMu.Unlock()
+		if before != nil {
+			current, err := s.deps.Settings.Get()
+			if err != nil {
+				return nil, err
+			}
+			// Full settings saves hold transitionMu too. Reject their newer
+			// snapshot before applying a stale cache path: that side effect
+			// can remove cache.db and cannot be undone by the retry's rollback.
+			// Narrow writers can still run, so keep the final CAS below.
+			if !reflect.DeepEqual(current.SingboxRouter, *before) {
+				return nil, errSettingsChanged
+			}
+		}
 		// Проба бинаря — ДО лока стора: на промахе кэша она синхронно щупает
 		// кандидатов, и держать на этом лок стора нельзя. Щупаем ровно там,
 		// где щупал прежний код: только если переход «пусто → непусто»

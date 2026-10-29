@@ -18,6 +18,12 @@ func TestUpdateSettingsWith_PreservesInterleavedWrites(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			h := newTransitionHarness(t)
 			h.seedState(t, stateTProxy, false)
+			if err := h.store.Update(func(cur *storage.Settings) error {
+				cur.SingboxRouter.CacheFileLocation = "flash"
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
 			ctx := context.Background()
 			changed := false
 			interleave := func() {
@@ -80,8 +86,14 @@ func TestUpdateSettingsWith_PreservesInterleavedWrites(t *testing.T) {
 				if saved.FakeIPRealServer != "9.9.9.9" || len(saved.QoSClasses) != 1 || saved.QoSClasses[0].Name != "web" {
 					t.Fatalf("narrow writes lost: %+v", saved)
 				}
-			} else if saved.UDPTimeout != "10m" || saved.CacheFileLocation != "tmp" || applied[len(applied)-1] != "tmp" {
-				t.Fatalf("web settings must survive and drive side effects: %+v, applied=%v", saved, applied)
+			} else {
+				// Once the web save has applied tmp, the stale MCP attempt
+				// must not move the cache back to flash before detecting the
+				// conflict. A real move removes the old cache and schedules a
+				// reload; restoring the final setting cannot undo that.
+				if saved.UDPTimeout != "10m" || saved.CacheFileLocation != "tmp" || !reflect.DeepEqual(applied, []string{"tmp", "tmp"}) {
+					t.Fatalf("only the web save and rebuilt patch may apply tmp: %+v, applied=%v", saved, applied)
+				}
 			}
 		})
 	}
