@@ -47,6 +47,15 @@ func newOrphanCleanupEnv(t *testing.T) *orphanCleanupEnv {
 	e := &orphanCleanupEnv{t: t, cfgDir: t.TempDir()}
 	e.orch = orchestrator.NewWithAppliedPath(e.cfgDir, nil, filepath.Join(t.TempDir(), "applied.json"))
 	t.Cleanup(e.orch.Close)
+	// Пользовательский слот — для ссылок на сироту из чужого слота; выключен,
+	// пока тест его не включит.
+	for _, meta := range orchestrator.KnownSlots() {
+		if meta.Slot == orchestrator.SlotUser || meta.Slot == orchestrator.SlotRouter {
+			if err := e.orch.Register(meta); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	if err := e.orch.Bootstrap(); err != nil {
 		t.Fatal(err)
 	}
@@ -208,8 +217,9 @@ func TestDeleteOrphans_StaleStore(t *testing.T) {
 					t.Fatal(err)
 				}
 				afterA := e.subscription(sub.ID)
-				if len(afterA.OrphanTags) == 0 {
-					t.Fatal("C must remain an orphan, making cleanup available in the UI")
+				// C выпал из выдачи — обновление сняло его само (#1081).
+				if len(afterA.OrphanTags) != 0 {
+					t.Fatalf("orphans after refresh = %v, want none", afterA.OrphanTags)
 				}
 				beforeStore := orphanCleanupRead(t, e.store.path)
 				e.feed(tc.hosts...)
@@ -303,14 +313,17 @@ func TestDeleteOrphans_ReferencedDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	candidate := sub.MemberTags[0]
 	e.feed("a1.example")
 	if _, err := e.svc.Refresh(ctx, sub.ID); err != nil {
 		t.Fatal(err)
 	}
 	// Synthetic inconsistent default: normally it belongs to outbounds.
 	// Cover this reference field independently of the rotation scenarios.
+	// Сироту обновление снимает само (#1081), поэтому кладём её в рабочий
+	// слот явно.
+	candidate := sub.SelectorTag + "-deadbeef"
 	e.mut.mu.Lock()
+	e.mut.cfg.Outbounds = append(e.mut.cfg.Outbounds, map[string]any{"type": "direct", "tag": candidate})
 	for _, raw := range e.mut.cfg.Outbounds {
 		ob, _ := raw.(map[string]any)
 		if outboundTag(ob) == sub.SelectorTag {
@@ -334,5 +347,315 @@ func TestDeleteOrphans_ReferencedDefault(t *testing.T) {
 	e.mut.mu.Unlock()
 	if pending {
 		t.Error("refusal left a staged batch")
+	}
+}
+
+// Сирота, на которую ссылается другой слот, обновлением не снимается: иначе
+// общая проверка падала бы на висячей ссылке на каждом тике (#1081).
+// Несвязанная сирота того же обновления — снимается; ручная очистка ссылку
+// тоже уважает.
+func TestRefresh_OrphanReferencedElsewhereKept(t *testing.T) {
+	user := `{"route":{"rules":[{"domain":["x.example"],"outbound":"KEPT"}]}}`
+	e, kept, gone, err := orphanRefCase(t, "90-user.json", user, orchestrator.SlotUser)
+	if err != nil {
+		t.Fatalf("обновление упало на ссылке на сироту: %v", err)
+	}
+	tags := diskTags(e)
+	if !slices.Contains(tags, kept) {
+		t.Errorf("сирота со ссылкой из 90-user снята: слот %v", tags)
+	}
+	if slices.Contains(tags, gone) {
+		t.Errorf("сирота без ссылок осталась: слот %v", tags)
+	}
+	id := e.store.List()[0].ID
+	if got := e.subscription(id).OrphanTags; !slices.Equal(got, []string{kept}) {
+		t.Errorf("OrphanTags = %v, want [%s]", got, kept)
+	}
+	if err := e.svc.DeleteOrphans(context.Background(), id); err != nil {
+		t.Fatalf("DeleteOrphans: %v", err)
+	}
+	if !slices.Contains(diskTags(e), kept) {
+		t.Error("DeleteOrphans снял сироту со ссылкой из 90-user")
+	}
+	if got := e.subscription(id).OrphanTags; !slices.Equal(got, []string{kept}) {
+		t.Errorf("после очистки OrphanTags = %v, want [%s]", got, kept)
+	}
+}
+
+// orphanRefCase: подписка c1+c2 → обновление на a1; ссылка на c1 лежит в
+// файле другого слота по пути rel (относительно каталога конфигов).
+func orphanRefCase(t *testing.T, rel, doc string, enable orchestrator.Slot) (e *orphanCleanupEnv, kept, gone string, refreshErr error) {
+	t.Helper()
+	e = newOrphanCleanupEnv(t)
+	ctx := context.Background()
+	e.feed("c1.example", "c2.example")
+	sub, err := e.svc.Create(ctx, CreateInput{Label: "cleanup", Path: e.feedPath, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range e.subscription(sub.ID).Members {
+		if strings.Contains(m.Server, "c1") {
+			kept = m.Tag
+		} else {
+			gone = m.Tag
+		}
+	}
+	path := filepath.Join(e.cfgDir, rel)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(strings.ReplaceAll(doc, "KEPT", kept)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if enable != "" {
+		if err := e.orch.SetEnabled(enable, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.feed("a1.example")
+	_, refreshErr = e.svc.Refresh(ctx, sub.ID)
+	return e, kept, gone, refreshErr
+}
+
+func diskTags(e *orphanCleanupEnv) []string {
+	var tags []string
+	for _, raw := range e.diskSlot().Outbounds {
+		ob, _ := raw.(map[string]any)
+		tags = append(tags, outboundTag(ob))
+	}
+	return tags
+}
+
+// Ссылка из группы соседнего слота (не 90-user): валидатор виртуально
+// вычищает висячих членов таких групп, а Reload — на диске, поэтому защита
+// не может опираться на ошибку проверки (ревью #1081). Слот активен,
+// черновик или выключен — сирота остаётся; несвязанная снимается.
+func TestRefresh_OrphanReferencedFromOtherSlotStates(t *testing.T) {
+	group := `{"outbounds":[{"type":"selector","tag":"grp","outbounds":["direct","KEPT"],"default":"KEPT"},{"type":"direct","tag":"direct"}]}`
+	for _, tc := range []struct {
+		name, rel string
+		enable    orchestrator.Slot
+	}{
+		{"active", "20-router.json", orchestrator.SlotRouter},
+		{"disabled", filepath.Join("disabled", "20-router.json"), ""},
+		{"draft", filepath.Join("pending", "20-router.json"), ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e, kept, gone, err := orphanRefCase(t, tc.rel, group, tc.enable)
+			if err != nil {
+				t.Fatalf("Refresh: %v", err)
+			}
+			tags := diskTags(e)
+			if !slices.Contains(tags, kept) {
+				t.Errorf("сирота со ссылкой (%s) снята: слот %v", tc.name, tags)
+			}
+			if slices.Contains(tags, gone) {
+				t.Errorf("сирота без ссылок осталась: слот %v", tags)
+			}
+			// Ручная очистка — та же проверка: член чужой группы не вычищается.
+			id := e.store.List()[0].ID
+			if err := e.svc.DeleteOrphans(context.Background(), id); err != nil {
+				t.Fatalf("DeleteOrphans: %v", err)
+			}
+			if !slices.Contains(diskTags(e), kept) {
+				t.Errorf("DeleteOrphans снял сироту со ссылкой (%s)", tc.name)
+			}
+			if tc.enable != "" {
+				raw, err := os.ReadFile(filepath.Join(e.cfgDir, tc.rel))
+				if err != nil || !strings.Contains(string(raw), kept) {
+					t.Errorf("член группы вычищен из %s: %s", tc.rel, raw)
+				}
+			}
+		})
+	}
+}
+
+// Невалидный JSON в файле другого слота (черновик сохраняется без проверки)
+// не выключает чистку: тег ищется в нём строкой — сирота с упоминанием
+// остаётся, остальные снимаются.
+func TestRefresh_InvalidJSONOtherSlotSearchedAsText(t *testing.T) {
+	e, kept, gone, err := orphanRefCase(t, filepath.Join("pending", "20-router.json"), `{not json "KEPT"}`, "")
+	if err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	tags := diskTags(e)
+	if !slices.Contains(tags, kept) || slices.Contains(tags, gone) {
+		t.Errorf("слот %v: ждали %s на месте и без %s", tags, kept, gone)
+	}
+}
+
+// Файл другого слота не читается — ответ «кто ссылается» неполон: сирот не
+// трогаем, обновление при этом проходит, а ручная очистка честно отказывает.
+func TestRefresh_UnreadableOtherSlotKeepsOrphans(t *testing.T) {
+	e, kept, gone, err := orphanRefCase(t, filepath.Join("disabled", "20-router.json", "x"), `{}`, "")
+	if err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	tags := diskTags(e)
+	if !slices.Contains(tags, kept) || !slices.Contains(tags, gone) {
+		t.Errorf("слоты не прочитаны, а сироты сняты: слот %v", tags)
+	}
+	if err := e.svc.DeleteOrphans(context.Background(), e.store.List()[0].ID); !errors.Is(err, ErrValidation) {
+		t.Errorf("DeleteOrphans при нечитаемых слотах = %v, want ErrValidation", err)
+	}
+	if after := diskTags(e); !slices.Equal(after, tags) {
+		t.Errorf("отказ очистки изменил слот: %v -> %v", tags, after)
+	}
+}
+
+// failRemoveMutator — RemoveOutbound отказывает на одном теге.
+type failRemoveMutator struct {
+	*fakeMutator
+	fail string
+}
+
+func (m *failRemoveMutator) RemoveOutbound(tag string) error {
+	if tag == m.fail {
+		return errors.New("injected")
+	}
+	return m.fakeMutator.RemoveOutbound(tag)
+}
+
+// Не снятая сирота остаётся в учёте (kept), а не пропадает из обоих списков.
+func TestRemoveUnreferencedOrphans_FailedRemovalKept(t *testing.T) {
+	m := &failRemoveMutator{fakeMutator: &fakeMutator{}, fail: "sub-x-b"}
+	s := &Service{mutator: m}
+	removed, kept, err := s.removeUnreferencedOrphans([]string{"sub-x-a", "sub-x-b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed != 1 || !slices.Equal(kept, []string{"sub-x-b"}) {
+		t.Fatalf("removed=%d kept=%v, want 1 [sub-x-b]", removed, kept)
+	}
+}
+
+// Исключение сервера и фильтр по имени снимают его outbound только если на него
+// не ссылается другой слот (F761): иначе группа соседнего слота молча теряла
+// члена (Reload вычищает висячих членов на диске).
+func TestExcludeAndFilter_KeepReferencedOutbound(t *testing.T) {
+	group := `{"outbounds":[{"type":"selector","tag":"grp","outbounds":["direct","KEPT"],"default":"KEPT"},{"type":"direct","tag":"direct"}]}`
+	for _, via := range []string{"exclude", "filter"} {
+		t.Run(via, func(t *testing.T) {
+			e := newOrphanCleanupEnv(t)
+			ctx := context.Background()
+			e.feed("c1.example", "c2.example", "c3.example")
+			sub, err := e.svc.Create(ctx, CreateInput{Label: "x", Path: e.feedPath, Enabled: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			tagOf := map[string]string{}
+			for _, m := range e.subscription(sub.ID).Members {
+				tagOf[strings.SplitN(m.Server, ".", 2)[0]] = m.Tag
+			}
+			doc := strings.ReplaceAll(group, "KEPT", tagOf["c1"])
+			if err := os.WriteFile(filepath.Join(e.cfgDir, "20-router.json"), []byte(doc), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := e.orch.SetEnabled(orchestrator.SlotRouter, true); err != nil {
+				t.Fatal(err)
+			}
+			if via == "exclude" {
+				if _, err := e.svc.ExcludeMembers(ctx, sub.ID, []string{tagOf["c1"], tagOf["c2"]}); err != nil {
+					t.Fatalf("ExcludeMembers: %v", err)
+				}
+			} else {
+				f := "c1|c2"
+				if _, err := e.svc.Update(sub.ID, UpdatePatch{FilterExclude: &f}); err != nil {
+					t.Fatalf("Update: %v", err)
+				}
+			}
+			tags := diskTags(e)
+			if !slices.Contains(tags, tagOf["c1"]) {
+				t.Errorf("outbound со ссылкой из 20-router снят: слот %v", tags)
+			}
+			if slices.Contains(tags, tagOf["c2"]) {
+				t.Errorf("outbound без ссылок остался: слот %v", tags)
+			}
+			raw, _ := os.ReadFile(filepath.Join(e.cfgDir, "20-router.json"))
+			if !strings.Contains(string(raw), tagOf["c1"]) {
+				t.Errorf("член группы вычищен из 20-router.json: %s", raw)
+			}
+			members, _ := orphanCleanupGroup(e.diskSlot(), sub.SelectorTag)
+			if slices.Contains(members, tagOf["c1"]) {
+				t.Errorf("исключённый сервер остался в группе подписки: %v", members)
+			}
+
+			// Провайдер сменил у c1 SNI (тег прежний): тело оставленного
+			// outbound'а обновляется — соседняя группа держит живой сервер.
+			var lines []string
+			for _, h := range []string{"c1", "c2", "c3"} {
+				sni := "h"
+				if h == "c1" {
+					sni = "fresh.example"
+				}
+				lines = append(lines, "vless://3a3b1c2e-9999-4321-aaaa-1234567890ab@"+h+".example:443?security=tls&sni="+sni+"#"+h+".example")
+			}
+			if err := os.WriteFile(e.feedPath, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := e.svc.Refresh(ctx, sub.ID); err != nil {
+				t.Fatalf("Refresh: %v", err)
+			}
+			for _, raw := range e.diskSlot().Outbounds {
+				ob, _ := raw.(map[string]any)
+				if outboundTag(ob) != tagOf["c1"] {
+					continue
+				}
+				tls, _ := ob["tls"].(map[string]any)
+				if tls["server_name"] != "fresh.example" {
+					t.Errorf("тело оставленного c1 не обновлено: tls=%v", tls)
+				}
+			}
+		})
+	}
+}
+
+// Удаление члена inline-подписки тоже уважает ссылки (F761): упомянутый в
+// группе соседнего слота outbound остаётся.
+func TestRemoveMember_KeepsReferencedOutbound(t *testing.T) {
+	e := newOrphanCleanupEnv(t)
+	ctx := context.Background()
+	link := func(h string) string {
+		return "vless://3a3b1c2e-9999-4321-aaaa-1234567890ab@" + h + ".example:443?security=tls&sni=h#" + h
+	}
+	sub, err := e.svc.Create(ctx, CreateInput{Label: "x", Inline: link("c1") + "\n" + link("c2"), Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c1 := ""
+	for _, m := range e.subscription(sub.ID).Members {
+		if strings.HasPrefix(m.Server, "c1") {
+			c1 = m.Tag
+		}
+	}
+	doc := `{"outbounds":[{"type":"selector","tag":"grp","outbounds":["direct","` + c1 + `"]},{"type":"direct","tag":"direct"}]}`
+	if err := os.WriteFile(filepath.Join(e.cfgDir, "20-router.json"), []byte(doc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.orch.SetEnabled(orchestrator.SlotRouter, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.RemoveMember(ctx, sub.ID, c1); err != nil {
+		t.Fatalf("RemoveMember: %v", err)
+	}
+	if !slices.Contains(diskTags(e), c1) {
+		t.Errorf("outbound со ссылкой из 20-router снят: слот %v", diskTags(e))
+	}
+	if raw, _ := os.ReadFile(filepath.Join(e.cfgDir, "20-router.json")); !strings.Contains(string(raw), c1) {
+		t.Errorf("член группы вычищен из 20-router.json: %s", raw)
+	}
+}
+
+// Проверка перед удалением подписки (F761) идёт по всем её outbound'ам в
+// слоте — группа и сирота, оставленная из-за ссылки, туда входят.
+func TestOwnedOutboundTags_IncludesKeptOrphan(t *testing.T) {
+	user := `{"route":{"rules":[{"domain":["x.example"],"outbound":"KEPT"}]}}`
+	e, kept, _, err := orphanRefCase(t, "90-user.json", user, orchestrator.SlotUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub := e.subscription(e.store.List()[0].ID)
+	if tags := e.svc.OwnedOutboundTags(sub); !slices.Contains(tags, kept) || !slices.Contains(tags, sub.SelectorTag) {
+		t.Errorf("OwnedOutboundTags = %v: нет сироты %s или группы", tags, kept)
 	}
 }
