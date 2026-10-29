@@ -33,6 +33,7 @@ type Service interface {
 	GetStatus(ctx context.Context) (Status, error)
 	GetSettings(ctx context.Context) (storage.SingboxRouterSettings, error)
 	UpdateSettings(ctx context.Context, s storage.SingboxRouterSettings) error
+	UpdateSettingsWith(ctx context.Context, edit func(*storage.SingboxRouterSettings) error) error
 
 	// ListWANInterfaces returns all router WAN interfaces (no up/down
 	// filtering) for the WAN-binding picker. Pairs with

@@ -2469,6 +2469,21 @@ func (f *fakeRouter) UpdateSettings(_ context.Context, s storage.SingboxRouterSe
 	f.settings = s
 	return f.editErr
 }
+
+// Mirrors router.UpdateSettingsWith: edit the current record and publish
+// only after both the edit and the service's write succeed.
+func (f *fakeRouter) UpdateSettingsWith(_ context.Context, edit func(*storage.SingboxRouterSettings) error) error {
+	sr := f.settings
+	if err := edit(&sr); err != nil {
+		return err
+	}
+	f.edits++
+	if f.editErr != nil {
+		return f.editErr
+	}
+	f.settings = sr
+	return nil
+}
 func (f *fakeRouter) SwitchRoutingMode(_ context.Context, mode string) error {
 	f.switched <- mode
 	return nil

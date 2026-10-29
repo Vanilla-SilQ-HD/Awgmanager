@@ -11,6 +11,7 @@ import (
 	mcpsrv "github.com/hoaxisr/awg-manager/internal/mcp"
 	singboxorch "github.com/hoaxisr/awg-manager/internal/singbox/orchestrator"
 	"github.com/hoaxisr/awg-manager/internal/singbox/router"
+	"github.com/hoaxisr/awg-manager/internal/storage"
 )
 
 // maxUserConfigOut caps the expert slot returned to the model; the web
@@ -34,36 +35,34 @@ func (l *Local) SwitchSingboxRouterMode(_ context.Context, mode string) error {
 	return nil
 }
 
-// UpdateSingboxRouterSettings reads the stored settings and lays the
-// caller's fields over them: UpdateSettings takes the whole struct, and the
-// REST handler likewise fills what the form did not send.
+// UpdateSingboxRouterSettings changes only the supplied fields. The service
+// rebuilds the patch if another writer saves settings before the commit.
 func (l *Local) UpdateSingboxRouterSettings(ctx context.Context, p mcpsrv.SingboxRouterSettingsPatch) (mcpsrv.SingboxRouterStatus, error) {
 	if l.c.Router == nil {
 		return mcpsrv.SingboxRouterStatus{}, errUnavailable("sing-box router")
 	}
-	sr, err := l.c.Router.GetSettings(ctx)
+	err := l.c.Router.UpdateSettingsWith(ctx, func(sr *storage.SingboxRouterSettings) error {
+		if p.Sniffer != nil {
+			sr.SnifferEnabled = *p.Sniffer
+		}
+		if p.UDPTimeout != nil {
+			sr.UDPTimeout = strings.TrimSpace(*p.UDPTimeout)
+		}
+		if p.BypassPorts != nil {
+			sr.BypassExtraPorts = strings.TrimSpace(*p.BypassPorts)
+		}
+		if p.BypassSubnets != nil {
+			sr.BypassExtraSubnets = strings.TrimSpace(*p.BypassSubnets)
+		}
+		if p.PolicyName != nil {
+			sr.PolicyName = strings.TrimSpace(*p.PolicyName)
+		}
+		if p.DeviceMode != nil {
+			sr.DeviceMode = strings.TrimSpace(*p.DeviceMode)
+		}
+		return nil
+	})
 	if err != nil {
-		return mcpsrv.SingboxRouterStatus{}, err
-	}
-	if p.Sniffer != nil {
-		sr.SnifferEnabled = *p.Sniffer
-	}
-	if p.UDPTimeout != nil {
-		sr.UDPTimeout = strings.TrimSpace(*p.UDPTimeout)
-	}
-	if p.BypassPorts != nil {
-		sr.BypassExtraPorts = strings.TrimSpace(*p.BypassPorts)
-	}
-	if p.BypassSubnets != nil {
-		sr.BypassExtraSubnets = strings.TrimSpace(*p.BypassSubnets)
-	}
-	if p.PolicyName != nil {
-		sr.PolicyName = strings.TrimSpace(*p.PolicyName)
-	}
-	if p.DeviceMode != nil {
-		sr.DeviceMode = strings.TrimSpace(*p.DeviceMode)
-	}
-	if err := l.c.Router.UpdateSettings(ctx, sr); err != nil {
 		l.singboxLog.Warn("settings", "", "Failed to update sing-box router settings (MCP): "+err.Error())
 		return mcpsrv.SingboxRouterStatus{}, err
 	}

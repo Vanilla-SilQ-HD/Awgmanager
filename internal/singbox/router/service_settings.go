@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -35,7 +36,43 @@ func (s *ServiceImpl) GetSettings(ctx context.Context) (storage.SingboxRouterSet
 	return NormalizeSingboxRouterSettings(settings.SingboxRouter)
 }
 
+var errSettingsChanged = errors.New("sing-box router settings changed concurrently; retry the update")
+
+// UpdateSettingsWith builds a partial edit from the current settings. edit
+// must be pure and must replace slices/maps rather than mutate shared elements.
+// Validation may call other services, so it cannot run under the store lock.
+// A compare-and-swap in updateSettings detects intervening writes; rebuild and
+// validate against the new snapshot before retrying. Bound retries so a busy
+// writer cannot keep an MCP request alive indefinitely.
+func (s *ServiceImpl) UpdateSettingsWith(ctx context.Context, edit func(*storage.SingboxRouterSettings) error) error {
+	for range 3 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		settings, err := s.deps.Settings.Get()
+		if err != nil {
+			return err
+		}
+		before := settings.SingboxRouter
+		sr, err := NormalizeSingboxRouterSettings(before)
+		if err != nil {
+			return err
+		}
+		if err := edit(&sr); err != nil {
+			return err
+		}
+		if err := s.updateSettings(ctx, sr, &before); !errors.Is(err, errSettingsChanged) {
+			return err
+		}
+	}
+	return errSettingsChanged
+}
+
 func (s *ServiceImpl) UpdateSettings(ctx context.Context, sr storage.SingboxRouterSettings) error {
+	return s.updateSettings(ctx, sr, nil)
+}
+
+func (s *ServiceImpl) updateSettings(ctx context.Context, sr storage.SingboxRouterSettings, before *storage.SingboxRouterSettings) error {
 	normalized, err := NormalizeSingboxRouterSettings(sr)
 	if err != nil {
 		return err
@@ -122,6 +159,11 @@ func (s *ServiceImpl) UpdateSettings(ctx context.Context, sr storage.SingboxRout
 			}
 		}
 		if err := s.deps.Settings.Update(func(cur *storage.Settings) error {
+			// Check inside the same store lock as the write, including changes
+			// made by narrow mutators that do not take transitionMu.
+			if before != nil && !reflect.DeepEqual(cur.SingboxRouter, *before) {
+				return errSettingsChanged
+			}
 			// Переход «пусто → непусто» требует живого ipset-бинаря. Только на
 			// переходе: при уже выбранных тегах и сломанном ipset прочие правки
 			// настроек остаются проходимыми.
