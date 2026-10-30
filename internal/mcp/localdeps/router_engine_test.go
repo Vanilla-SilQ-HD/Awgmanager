@@ -13,6 +13,36 @@ import (
 	"github.com/hoaxisr/awg-manager/internal/storage"
 )
 
+// settingsInterleaveRouter inserts a web save between the adapter's read
+// and the service's write. The partial path builds its edit after that save.
+type settingsInterleaveRouter struct {
+	*fakeRouter
+	beforeUpdate func()
+}
+
+func (f *settingsInterleaveRouter) UpdateSettingsWith(_ context.Context, edit func(*storage.SingboxRouterSettings) error) error {
+	f.beforeUpdate()
+	return f.fakeRouter.UpdateSettingsWith(context.Background(), edit)
+}
+
+func TestLocal_RouterSettingsPreserveAnInterleavedWebSave(t *testing.T) {
+	fr := &settingsInterleaveRouter{fakeRouter: routerHarness()}
+	fr.settings = storage.SingboxRouterSettings{WANAutoDetect: true, UDPTimeout: "5m", PolicyName: "Policy1"}
+	fr.beforeUpdate = func() {
+		fr.settings.UDPTimeout = "10m"
+		fr.settings.PolicyName = "Policy2"
+		fr.settings.FakeIPRealServer = "9.9.9.9"
+	}
+	l := New(Config{Router: fr})
+	if _, err := l.UpdateSingboxRouterSettings(context.Background(), mcpsrv.SingboxRouterSettingsPatch{Sniffer: ptr(true)}); err != nil {
+		t.Fatal(err)
+	}
+	sr := fr.settings
+	if !sr.SnifferEnabled || sr.UDPTimeout != "10m" || sr.PolicyName != "Policy2" || sr.FakeIPRealServer != "9.9.9.9" {
+		t.Fatalf("MCP must change only the supplied field and keep the web save: %+v", sr)
+	}
+}
+
 // fakeSlots is the 90-user.json slot of the orchestrator.
 type fakeSlots struct {
 	effective []byte
@@ -101,6 +131,19 @@ func TestLocal_UpdateSingboxRouterSettingsKeepsTheRest(t *testing.T) {
 	s = fr.settings
 	if s.UDPTimeout != "10m" || s.BypassExtraSubnets != "10.0.0.0/8" || s.PolicyName != "Policy2" || s.DeviceMode != "all" || !s.SnifferEnabled || s.BypassExtraPorts != "5060" {
 		t.Fatalf("every field of the patch lands, trimmed, and the rest stays: %+v", s)
+	}
+	if _, err := l.UpdateSingboxRouterSettings(context.Background(), mcpsrv.SingboxRouterSettingsPatch{
+		Sniffer: ptr(false), UDPTimeout: ptr(""), BypassPorts: ptr(""), BypassSubnets: ptr(""), PolicyName: ptr(""),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s = fr.settings
+	if s.SnifferEnabled || s.UDPTimeout != "" || s.BypassExtraPorts != "" || s.BypassExtraSubnets != "" || s.PolicyName != "" || s.DeviceMode != "all" || s.FakeIPPool6 != "fd00::/8" {
+		t.Fatalf("explicit false and empty strings clear only the supplied fields: %+v", s)
+	}
+	fr.editErr = errors.New("store write failed")
+	if _, err := l.UpdateSingboxRouterSettings(context.Background(), mcpsrv.SingboxRouterSettingsPatch{Sniffer: ptr(true)}); !errors.Is(err, fr.editErr) || fr.settings.SnifferEnabled {
+		t.Fatalf("a failed write must be returned without publishing the patch: %v", err)
 	}
 }
 

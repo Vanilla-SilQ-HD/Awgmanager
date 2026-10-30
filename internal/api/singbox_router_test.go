@@ -86,6 +86,13 @@ func (m *mockRouterSvc) UpdateSettings(ctx context.Context, s storage.SingboxRou
 	m.settings = s
 	return nil
 }
+func (m *mockRouterSvc) UpdateSettingsWith(ctx context.Context, edit func(*storage.SingboxRouterSettings) error) error {
+	sr := m.settings
+	if err := edit(&sr); err != nil {
+		return err
+	}
+	return m.UpdateSettings(ctx, sr)
+}
 func (m *mockRouterSvc) ListWANInterfaces(ctx context.Context) ([]router.WANInterfaceInfo, error) {
 	return nil, nil
 }
