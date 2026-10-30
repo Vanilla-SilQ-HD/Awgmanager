@@ -917,9 +917,11 @@
 		flex-shrink: 0;
 	}
 	.row .value {
+		min-width: 0;
 		font-size: var(--sbx-card-value);
 		color: var(--color-text-secondary);
 		font-family: var(--font-mono, monospace);
+		overflow-wrap: anywhere;
 	}
 	.server-row {
 		display: flex;
@@ -928,8 +930,9 @@
 		flex: 1;
 	}
 	.server-hidden { color: var(--text-muted); letter-spacing: 2px; }
-	.server-text { font-family: var(--font-mono, monospace); }
+	.server-text { min-width: 0; font-family: var(--font-mono, monospace); }
 	.icon-btn {
+		flex-shrink: 0;
 		background: none;
 		border: none;
 		color: var(--text-muted);
@@ -939,7 +942,7 @@
 	}
 	.icon-btn:hover { color: var(--text); }
 
-	.port { color: var(--text); margin-left: auto; font-variant-numeric: tabular-nums; }
+	.port { color: var(--text); margin-left: auto; flex-shrink: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 	.divider {
 		height: 0;
