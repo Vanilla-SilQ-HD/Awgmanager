@@ -2464,11 +2464,6 @@ func (f *fakeRouter) GetSettings(context.Context) (storage.SingboxRouterSettings
 	return f.settings, nil
 }
 func (f *fakeRouter) GetStatus(context.Context) (router.Status, error) { return f.status, nil }
-func (f *fakeRouter) UpdateSettings(_ context.Context, s storage.SingboxRouterSettings) error {
-	f.edits++
-	f.settings = s
-	return f.editErr
-}
 
 // Mirrors router.UpdateSettingsWith: edit the current record and publish
 // only after both the edit and the service's write succeed.

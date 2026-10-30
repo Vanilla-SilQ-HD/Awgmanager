@@ -20,11 +20,6 @@ type settingsInterleaveRouter struct {
 	beforeUpdate func()
 }
 
-func (f *settingsInterleaveRouter) UpdateSettings(ctx context.Context, sr storage.SingboxRouterSettings) error {
-	f.beforeUpdate()
-	return f.fakeRouter.UpdateSettings(ctx, sr)
-}
-
 func (f *settingsInterleaveRouter) UpdateSettingsWith(_ context.Context, edit func(*storage.SingboxRouterSettings) error) error {
 	f.beforeUpdate()
 	return f.fakeRouter.UpdateSettingsWith(context.Background(), edit)
