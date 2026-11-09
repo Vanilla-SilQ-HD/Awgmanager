@@ -86,6 +86,27 @@ type Request struct {
 	AllowedStatus []int
 }
 
+// Downloader is the narrow shared-download surface used by URL subscriptions.
+// The production adapter lives in cmd/awg-manager to avoid an import cycle.
+type Downloader interface {
+	ReadAll(ctx context.Context, req Request) ([]byte, string, error)
+}
+
+// SetDownloader wires the settings-aware downloader before schedulers start.
+// Nil preserves the direct client, which is also useful for isolated tests.
+func (s *Service) SetDownloader(d Downloader) { s.downloader = d }
+
+func (s *Service) fetchWithContext(ctx context.Context, url string, headers []Header, opts FetchOpts) ([]byte, string, error) {
+	req := buildRequest(url, headers, opts)
+	if s.downloader == nil {
+		return FetchWithRequest(ctx, req)
+	}
+	if err := httpclient.ValidatePublicURL(req.URL); err != nil {
+		return nil, "", err
+	}
+	return s.downloader.ReadAll(ctx, req)
+}
+
 func FetchWithRequest(ctx context.Context, req Request) ([]byte, string, error) {
 	// Ранний отказ со внятной строкой (схема, внутренний адрес); сам страж —
 	// на dial внутри клиента и на каждом хопе редиректа.

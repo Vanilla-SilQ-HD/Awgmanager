@@ -302,6 +302,7 @@ func (a *app) setupDeviceProxy() {
 	)
 	a.downloadSvc = sharedDownloadSvc
 	a.dnsRouteService.SetDownloader(&dnsRouteDownloaderAdapter{svc: sharedDownloadSvc})
+	a.subSvc.SetDownloader(&singboxSubscriptionDownloaderAdapter{svc: sharedDownloadSvc})
 	a.dnsRefreshScheduler.Start()
 	a.geoRefreshScheduler.Start()
 	a.updaterService.SetDownloader(sharedDownloadSvc)

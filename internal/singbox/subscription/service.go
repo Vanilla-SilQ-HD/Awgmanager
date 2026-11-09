@@ -89,10 +89,11 @@ type Service struct {
 	// so two concurrent Creates would hand out the same listen_port / ProxyN
 	// — the documented "subscriptions are created one at a time" invariant
 	// (issue #287). This lock enforces it.
-	createMu  sync.Mutex
-	fetchOpts FetchOpts
-	log       *logging.ScopedLogger // nil-safe; sing-box journal (runtime)
-	appLog    *logging.ScopedLogger // nil-safe; app journal (subscription partition)
+	createMu   sync.Mutex
+	fetchOpts  FetchOpts
+	downloader Downloader
+	log        *logging.ScopedLogger // nil-safe; sing-box journal (runtime)
+	appLog     *logging.ScopedLogger // nil-safe; app journal (subscription partition)
 	// ndmsProxyEnabled mirrors Settings.CreateNDMSProxyForSingbox. When the
 	// closure is nil the service behaves as if enabled (back-compat for
 	// tests / legacy bootstrap), mirroring OperatorDeps.IsNDMSProxyEnabled.
@@ -609,7 +610,7 @@ func (s *Service) refreshLockedOpts(ctx context.Context, id string, forceInlineR
 			s.logWarn("subscription-refresh", id,
 				"rewrote web-view URL to raw URL")
 		}
-		fetched, fetchedCT, fetchErr := FetchWithContext(ctx, fetchURL, sub.Headers, s.fetchOpts)
+		fetched, fetchedCT, fetchErr := s.fetchWithContext(ctx, fetchURL, sub.Headers, s.fetchOpts)
 		if fetchErr != nil {
 			masked := fmt.Errorf("%s", MaskURL(fetchErr.Error(), sub.URL))
 			s.store.UpdateState(id, RefreshResult{When: time.Now(), Err: masked})
@@ -1988,7 +1989,7 @@ func (s *Service) PreviewURL(ctx context.Context, url string, headers []Header) 
 	}
 	fetchURL, _ := RewriteForRaw(url)
 
-	body, ct, err := FetchWithContext(ctx, fetchURL, headers, s.fetchOpts)
+	body, ct, err := s.fetchWithContext(ctx, fetchURL, headers, s.fetchOpts)
 	if err != nil {
 		return nil, fmt.Errorf("%s", MaskURL(err.Error(), url))
 	}
@@ -2136,7 +2137,7 @@ func (s *Service) DetectHeaders(ctx context.Context, rawUrl string, userHeaders 
 		hdrs := mergeHeaders(userHeaders, prof.Headers)
 		fetchOpts := s.fetchOpts
 		fetchOpts.Timeout = 5 * time.Second
-		body, ct, err := FetchWithContext(ctx, fetchURL, hdrs, fetchOpts)
+		body, ct, err := s.fetchWithContext(ctx, fetchURL, hdrs, fetchOpts)
 		if err != nil {
 			continue
 		}

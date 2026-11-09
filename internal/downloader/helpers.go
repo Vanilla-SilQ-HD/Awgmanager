@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -25,10 +26,14 @@ type Request struct {
 	MaxBodyBytes  int64
 	RouteOverride *Route
 	AllowedStatus []int
+	// DirectPublicClient makes ReadAll preserve the strict direct behavior of
+	// user-supplied URL fetchers: ignore environment proxies and re-check the
+	// dialed IP. It has no effect on AWG-bound or sing-box proxy routes.
+	DirectPublicClient bool
 	// RedirectGuard проверяет адрес каждого хопа редиректа (см.
 	// httpclient.RedirectPolicy). Нужен там, где URL вводит пользователь:
-	// dial-стража у загрузчика нет (в прокси-режиме он слеп), а проверка URL
-	// хопа от режима не зависит.
+	// в proxy-режиме dial-стража видит только локальный прокси, а проверка
+	// URL хопа от режима не зависит.
 	RedirectGuard func(string) error
 	// UserAgent называет нас хосту. Заполняется ТОЛЬКО для наших адресов
 	// (сервер обновлений, зеркала бинарей): загрузчик общий, и через него
@@ -65,6 +70,20 @@ type FileResult struct {
 	Route RouteInfo
 }
 
+func applyDirectPublicClient(client *http.Client) {
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		return
+	}
+	strict := transport.Clone()
+	strict.Proxy = nil
+	strict.DialContext = (&net.Dialer{
+		Timeout: 10 * time.Second,
+		Control: httpclient.BlockInternalDial,
+	}).DialContext
+	client.Transport = strict
+}
+
 func (s *Service) ReadAll(ctx context.Context, req Request) ([]byte, ResponseMeta, error) {
 	if strings.TrimSpace(req.URL) == "" {
 		return nil, ResponseMeta{}, fmt.Errorf("download URL is required")
@@ -79,6 +98,9 @@ func (s *Service) ReadAll(ctx context.Context, req Request) ([]byte, ResponseMet
 	}
 	defer lease.Close()
 	meta := ResponseMeta{Route: lease.Route}
+	if req.DirectPublicClient && lease.Route.Tag == "direct" {
+		applyDirectPublicClient(lease.Client)
+	}
 	if req.RedirectGuard != nil {
 		// Клиент собран этим ResolveClient и живёт до lease.Close() — правка
 		// политики никого другого не задевает.

@@ -7,7 +7,9 @@ import (
 	"github.com/hoaxisr/awg-manager/internal/dnsroute"
 	"github.com/hoaxisr/awg-manager/internal/downloader"
 	"github.com/hoaxisr/awg-manager/internal/singbox/installer"
+	"github.com/hoaxisr/awg-manager/internal/singbox/subscription"
 	"github.com/hoaxisr/awg-manager/internal/sys/appver"
+	"github.com/hoaxisr/awg-manager/internal/sys/httpclient"
 )
 
 type installerDownloaderAdapter struct {
@@ -16,6 +18,32 @@ type installerDownloaderAdapter struct {
 
 type dnsRouteDownloaderAdapter struct {
 	svc *downloader.Service
+}
+
+type singboxSubscriptionDownloaderAdapter struct {
+	svc *downloader.Service
+}
+
+func (a *singboxSubscriptionDownloaderAdapter) ReadAll(ctx context.Context, req subscription.Request) ([]byte, string, error) {
+	if a == nil || a.svc == nil {
+		return nil, "", fmt.Errorf("downloader service is not configured")
+	}
+	body, meta, err := a.svc.ReadAll(ctx, downloader.Request{
+		Purpose:            "singbox-subscription",
+		Method:             req.Method,
+		URL:                req.URL,
+		Headers:            req.Headers,
+		Timeout:            req.Timeout,
+		MaxBodyBytes:       req.MaxBodyBytes,
+		UserAgent:          req.UserAgent,
+		AllowedStatus:      req.AllowedStatus,
+		RedirectGuard:      httpclient.ValidatePublicURL,
+		DirectPublicClient: true,
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	return body, meta.ContentType, nil
 }
 
 func (a *dnsRouteDownloaderAdapter) ReadAll(
